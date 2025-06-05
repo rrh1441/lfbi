@@ -1,0 +1,273 @@
+id: supabase-unauthenticated-access
+
+info:
+  name: Supabase Unauthenticated Access
+  author: dealbrief-scanner
+  severity: high
+  description: Detects unauthenticated access to Supabase endpoints
+  tags: supabase,database,unauth
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/rest/v1/"
+      - "{{BaseURL}}/auth/v1/"
+      - "{{BaseURL}}/storage/v1/"
+
+    matchers-condition: and
+    matchers:
+      - type: word
+        words:
+          - "supabase"
+          - "postgrest"
+        condition: or
+      - type: status
+        status:
+          - 200
+          - 401
+
+---
+
+id: neon-database-exposure
+
+info:
+  name: Neon Database Connection Exposure
+  author: dealbrief-scanner
+  severity: critical
+  description: Detects exposed Neon database connection strings
+  tags: neon,database,exposure
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.env"
+      - "{{BaseURL}}/config.json"
+      - "{{BaseURL}}/config.js"
+
+    matchers:
+      - type: regex
+        regex:
+          - "postgresql://.*@.*\\.neon\\.tech/.*"
+          - "DATABASE_URL.*neon\\.tech"
+
+---
+
+id: s3-bucket-misconfiguration
+
+info:
+  name: S3 Bucket Misconfiguration
+  author: dealbrief-scanner
+  severity: high
+  description: Detects S3 bucket misconfigurations
+  tags: s3,aws,bucket,misconfiguration
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+    matchers:
+      - type: word
+        words:
+          - "ListBucketResult"
+          - "Key"
+          - "LastModified"
+        condition: and
+
+---
+
+id: gcs-bucket-exposure
+
+info:
+  name: Google Cloud Storage Bucket Exposure
+  author: dealbrief-scanner
+  severity: high
+  description: Detects exposed GCS buckets
+  tags: gcs,google,bucket,exposure
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+    matchers:
+      - type: word
+        words:
+          - "storage.googleapis.com"
+          - "ListBucketResult"
+        condition: and
+
+---
+
+id: subdomain-takeover-generic
+
+info:
+  name: Generic Subdomain Takeover
+  author: dealbrief-scanner
+  severity: high
+  description: Detects various subdomain takeover vulnerabilities
+  tags: takeover,subdomain
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+    matchers:
+      - type: word
+        words:
+          - "The specified bucket does not exist"
+          - "Repository not found"
+          - "404 - File or directory not found"
+          - "No such app"
+          - "Project not found"
+        condition: or
+
+---
+
+id: exposed-admin-panels
+
+info:
+  name: Exposed Admin Panels
+  author: dealbrief-scanner
+  severity: medium
+  description: Detects commonly exposed admin panels
+  tags: admin,panel,exposure
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/admin"
+      - "{{BaseURL}}/administrator"
+      - "{{BaseURL}}/wp-admin"
+      - "{{BaseURL}}/phpmyadmin"
+      - "{{BaseURL}}/adminer"
+      - "{{BaseURL}}/admin.php"
+      - "{{BaseURL}}/login"
+      - "{{BaseURL}}/dashboard"
+
+    matchers:
+      - type: word
+        words:
+          - "admin"
+          - "login"
+          - "dashboard"
+          - "authentication"
+        condition: or
+
+---
+
+id: rate-limit-bypass-headers
+
+info:
+  name: Rate Limit Bypass Headers
+  author: dealbrief-scanner
+  severity: medium
+  description: Tests for rate limit bypass using various headers
+  tags: rate-limit,bypass,headers
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/api/"
+    headers:
+      X-Forwarded-For: "127.0.0.1"
+      X-Real-IP: "127.0.0.1"
+      X-Originating-IP: "127.0.0.1"
+      X-Remote-IP: "127.0.0.1"
+      X-Client-IP: "127.0.0.1"
+
+    matchers:
+      - type: status
+        status:
+          - 200
+          - 429
+
+---
+
+id: exposed-env-files
+
+info:
+  name: Exposed Environment Files
+  author: dealbrief-scanner
+  severity: high
+  description: Detects exposed environment configuration files
+  tags: env,config,exposure
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/.env"
+      - "{{BaseURL}}/.env.local"
+      - "{{BaseURL}}/.env.production"
+      - "{{BaseURL}}/.env.development"
+      - "{{BaseURL}}/config.json"
+      - "{{BaseURL}}/config.yaml"
+      - "{{BaseURL}}/config.yml"
+
+    matchers:
+      - type: word
+        words:
+          - "API_KEY"
+          - "SECRET"
+          - "PASSWORD"
+          - "TOKEN"
+          - "DATABASE_URL"
+        condition: or
+
+---
+
+id: graphql-introspection
+
+info:
+  name: GraphQL Introspection Enabled
+  author: dealbrief-scanner
+  severity: medium
+  description: Detects GraphQL endpoints with introspection enabled
+  tags: graphql,introspection
+
+http:
+  - method: POST
+    path:
+      - "{{BaseURL}}/graphql"
+      - "{{BaseURL}}/api/graphql"
+      - "{{BaseURL}}/v1/graphql"
+    
+    body: |
+      {"query": "{ __schema { types { name } } }"}
+    
+    headers:
+      Content-Type: "application/json"
+
+    matchers:
+      - type: word
+        words:
+          - "__schema"
+          - "types"
+        condition: and
+
+---
+
+id: cors-misconfiguration
+
+info:
+  name: CORS Misconfiguration
+  author: dealbrief-scanner
+  severity: medium
+  description: Detects CORS misconfigurations
+  tags: cors,misconfiguration
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+    headers:
+      Origin: "https://evil.com"
+
+    matchers:
+      - type: word
+        part: header
+        words:
+          - "Access-Control-Allow-Origin: *"
+          - "Access-Control-Allow-Origin: https://evil.com"
+        condition: or

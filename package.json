@@ -1,0 +1,40 @@
+{
+  "name": "dealbrief-scanner",
+  "version": "0.2.0",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "tsx watch api/server.ts",
+    "worker": "tsx workers/worker.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/api/server.js",
+    "lint": "eslint \"{api,workers}/**/*.ts\" --max-warnings 0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@supabase/supabase-js": "^2.39.0",
+    "@upstash/redis": "^1.23.0",
+    "aws-sdk": "^2.1500.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.0",
+    "fastify": "^4.26.0",
+    "form-data": "^4.0.0",
+    "nanoid": "^4.0.0",
+    "openai": "^4.28.0",
+    "pdfkit": "^0.17.1",
+    "pg": "^8.11.0",
+    "puppeteer": "^23.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}
