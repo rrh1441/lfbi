@@ -40,6 +40,13 @@ RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.2.9/
 # Install Python packages with system override
 RUN pip3 install --break-system-packages dnstwist
 
+# Install SpiderFoot
+RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
+    cd /opt/spiderfoot && \
+    pip3 install --break-system-packages -r requirements.txt && \
+    ln -s /opt/spiderfoot/sf.py /usr/local/bin/sf && \
+    chmod +x /opt/spiderfoot/sf.py
+
 # Install testssl.sh
 RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.sh && \
     ln -s /opt/testssl.sh/testssl.sh /usr/local/bin/testssl.sh

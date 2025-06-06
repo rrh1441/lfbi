@@ -8,27 +8,24 @@ import { log } from '../core/logger.js';
 
 const SERPER_URL = 'https://google.serper.dev/search';
 
-// Load dork templates
+// Load dork templates - now using optimized version
 const DORKS = await fs.readFile(
-  new URL('../templates/dorks.txt', import.meta.url),
+  new URL('../templates/dorks-optimized.txt', import.meta.url),
   'utf8'
 )
   .then((t) =>
     t
       .split('\n')
       .map((l) => l.trim())
-      .filter(Boolean)
+      .filter(l => l && !l.startsWith('#')) // Skip empty lines and comments
   )
   .catch(() => [
-    // Fallback dorks if file not found
-    'site:DOMAIN filetype:pdf',
-    'site:DOMAIN filetype:xlsx',
-    'site:DOMAIN filetype:csv',
-    'COMPANY_NAME filetype:pdf',
-    'COMPANY_NAME "confidential" filetype:pdf',
-    'COMPANY_NAME "internal" filetype:pdf',
-    'COMPANY_NAME filetype:sql',
-    'COMPANY_NAME filetype:log'
+    // Fallback consolidated dorks if file not found
+    'site:DOMAIN (filetype:pdf OR filetype:xlsx OR filetype:csv OR filetype:doc OR filetype:docx)',
+    'COMPANY_NAME (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)',
+    'COMPANY_NAME ("confidential" OR "internal" OR "private") filetype:pdf',
+    'COMPANY_NAME ("database" OR "backup" OR "dump") filetype:sql',
+    'COMPANY_NAME ("config" OR "password" OR "credentials" OR "secret") filetype:txt'
   ]);
 
 /** Download URL to tmp file; returns [sha256, mime, localPath] */
@@ -129,7 +126,7 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
       
       const { data } = await axios.post(
         SERPER_URL,
-        { q: query, num: 10, gl: 'us', hl: 'en' },
+        { q: query, num: 10, gl: 'us', hl: 'en' }, // Increased to 10 results per query since we have fewer queries
         { headers }
       );
       

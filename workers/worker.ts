@@ -106,16 +106,48 @@ async function processScan(job: ScanJob): Promise<void> {
     
     // 2a. Comprehensive Shodan scanning against all discovered targets
     log(`Running Shodan scan for ${domain} and all discovered targets`);
+    console.log('[worker] 🔍 SHODAN SCAN STARTING');
+    console.log('[worker] Domain:', domain);
+    console.log('[worker] Company:', companyName);
+    console.log('[worker] Scan ID:', scanId);
+    
     const apiKey = process.env.SHODAN_API_KEY;
     if (!apiKey) {
+      console.error('[worker] ❌ CRITICAL: SHODAN_API_KEY not configured');
       throw new Error('SHODAN_API_KEY not configured - cannot run real scans');
     }
     
     try {
+      console.log('[worker] ✅ Shodan API key verified, initiating scan...');
+      const startTime = Date.now();
+      
       const shodanFindings = await runShodanScan(domain, scanId, companyName);
+      
+      const duration = Date.now() - startTime;
       totalFindings += shodanFindings;
+      
+      console.log('[worker] ✅ SHODAN SCAN COMPLETED');
+      console.log('[worker] Duration:', duration, 'ms');
+      console.log('[worker] Findings:', shodanFindings);
       log(`Shodan infrastructure scan completed: ${shodanFindings} services found`);
+      
+      // Create artifact to confirm Shodan ran
+      await insertArtifact({
+        type: 'module_execution',
+        val_text: `Shodan scan executed successfully`,
+        severity: 'INFO',
+        meta: {
+          scan_id: scanId,
+          module: 'shodan',
+          findings: shodanFindings,
+          duration_ms: duration,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch (error) {
+      console.error('[worker] ❌ SHODAN SCAN FAILED');
+      console.error('[worker] Error:', (error as Error).message);
+      console.error('[worker] Stack:', (error as Error).stack);
       log(`Shodan scan failed:`, (error as Error).message);
       throw new Error(`Real Shodan scan failed: ${(error as Error).message}`);
     }

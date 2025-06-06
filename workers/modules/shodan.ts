@@ -39,11 +39,28 @@ interface ShodanResponse {
 export async function runShodanScan(domain: string, scanId: string, companyName: string): Promise<number> {
   const apiKey = process.env.SHODAN_API_KEY;
   if (!apiKey) {
-    console.log('[shodan] API key not found, skipping scan');
+    console.error('[shodan] ❌ CRITICAL: API key not found in environment variables');
+    console.error('[shodan] Please ensure SHODAN_API_KEY is set in your environment');
+    
+    // Create error artifact for visibility
+    await insertArtifact({
+      type: 'scan_error',
+      val_text: 'Shodan scan skipped - API key not configured',
+      severity: 'HIGH',
+      meta: {
+        scan_id: scanId,
+        company: companyName,
+        scan_module: 'shodan',
+        error_type: 'missing_api_key',
+        timestamp: new Date().toISOString()
+      }
+    });
     return 0;
   }
 
-  console.log(`[shodan] Starting comprehensive scan for ${domain} and discovered targets`);
+  console.log(`[shodan] ✅ API key found, starting comprehensive scan for ${domain}`);
+  console.log(`[shodan] Company: ${companyName}, Scan ID: ${scanId}`);
+  console.log(`[shodan] Timestamp: ${new Date().toISOString()}`);
   
   try {
     let totalFindings = 0;
@@ -59,6 +76,9 @@ export async function runShodanScan(domain: string, scanId: string, companyName:
       const searchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=hostname:${target}`;
       
       try {
+        console.log(`[shodan] 🔍 Querying Shodan API for: ${target}`);
+        const startTime = Date.now();
+        
         const response = await axios.get<ShodanResponse>(searchUrl, {
           timeout: 30000,
           headers: {
@@ -66,14 +86,34 @@ export async function runShodanScan(domain: string, scanId: string, companyName:
           }
         });
 
-        console.log(`[shodan] Found ${response.data.matches.length} results for ${target}`);
+        const queryTime = Date.now() - startTime;
+        console.log(`[shodan] ✅ Query completed in ${queryTime}ms`);
+        console.log(`[shodan] 📊 Results: ${response.data.matches.length} matches found for ${target}`);
+        console.log(`[shodan] Total available results: ${response.data.total}`);
         totalFindings += await processShodanResults(response.data.matches, scanId, companyName, target);
         
         // Rate limiting - wait between requests
         await new Promise(resolve => setTimeout(resolve, 1000));
         
       } catch (error) {
-        console.log(`[shodan] Search failed for ${target}:`, (error as Error).message);
+        const err = error as any;
+        console.error(`[shodan] ❌ Search failed for ${target}`);
+        console.error(`[shodan] Error type: ${err.code || 'Unknown'}`);
+        console.error(`[shodan] Error message: ${err.message}`);
+        
+        if (err.response) {
+          console.error(`[shodan] Response status: ${err.response.status}`);
+          console.error(`[shodan] Response data: ${JSON.stringify(err.response.data)}`);
+          
+          // Check for common API errors
+          if (err.response.status === 401) {
+            console.error('[shodan] ⚠️  401 Unauthorized - Check API key validity');
+          } else if (err.response.status === 403) {
+            console.error('[shodan] ⚠️  403 Forbidden - Check API permissions or rate limits');
+          } else if (err.response.status === 429) {
+            console.error('[shodan] ⚠️  429 Rate Limited - Too many requests');
+          }
+        }
       }
     }
 
@@ -82,11 +122,31 @@ export async function runShodanScan(domain: string, scanId: string, companyName:
       totalFindings += await searchByOrganization(companyName, scanId, apiKey);
     }
 
-    console.log(`[shodan] Completed comprehensive scan, found ${totalFindings} total findings`);
+    console.log(`[shodan] ✅ Scan completed successfully`);
+    console.log(`[shodan] 📊 Summary: ${totalFindings} total findings across ${allTargets.length} targets`);
+    console.log(`[shodan] Timestamp: ${new Date().toISOString()}`);
+    
+    // Create success artifact for tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `Shodan scan completed: ${totalFindings} findings`,
+      severity: 'INFO',
+      meta: {
+        scan_id: scanId,
+        company: companyName,
+        scan_module: 'shodan',
+        total_findings: totalFindings,
+        targets_scanned: allTargets.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return totalFindings;
 
   } catch (error) {
-    console.error('[shodan] Scan failed:', (error as Error).message);
+    console.error('[shodan] ❌ CRITICAL: Scan failed with unexpected error');
+    console.error('[shodan] Error:', (error as Error).message);
+    console.error('[shodan] Stack:', (error as Error).stack);
     
     // Create error artifact
     await insertArtifact({
@@ -106,6 +166,8 @@ export async function runShodanScan(domain: string, scanId: string, companyName:
 }
 
 async function getDiscoveredTargets(scanId: string): Promise<string[]> {
+  console.log('[shodan] 🔍 Querying database for discovered targets...');
+  
   try {
     // Get subdomains discovered by SpiderFoot
     const subdomainQuery = `
@@ -120,11 +182,16 @@ async function getDiscoveredTargets(scanId: string): Promise<string[]> {
     const result = await pool.query(subdomainQuery, [scanId]);
     const targets = result.rows.map(row => row.val_text.trim());
     
-    console.log(`[shodan] Found ${targets.length} discovered targets from SpiderFoot`);
+    console.log(`[shodan] ✅ Found ${targets.length} discovered targets from previous scans`);
+    if (targets.length > 0) {
+      console.log(`[shodan] Sample targets: ${targets.slice(0, 3).join(', ')}${targets.length > 3 ? '...' : ''}`);
+    }
     return targets;
     
   } catch (error) {
-    console.log('[shodan] Failed to get discovered targets:', (error as Error).message);
+    console.error('[shodan] ❌ Failed to get discovered targets from database');
+    console.error('[shodan] Error:', (error as Error).message);
+    console.log('[shodan] ℹ️  Continuing with primary domain only');
     return [];
   }
 }

@@ -24,7 +24,7 @@ const SALESFORCE_PATTERNS = [
   '*.lightning.force.com'
 ];
 
-// Generate CRM-specific dork queries
+// Generate CRM-specific dork queries - optimized to reduce API calls
 function generateCrmDorks(companyName: string, domain: string): string[] {
   const targetName = `"${companyName}"`;
   const targetDomain = `"${domain}"`;
@@ -33,20 +33,18 @@ function generateCrmDorks(companyName: string, domain: string): string[] {
 
   const dorks: string[] = [];
 
-  // HubSpot dorks
-  for (const pattern of HUBSPOT_PATTERNS) {
-    if (pattern.includes('hs-sites.com')) {
-      dorks.push(`site:${pattern} ${target} ${extensions}`);
-    } else {
-      dorks.push(`site:${pattern} inurl:/hubfs ${target} ${extensions}`);
-    }
-  }
+  // Consolidated HubSpot query - all CDN patterns in one query
+  const hubspotSites = HUBSPOT_PATTERNS.map(p => `site:${p}`).join(' OR ');
+  dorks.push(`(${hubspotSites}) ${target} ${extensions}`);
+  
+  // Specific HubSpot /hubfs query for better results
+  dorks.push(`site:*.hubspotusercontent*.net inurl:/hubfs ${target}`);
 
-  // Salesforce dorks
-  dorks.push(`site:*.my.salesforce.com inurl:"/servlet/servlet.FileDownload?file=" ${target}`);
-  dorks.push(`site:*.content.force.com inurl:"/sfc/servlet.shepherd/document" ${target}`);
-  dorks.push(`site:*.visualforce.com ${target} ${extensions}`);
-  dorks.push(`site:*.lightning.force.com ${target} ${extensions}`);
+  // Consolidated Salesforce query - all patterns in one
+  dorks.push(`(site:*.my.salesforce.com OR site:*.content.force.com OR site:*.visualforce.com OR site:*.lightning.force.com) ${target} ${extensions}`);
+  
+  // Specific Salesforce file download endpoints
+  dorks.push(`(site:*.my.salesforce.com inurl:"/servlet/servlet.FileDownload" OR site:*.content.force.com inurl:"/sfc/servlet.shepherd/document") ${target}`);
 
   return dorks;
 }
@@ -234,7 +232,7 @@ export async function runCrmExposure(job: { companyName: string; domain: string;
       
       const { data } = await axios.post(
         SERPER_URL,
-        { q: query, num: 25, gl: 'us', hl: 'en' },
+        { q: query, num: 20, gl: 'us', hl: 'en' }, // Increased to 20 results per query since we have fewer queries
         { headers }
       );
 
