@@ -52,6 +52,7 @@ export async function runZapRateIp(job) {
                 severity: 'MEDIUM',
                 src_url: `https://${job.domain}`,
                 meta: {
+                    scan_id: job.scanId,
                     tool: 'zap-rate-ip',
                     bypassed_headers: bypassedHeaders.map(h => h.header),
                     test_results: results
@@ -64,6 +65,7 @@ export async function runZapRateIp(job) {
                 val_text: `IP rate limiting properly configured for ${job.domain}`,
                 severity: 'INFO',
                 meta: {
+                    scan_id: job.scanId,
                     tool: 'zap-rate-ip',
                     test_results: results
                 }
@@ -77,7 +79,10 @@ export async function runZapRateIp(job) {
             type: 'rate_limit_ip',
             val_text: `IP rate limit test failed for ${job.domain}`,
             severity: 'INFO',
-            meta: { error: err.message }
+            meta: {
+                scan_id: job.scanId,
+                error: err.message
+            }
         });
     }
 }

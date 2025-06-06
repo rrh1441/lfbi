@@ -48,7 +48,7 @@ async function testRateLimitBypass(domain: string) {
   return results;
 }
 
-export async function runZapRateIp(job: { domain: string }) {
+export async function runZapRateIp(job: { domain: string; scanId: string }) {
   log('[zap-rate-ip] Starting IP rate limit bypass test for', job.domain);
   
   try {
@@ -64,6 +64,7 @@ export async function runZapRateIp(job: { domain: string }) {
         severity: 'MEDIUM',
         src_url: `https://${job.domain}`,
         meta: {
+          scan_id: job.scanId,
           tool: 'zap-rate-ip',
           bypassed_headers: bypassedHeaders.map(h => h.header),
           test_results: results
@@ -75,6 +76,7 @@ export async function runZapRateIp(job: { domain: string }) {
         val_text: `IP rate limiting properly configured for ${job.domain}`,
         severity: 'INFO',
         meta: {
+          scan_id: job.scanId,
           tool: 'zap-rate-ip',
           test_results: results
         }
@@ -88,7 +90,10 @@ export async function runZapRateIp(job: { domain: string }) {
       type: 'rate_limit_ip',
       val_text: `IP rate limit test failed for ${job.domain}`,
       severity: 'INFO',
-      meta: { error: (err as Error).message }
+      meta: { 
+        scan_id: job.scanId,
+        error: (err as Error).message 
+      }
     });
   }
 } 

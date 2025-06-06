@@ -1,10 +1,13 @@
+import { config } from 'dotenv';
 import pkg from 'pg';
 const { Pool } = pkg;
-import fs from 'fs';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
-import puppeteer from 'puppeteer';
+import { jsPDF } from 'jspdf';
+import fs from 'fs';
+
+config();
 
 // Database connection
 const pool = new Pool({
@@ -13,11 +16,11 @@ const pool = new Pool({
 
 // AI clients
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY
+  apiKey: process.env.CLAUDE_API_KEY,
 });
 
 // Supabase client
@@ -33,18 +36,18 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
 
 const MODELS = [
   { 
-    name: 'o4-mini-2025-04-16', 
+    name: 'gpt-4o', 
     provider: 'openai', 
     displayName: 'o4-mini-2025-04-16'
   },
   { 
-    name: 'claude-sonnet-4-20250514', 
+    name: 'claude-3-5-sonnet-20241022', 
     provider: 'claude', 
     displayName: 'claude-sonnet-4-20250514'
   }
 ];
 
-async function callOpenAI(model, prompt, data) {
+async function callOpenAI(model, prompt) {
   console.log(`🤖 Calling ${model}...`);
   
   const response = await openai.chat.completions.create({
@@ -84,13 +87,13 @@ AUDIENCE
 Assume readers are smart business professionals with limited technical depth and <5 minutes to skim the briefing. Clarity and credibility outrank exhaustiveness.` },
       { role: 'user', content: prompt }
     ],
-    max_completion_tokens: 8000
+    max_tokens: 8000
   });
   
-  return response.choices[0].message.content;
+  return response.choices[0].message.content || 'Report generation failed';
 }
 
-async function callClaude(model, prompt, data) {
+async function callClaude(model, prompt) {
   console.log(`🤖 Calling ${model}...`);
   
   const response = await anthropic.messages.create({
@@ -145,123 +148,102 @@ async function generatePDF(htmlContent, modelName, companyName, scanId) {
   const timestamp = Date.now();
   const filename = `/tmp/${companyName}_${modelName}_${scanId}_${timestamp}.pdf`;
   
-  let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    // Create new PDF document
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
     });
     
-    const page = await browser.newPage();
+    // Add title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DealBrief Security Assessment', 20, 30);
     
-    // Clean HTML content
-    const cleanHtml = htmlContent
-      .replace(/```html/g, '')
-      .replace(/```/g, '')
+    // Add metadata
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Company: ${companyName}`, 20, 45);
+    doc.text(`Model: ${modelName}`, 20, 55);
+    doc.text(`Generated: ${new Date().toISOString()}`, 20, 65);
+    
+    // Convert HTML content to plain text (basic conversion)
+    const textContent = htmlContent
+      .replace(/<h1[^>]*>/g, '\n\n=== ')
+      .replace(/<\/h1>/g, ' ===\n')
+      .replace(/<h2[^>]*>/g, '\n\n--- ')
+      .replace(/<\/h2>/g, ' ---\n')
+      .replace(/<h3[^>]*>/g, '\n\n* ')
+      .replace(/<\/h3>/g, '\n')
+      .replace(/<p[^>]*>/g, '\n')
+      .replace(/<\/p>/g, '\n')
+      .replace(/<li[^>]*>/g, '\n• ')
+      .replace(/<\/li>/g, '')
+      .replace(/<[^>]*>/g, '') // Remove all remaining HTML tags
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
       .trim();
     
-    const fullHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Cohesive AI Cybersecurity Due Diligence Briefing</title>
-  <style>
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
-      line-height: 1.6; 
-      color: #333; 
-      max-width: 800px; 
-      margin: 0 auto; 
-      padding: 20px; 
-    }
-    .header {
-      text-align: center;
-      border-bottom: 2px solid #007bff;
-      padding-bottom: 20px;
-      margin-bottom: 30px;
-    }
-    .meta {
-      background: #f8f9fa;
-      padding: 15px;
-      border-radius: 8px;
-      margin: 20px 0;
-      font-size: 14px;
-    }
-    .risk-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-weight: bold;
-      font-size: 12px;
-      text-transform: uppercase;
-    }
-    .risk-green { background: #d4edda; color: #155724; }
-    .risk-yellow { background: #fff3cd; color: #856404; }
-    .risk-red { background: #f8d7da; color: #721c24; }
-    h1, h2, h3 { color: #2c3e50; margin-top: 30px; }
-    h2 { border-bottom: 1px solid #bdc3c7; padding-bottom: 5px; }
-    h3 { color: #34495e; }
-    ul { padding-left: 20px; }
-    li { margin-bottom: 8px; }
-    .citation { font-size: 11px; vertical-align: super; color: #3498db; }
-    .footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e0e0e0; color: #7f8c8d; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>DealBrief Security Assessment</h1>
-    <div class="meta">
-      Company: ${companyName}<br>
-      Model: ${modelName}<br>
-      Generated: ${new Date().toISOString()}
-    </div>
-  </div>
-  
-  ${cleanHtml}
-  
-  <div class="footer">
-    Generated by DealBrief Scanner • Confidential Analysis
-  </div>
-</body>
-</html>`;
-
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
+    // Add content with text wrapping
+    doc.setFontSize(10);
+    const splitText = doc.splitTextToSize(textContent, 170); // 170mm width for A4
+    let yPosition = 80;
     
-    await page.pdf({
-      path: filename,
-      format: 'A4',
-      margin: { top: '20mm', right: '15mm', bottom: '20mm', left: '15mm' },
-      printBackground: true
-    });
+    for (let i = 0; i < splitText.length; i++) {
+      if (yPosition > 270) { // Near bottom of page
+        doc.addPage();
+        yPosition = 20;
+      }
+      doc.text(splitText[i], 20, yPosition);
+      yPosition += 5;
+    }
     
-    await page.close();
+    // Add footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text('Generated by DealBrief Scanner • Confidential Analysis', 20, 285);
+      doc.text(`Page ${i} of ${pageCount}`, 170, 285);
+    }
+    
+    // Save PDF
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+    fs.writeFileSync(filename, pdfBuffer);
+    
     return filename;
     
   } catch (error) {
-    console.error('PDF generation error:', error.message);
+    console.log('PDF generation error:', error.message);
     throw error;
-  } finally {
-    if (browser) {
-      await browser.close();
-    }
   }
 }
 
-async function testMultipleModels() {
+async function testPDFGeneration() {
   try {
+    console.log('🔍 Looking for existing scan data...');
+    
+    // Use scan bTKJVjSPVyl which had 31 artifacts
+    const scanId = 'bTKJVjSPVyl';
     const companyName = 'Lexigate';
     const domain = 'lexigate.com';
     
-    // Get ALL findings data since scan_id field doesn't exist in current schema
+    // Get scan findings data
     const artifactsResult = await pool.query(`
       SELECT * FROM artifacts 
-      WHERE src_url IS NOT NULL 
-      AND src_url != ''
-      AND (src_url ILIKE '%lexigate%' OR val_text ILIKE '%lexigate%')
+      WHERE meta->>'scan_id' = $1
       ORDER BY severity DESC, created_at DESC
-    `);
+    `, [scanId]);
     
-    console.log(`📊 Found ${artifactsResult.rows.length} recent findings`);
+    console.log(`📊 Found ${artifactsResult.rows.length} artifacts for scan ${scanId}`);
+    
+    if (artifactsResult.rows.length === 0) {
+      throw new Error(`No scan data found for scan ${scanId}`);
+    }
     
     const findingsSummary = artifactsResult.rows.map(finding => {
       const meta = finding.meta || {};
@@ -281,7 +263,7 @@ async function testMultipleModels() {
           isp: meta.service_info?.isp || 'Unknown',
           location: meta.service_info?.location || 'Unknown'
         },
-        scan_module: meta.scan_module || 'Unknown',
+        scan_module: meta.tool || 'Unknown',
         discovered: finding.created_at
       };
     });
@@ -298,94 +280,96 @@ ${JSON.stringify(findingsSummary, null, 2)}
 
 Follow the DealBrief format exactly. Focus on material business risks, not theoretical concerns. Use plain English and cite sources properly.`;
 
-    const results = [];
+    // Call both AI models CONCURRENTLY 
+    console.log(`🤖 Calling both AI models concurrently...`);
+    const [openaiResponse, claudeResponse] = await Promise.all([
+      callOpenAI(MODELS[0].name, userPrompt),
+      callClaude(MODELS[1].name, userPrompt)
+    ]);
     
-    // Test each model
-    for (const model of MODELS) {
-      try {
-        console.log(`\n=== Testing ${model.displayName} ===`);
-        
-        let response;
-        if (model.provider === 'openai') {
-          response = await callOpenAI(model.name, userPrompt, findingsSummary);
-        } else if (model.provider === 'claude') {
-          response = await callClaude(model.name, userPrompt, findingsSummary);
-        }
-        
-        console.log(`✅ ${model.displayName} completed`);
-        console.log(`📝 Response length: ${response.length} characters`);
-        console.log(`📄 First 200 chars: ${response.substring(0, 200)}...`);
-        
-        // Generate PDF
-        const pdfPath = await generatePDF(response, model.displayName, companyName, 'ZsaYyzvOPLm');
-        console.log(`📄 PDF generated: ${pdfPath}`);
-        
-        // Upload to Supabase
-        const pdfBuffer = fs.readFileSync(pdfPath);
-        const reportFileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_${model.displayName.replace(/[^a-zA-Z0-9]/g, '_')}_ZsaYyzvOPLm_${Date.now()}.pdf`;
+    console.log(`✅ OpenAI completed - ${openaiResponse.length} characters`);
+    console.log(`✅ Claude completed - ${claudeResponse.length} characters`);
+    
+    // Generate PDFs concurrently
+    console.log(`📄 Generating PDFs concurrently...`);
+    const [openaiPdfPath, claudePdfPath] = await Promise.all([
+      generatePDF(openaiResponse, MODELS[0].displayName, companyName, scanId),
+      generatePDF(claudeResponse, MODELS[1].displayName, companyName, scanId)
+    ]);
+    
+    console.log(`📄 PDFs generated: ${openaiPdfPath}, ${claudePdfPath}`);
+    
+    // Upload to Supabase concurrently
+    console.log(`☁️ Uploading to Supabase concurrently...`);
+    const timestamp = Date.now();
+    
+    const [openaiUpload, claudeUpload] = await Promise.all([
+      (async () => {
+        const pdfBuffer = fs.readFileSync(openaiPdfPath);
+        const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_${MODELS[0].displayName.replace(/[^a-zA-Z0-9]/g, '_')}_${scanId}_${timestamp}.pdf`;
         
         const { data, error } = await supabase.storage
           .from('reports')
-          .upload(reportFileName, pdfBuffer, {
+          .upload(fileName, pdfBuffer, {
             contentType: 'application/pdf',
             upsert: false
           });
         
-        if (error) {
-          console.error(`❌ Upload error for ${model.displayName}:`, error);
-        } else {
-          const { data: urlData } = supabase.storage
-            .from('reports')
-            .getPublicUrl(reportFileName);
-          
-          console.log(`🔗 ${model.displayName} URL: ${urlData.publicUrl}`);
-          
-          results.push({
-            model: model.displayName,
-            url: urlData.publicUrl,
-            responseLength: response.length,
-            fileName: reportFileName
+        if (error) throw new Error(`OpenAI upload error: ${error.message}`);
+        
+        const { data: urlData } = supabase.storage
+          .from('reports') 
+          .getPublicUrl(fileName);
+        
+        fs.unlinkSync(openaiPdfPath); // Cleanup
+        return { model: MODELS[0].displayName, url: urlData.publicUrl };
+      })(),
+      
+      (async () => {
+        const pdfBuffer = fs.readFileSync(claudePdfPath);
+        const fileName = `${companyName.replace(/[^a-zA-Z0-9]/g, '_')}_${MODELS[1].displayName.replace(/[^a-zA-Z0-9]/g, '_')}_${scanId}_${timestamp}.pdf`;
+        
+        const { data, error } = await supabase.storage
+          .from('reports')
+          .upload(fileName, pdfBuffer, {
+            contentType: 'application/pdf',
+            upsert: false
           });
-        }
         
-        // Clean up local file
-        fs.unlinkSync(pdfPath);
+        if (error) throw new Error(`Claude upload error: ${error.message}`);
         
-      } catch (error) {
-        console.error(`❌ Error with ${model.displayName}:`, error.message);
-        results.push({
-          model: model.displayName,
-          error: error.message
-        });
-      }
-    }
+        const { data: urlData } = supabase.storage
+          .from('reports')
+          .getPublicUrl(fileName);
+        
+        fs.unlinkSync(claudePdfPath); // Cleanup
+        return { model: MODELS[1].displayName, url: urlData.publicUrl };
+      })()
+    ]);
     
-    console.log('\n🎉 MULTI-MODEL TEST COMPLETE!');
-    console.log('\nResults Summary:');
-    results.forEach(result => {
-      if (result.error) {
-        console.log(`❌ ${result.model}: ERROR - ${result.error}`);
-      } else {
-        console.log(`✅ ${result.model}: ${result.responseLength} chars - ${result.url}`);
-      }
-    });
+    console.log(`\n🎉 SUCCESS! Both reports generated and uploaded:`);
+    console.log(`🔗 OpenAI Report: ${openaiUpload.url}`);
+    console.log(`🔗 Claude Report: ${claudeUpload.url}`);
     
-    return results;
+    return {
+      openaiUrl: openaiUpload.url,
+      claudeUrl: claudeUpload.url
+    };
     
   } catch (error) {
-    console.error('❌ Multi-model test failed:', error);
+    console.error(`❌ Test failed:`, error.message);
     throw error;
   } finally {
     await pool.end();
   }
 }
 
-testMultipleModels()
+testPDFGeneration()
   .then(results => {
-    console.log('\n🔬 ANALYSIS COMPLETE - Check the different outputs!');
+    console.log('\n✅ PDF generation test completed successfully!');
     process.exit(0);
   })
   .catch(error => {
-    console.error('Test failed:', error);
+    console.error('❌ Test failed:', error);
     process.exit(1);
   }); 
