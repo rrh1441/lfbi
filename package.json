@@ -1,44 +1,39 @@
 {
-  "name": "dealbrief-scanner",
+  "name": "@dealbrief/monorepo",
   "version": "0.2.0",
-  "type": "module",
+  "description": "DealBrief Security Scanner Monorepo",
   "private": true,
+  "type": "module",
   "engines": {
     "node": ">=20.11"
   },
   "scripts": {
-    "dev": "tsx watch api/server.ts",
-    "worker": "tsx workers/worker.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/api/server.js",
-    "lint": "eslint \"{api,workers}/**/*.ts\" --max-warnings 0"
+    "dev:admin": "pnpm --filter @dealbrief/admin dev",
+    "dev:report": "pnpm --filter @dealbrief/report-generator dev",
+    "dev:api": "pnpm --filter @dealbrief/api-main dev",
+    "dev:worker": "pnpm --filter @dealbrief/workers dev",
+    "build": "pnpm -r build",
+    "build:admin": "pnpm --filter @dealbrief/admin build",
+    "build:report": "pnpm --filter @dealbrief/report-generator build",
+    "build:api": "pnpm --filter @dealbrief/api-main build",
+    "build:worker": "pnpm --filter @dealbrief/workers build",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r exec rm -rf node_modules dist .next .turbo && rm -rf node_modules",
+    "install:all": "pnpm install"
   },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
-    "@fastify/static": "^8.2.0",
-    "@supabase/supabase-js": "^2.50.0",
-    "@upstash/redis": "^1.23.0",
-    "aws-sdk": "^2.1500.0",
-    "axios": "^1.6.0",
-    "dotenv": "^16.0.0",
-    "fastify": "^4.26.0",
-    "form-data": "^4.0.0",
-    "html2canvas": "^1.4.1",
-    "jspdf": "^3.0.1",
-    "nanoid": "^4.0.0",
-    "node-html-parser": "^7.0.1",
-    "openai": "^4.28.0",
-    "pdfkit": "^0.17.1",
-    "pg": "^8.11.0",
-    "puppeteer": "^23.11.1"
-  },
+  "keywords": [
+    "security",
+    "scanner",
+    "osint",
+    "due-diligence"
+  ],
+  "author": "DealBrief Team",
+  "license": "ISC",
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@types/pg": "^8.11.0",
+    "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
     "eslint": "^8.57.0",
-    "tsx": "^4.7.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.7.2"
   }
 }

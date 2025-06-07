@@ -9,8 +9,8 @@ primary_region = 'sea'
 [build]
 
 [processes]
-  app = "npx tsx api/server.ts"
-  worker = "npx tsx workers/worker.ts"
+  app = "npx tsx apps/api-main/server.ts"
+  worker = "npx tsx apps/workers/worker.ts"
 
 [http_service]
   internal_port = 3000

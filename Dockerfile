@@ -70,4 +70,4 @@ RUN nuclei -update-templates
 EXPOSE 3000
 
 # Start the application directly with tsx
-CMD ["npx", "tsx", "api/server.ts"]
+CMD ["npx", "tsx", "apps/api-main/server.ts"]
