@@ -1,11 +1,17 @@
 import { config } from 'dotenv';
 import Fastify from 'fastify';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { UpstashQueue } from '../workers/core/queue.js';
 import { nanoid } from 'nanoid';
 import { generateSecurityReport, generateExecutiveSummary } from './services/reportGenerator.js';
 import { pool } from '../workers/core/artifactStore.js';
 
 config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const fastify = Fastify({ logger: true });
 const queue = new UpstashQueue(process.env.REDIS_URL!);
@@ -14,6 +20,12 @@ function log(...args: any[]) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}]`, ...args);
 }
+
+// Register static file serving for the public directory
+fastify.register(fastifyStatic, {
+  root: path.join(__dirname, '..', 'public'),
+  prefix: '/', // serve files from root
+});
 
 // Health check endpoint
 fastify.get('/health', async (request, reply) => {
