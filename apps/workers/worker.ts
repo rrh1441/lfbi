@@ -16,6 +16,14 @@ import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
 import { pool } from './core/artifactStore.js';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { log } from './core/logger.js';
+import { uploadFile } from './core/objectStore.js';
+import { 
+  calculateFinancialImpact, 
+  generateFinancialJustification, 
+  formatFinancialRange,
+  type CompanyProfile 
+} from './core/riskCalculator.js';
 
 config();
 
@@ -472,6 +480,25 @@ async function generateDualModelReports(scanId: string, companyName: string, dom
       throw new Error(`No scan data found for scan ${scanId}`);
     }
     
+    // Calculate explicit financial impact using our methodology
+    const companyProfile: CompanyProfile = {
+      industry: 'hospitality', // TODO: Auto-detect or make configurable
+      hasCustomerData: true,
+      isPublicCompany: false,
+      regulatoryScope: ['GDPR', 'PCI-DSS'] // TODO: Auto-detect based on findings
+    };
+    
+    const findingsForCalculation = artifactsResult.rows.map(finding => ({
+      type: finding.type,
+      severity: finding.severity,
+      count: 1
+    }));
+    
+    const financialCalculation = calculateFinancialImpact(findingsForCalculation, companyProfile);
+    const financialJustification = generateFinancialJustification(financialCalculation);
+    
+    log(`💰 Financial impact calculated: ${formatFinancialRange(financialCalculation)}`);
+    
     const findingsSummary = artifactsResult.rows.map(finding => {
       const meta = finding.meta || {};
       return {
@@ -504,6 +531,10 @@ DATA SOURCES: Network scanning via Shodan and other OSINT tools
 
 FINDINGS DATA:
 ${JSON.stringify(findingsSummary, null, 2)}
+
+${financialJustification}
+
+**CRITICAL REQUIREMENT:** Use the financial impact calculation above as the basis for all dollar amounts in your report. Do not create new financial estimates. Reference the specific data sources and methodology provided.
 
 Follow the DealBrief format exactly. Focus on material business risks, not theoretical concerns. Use plain English and cite sources properly.`;
 

@@ -63,3 +63,20 @@ COMPANY_NAME site:*.force.com "confidential"
 
 # HubSpot internal documents
 COMPANY_NAME site:*.hubspot*.net "internal use only"
+
+# --- NEW PLATFORMS ---
+
+# Google Drive / Docs
+(site:drive.google.com/file/d/ OR site:docs.google.com/document/d/ OR site:drive.google.com/drive/folders/) COMPANY_NAME ("confidential" OR "internal" OR "proprietary")
+
+# Microsoft SharePoint/OneDrive
+(site:*.sharepoint.com OR site:onedrive.live.com/redir?resid=) COMPANY_NAME (filetype:xlsx OR filetype:docx) ("financial report" OR "confidential" OR "proprietary")
+
+# Box
+site:app.box.com/s/ COMPANY_NAME ("internal documents" OR "sensitive data")
+
+# Dropbox
+site:dropbox.com/s/ COMPANY_NAME ("sensitive data" OR "internal plans")
+
+# --- API DOCUMENTATION ---
+COMPANY_NAME (filetype:yaml OR filetype:json) (intext:"swagger" OR intext:"openapi" OR intext:"API documentation")

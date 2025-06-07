@@ -2,202 +2,144 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import axios from 'axios';
+import pdf from 'pdf-parse';
+import { detect as detectLanguage } from 'langdetect';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { uploadFile } from '../core/objectStore.js';
 import { log } from '../core/logger.js';
 
 const SERPER_URL = 'https://google.serper.dev/search';
+const KNOWN_BREACHED_HASHES = {
+  "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f": "Example Breach 1 (SHA256)",
+};
 
-// Load dork templates - now using optimized version
-const DORKS = await fs.readFile(
-  new URL('../templates/dorks-optimized.txt', import.meta.url),
-  'utf8'
-)
-  .then((t) =>
-    t
-      .split('\n')
-      .map((l) => l.trim())
-      .filter(l => l && !l.startsWith('#')) // Skip empty lines and comments
-  )
-  .catch(() => [
-    // Fallback consolidated dorks if file not found
-    'site:DOMAIN (filetype:pdf OR filetype:xlsx OR filetype:csv OR filetype:doc OR filetype:docx)',
-    'COMPANY_NAME (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)',
-    'COMPANY_NAME ("confidential" OR "internal" OR "private") filetype:pdf',
-    'COMPANY_NAME ("database" OR "backup" OR "dump") filetype:sql',
-    'COMPANY_NAME ("config" OR "password" OR "credentials" OR "secret") filetype:txt'
-  ]);
-
-/** Download URL to tmp file; returns [sha256, mime, localPath] */
-async function download(url: string): Promise<[string, string, string] | null> {
-  try {
-    const res = await axios.get<ArrayBuffer>(url, {
-      responseType: 'arraybuffer',
-      timeout: 15000,
-      maxContentLength: 10 * 1024 * 1024, // 10MB limit
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DealBrief-Scanner/1.0)'
-      }
-    });
-    
-    const buf = Buffer.from(res.data);
-    if (buf.length === 0) return null;
-    
-    const sha = crypto.createHash('sha256').update(buf).digest('hex');
-    const ext = path.extname(url).split('?')[0].replace(/[^a-z0-9.]/gi, '');
-    const tmp = `/tmp/file_${sha}${ext}`;
-    await fs.writeFile(tmp, buf);
-    
-    return [sha, res.headers['content-type'] ?? 'application/octet-stream', tmp];
-  } catch (error) {
-    log('[fileHunt] Download failed:', url, (error as Error).message);
-    return null;
-  }
+async function getDorks(): Promise<Map<string, string[]>> {
+    const dorks = new Map<string, string[]>();
+    try {
+        const dorksTemplate = await fs.readFile(new URL('../templates/dorks-optimized.txt', import.meta.url), 'utf8');
+        let currentCategory = 'default';
+        for (const line of dorksTemplate.split('\n')) {
+            const trimmedLine = line.trim();
+            if (trimmedLine.startsWith('# ---')) {
+                currentCategory = trimmedLine.replace('# ---', '').trim();
+            } else if (trimmedLine && !trimmedLine.startsWith('#')) {
+                if (!dorks.has(currentCategory)) dorks.set(currentCategory, []);
+                dorks.get(currentCategory)!.push(trimmedLine);
+            }
+        }
+    } catch (e) {
+        log('[fileHunt] Failed to load dorks from file, using fallback.', (e as Error).message);
+        dorks.set('fallback', ['COMPANY_NAME filetype:pdf']);
+    }
+    return dorks;
 }
 
-function assessSensitivity(filename: string, url: string): { severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; findings: string[] } {
-  const findings: string[] = [];
-  let severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'INFO';
-  
-  const lowerFilename = filename.toLowerCase();
-  const lowerUrl = url.toLowerCase();
-  
-  // High-sensitivity keywords
-  const criticalKeywords = ['password', 'credential', 'secret', 'private', 'confidential'];
-  const highKeywords = ['internal', 'financial', 'budget', 'salary', 'contract', 'agreement'];
-  const mediumKeywords = ['employee', 'staff', 'org-chart', 'organization'];
-  
-  for (const keyword of criticalKeywords) {
-    if (lowerFilename.includes(keyword) || lowerUrl.includes(keyword)) {
-      findings.push(`Critical keyword: ${keyword}`);
-      severity = 'CRITICAL';
+async function download(url: string): Promise<{ buffer: Buffer; mime: string } | null> {
+    try {
+        const res = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 15000, maxContentLength: 10 * 1024 * 1024 });
+        return { buffer: Buffer.from(res.data), mime: res.headers['content-type'] ?? 'application/octet-stream' };
+    } catch (error) {
+        log('[fileHunt] Download failed:', url, (error as Error).message);
+        return null;
     }
-  }
-  
-  if (severity !== 'CRITICAL') {
-    for (const keyword of highKeywords) {
-      if (lowerFilename.includes(keyword) || lowerUrl.includes(keyword)) {
-        findings.push(`High-risk keyword: ${keyword}`);
-        severity = 'HIGH';
-      }
+}
+
+async function assessSensitivity(content: string, filename: string): Promise<{ severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; findings: string[]; snippet: string | null }> {
+    const findings: string[] = [];
+    let score = 0;
+    
+    const keywordWeights = { "API_KEY_SECRET": 30, "password": 25, "confidential": 15, "internal": 10, "budget": 10 };
+    Object.entries(keywordWeights).forEach(([keyword, weight]) => {
+        if (content.toLowerCase().includes(keyword.toLowerCase())) {
+            score += weight;
+            findings.push(`Found keyword: ${keyword}`);
+        }
+    });
+
+    const isFinancialDoc = /Q\d\sFinancials|FY\d{2}\sBudget|Investor\sDeck/i.test(content);
+    if (isFinancialDoc) {
+        score += 20;
+        findings.push("Potential financial report terms found.");
     }
-  }
-  
-  if (severity !== 'CRITICAL' && severity !== 'HIGH') {
-    for (const keyword of mediumKeywords) {
-      if (lowerFilename.includes(keyword) || lowerUrl.includes(keyword)) {
-        findings.push(`Medium-risk keyword: ${keyword}`);
-        severity = 'MEDIUM';
-      }
+    
+    let snippet: string | null = null;
+    if (score > 20) {
+        const match = content.match(new RegExp(`.{0,50}(${Object.keys(keywordWeights).join('|')}).{0,50}`, "i"));
+        snippet = match ? match[0] : null;
     }
-  }
-  
-  // File type assessment
-  const highRiskExts = ['.sql', '.log', '.env', '.config'];
-  const mediumRiskExts = ['.pdf', '.xlsx', '.csv', '.docx'];
-  
-  const ext = path.extname(lowerFilename);
-  if (highRiskExts.includes(ext)) {
-    findings.push(`High-risk file type: ${ext}`);
-    severity = severity === 'INFO' ? 'HIGH' : severity;
-  } else if (mediumRiskExts.includes(ext)) {
-    findings.push(`Medium-risk file type: ${ext}`);
-    severity = severity === 'INFO' ? 'MEDIUM' : severity;
-  }
-  
-  return { severity: severity === 'INFO' ? 'MEDIUM' : severity, findings };
+
+    const severity = score > 40 ? 'CRITICAL' : score > 25 ? 'HIGH' : score > 10 ? 'MEDIUM' : 'LOW';
+    return { severity: findings.length === 0 ? 'INFO' : severity, findings, snippet };
 }
 
 export async function runFileHunt(job: { companyName: string; domain: string; scanId?: string }): Promise<number> {
-  const { companyName, domain, scanId } = job;
-  log('[fileHunt] Starting file hunting for', companyName);
+    const { companyName, domain, scanId } = job;
+    log('[fileHunt] Starting file hunting for', companyName);
+    const headers = { 'X-API-KEY': process.env.SERPER_KEY! };
+    const dorksByCat = await getDorks();
+    let findingsCount = 0;
 
-  const headers = { 'X-API-KEY': process.env.SERPER_KEY! };
-  const seen = new Set<string>();
-  let findingsCount = 0;
+    for (const [category, dorks] of dorksByCat.entries()) {
+        log(`[fileHunt] Running dork category: ${category}`);
+        for (const q of dorks) {
+            const query = q.replace(/COMPANY_NAME/g, `"${companyName}"`).replace(/DOMAIN/g, `"${domain}"`);
+            try {
+                const { data } = await axios.post(SERPER_URL, { q: query }, { headers });
+                for (const hit of data.organic ?? []) {
+                    const downloadResult = await download(hit.link);
+                    if (!downloadResult) continue;
 
-  for (const q of DORKS) {
-    const query = q
-      .replace(/COMPANY_NAME/g, `"${companyName}"`)
-      .replace(/DOMAIN/g, `"${domain}"`);
-      
-    try {
-      log('[fileHunt] Searching:', query);
-      
-      const { data } = await axios.post(
-        SERPER_URL,
-        { q: query, num: 10, gl: 'us', hl: 'en' }, // Increased to 10 results per query since we have fewer queries
-        { headers }
-      );
-      
-      for (const hit of data.organic ?? []) {
-        const url: string = hit.link;
-        if (seen.has(url)) continue;
-        seen.add(url);
+                    const { buffer, mime } = downloadResult;
+                    const hashes = {
+                        md5: crypto.createHash('md5').update(buffer).digest('hex'),
+                        sha1: crypto.createHash('sha1').update(buffer).digest('hex'),
+                        sha256: crypto.createHash('sha256').update(buffer).digest('hex'),
+                    };
+                    
+                    let fileContent = '';
+                    let fileMetadata: any = {};
+                    if (mime.includes('pdf')) {
+                        const pdfData = await pdf(buffer);
+                        fileContent = pdfData.text;
+                        fileMetadata = pdfData.info;
+                    } else {
+                        fileContent = buffer.toString('utf-8');
+                    }
+                    
+                    const langDetection = detectLanguage(fileContent.substring(0, 1000));
+                    const { severity, findings, snippet } = await assessSensitivity(fileContent, hit.link);
+                    const isKnownBreach = !!KNOWN_BREACHED_HASHES[hashes.sha256 as keyof typeof KNOWN_BREACHED_HASHES];
 
-        const isBinary = /\.(pdf|docx?|xlsx?|csv|zip|tgz|sql|log|txt|env|config)$/i.test(url);
-        if (!isBinary) continue;
+                    const artifactId = await insertArtifact({
+                        type: 'file',
+                        val_text: `Exposed file: ${path.basename(hit.link)}`,
+                        severity: isKnownBreach ? 'CRITICAL' : severity,
+                        src_url: hit.link,
+                        meta: {
+                            scan_id: scanId,
+                            scan_module: 'fileHunt',
+                            hashes,
+                            file_metadata: fileMetadata,
+                            language: langDetection.length > 0 ? langDetection[0].lang : 'unknown',
+                            is_known_breach: isKnownBreach,
+                            breach_source: KNOWN_BREACHED_HASHES[hashes.sha256 as keyof typeof KNOWN_BREACHED_HASHES] || null,
+                            sensitive_content_snippet: snippet,
+                            search_query: query
+                        }
+                    });
 
-        const downloadResult = await download(url);
-        if (!downloadResult) continue;
-        
-        const [sha, mime, tmp] = downloadResult;
-        const filename = path.basename(url);
-        const { severity, findings } = assessSensitivity(filename, url);
-        
-        try {
-          // Upload to storage
-          const key = `files/${sha}${path.extname(url).split('?')[0]}`;
-          const storageUrl = await uploadFile(tmp, key, mime);
-          
-          // Create artifact
-          const artifactId = await insertArtifact({
-            type: 'file',
-            val_text: `Exposed file: ${filename}`,
-            severity,
-            src_url: url,
-            sha256: sha,
-            mime,
-            meta: {
-              scan_id: scanId,
-              scan_module: 'fileHunt',
-              filename,
-              file_size: (await fs.stat(tmp)).size,
-              storage_url: storageUrl,
-              sensitivity_findings: findings,
-              search_query: query
+                    if (isKnownBreach || severity === 'HIGH' || severity === 'CRITICAL') {
+                         await insertFinding(artifactId, 'DATA_EXPOSURE', 'Remediate exposure and investigate if data was accessed.', `Sensitive file exposed: ${hit.link}`);
+                    }
+                    findingsCount++;
+                }
+            } catch (searchError) {
+                log('[fileHunt] Search error:', (searchError as Error).message);
             }
-          });
-          
-          // Create finding for sensitive files
-          if (severity === 'HIGH' || severity === 'CRITICAL') {
-            await insertFinding(
-              artifactId,
-              'DATA_EXPOSURE',
-              'Remove or secure exposed files. Implement proper access controls and review file permissions. Consider using authentication for sensitive documents.',
-              `Sensitive file exposed: ${filename}. Found: ${findings.join(', ')}`
-            );
-          }
-          
-          findingsCount++;
-          log('[fileHunt] Found exposed file:', filename, `(${severity})`);
-          
-        } catch (uploadError) {
-          log('[fileHunt] Upload failed for', url, (uploadError as Error).message);
-        } finally {
-          // Cleanup
-          await fs.unlink(tmp).catch(() => {});
+            await new Promise(r => setTimeout(r, 1500)); // Rate limit
         }
-      }
-      
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-    } catch (searchError) {
-      log('[fileHunt] Search error for query:', query, (searchError as Error).message);
     }
-  }
-  
-  log('[fileHunt] File hunting completed for', companyName, '- found', findingsCount, 'exposed files');
-  return findingsCount;
+    
+    log('[fileHunt] File hunting completed for', companyName, '- found', findingsCount, 'exposed files');
+    return findingsCount;
 }

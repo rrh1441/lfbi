@@ -2,111 +2,204 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import axios from 'axios';
+import { fileTypeFromBuffer } from 'file-type';
+import pdf from 'pdf-parse';
+import luhn from 'luhn';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { uploadFile } from '../core/objectStore.js';
 import { log } from '../core/logger.js';
 
 const SERPER_URL = 'https://google.serper.dev/search';
 
-// HubSpot and Salesforce CDN patterns
-const HUBSPOT_PATTERNS = [
-  '*.hubspotusercontent-na1.net',
-  '*.hubspotusercontent-eu1.net', 
-  '*.hubspotusercontent-ap1.net',
-  '*.hs-sites.com',
-  'f.hubspotusercontent*.net'
-];
-
-const SALESFORCE_PATTERNS = [
-  '*.content.force.com',
-  '*.my.salesforce.com',
-  '*.visualforce.com',
-  '*.lightning.force.com'
-];
-
-// Generate CRM-specific dork queries - optimized to reduce API calls
-function generateCrmDorks(companyName: string, domain: string): string[] {
-  const targetName = `"${companyName}"`;
-  const targetDomain = `"${domain}"`;
-  const target = `(${targetName} OR ${targetDomain})`;
-  const extensions = '(ext:pdf OR ext:xlsx OR ext:csv OR ext:docx OR ext:ppt OR ext:zip)';
-
-  const dorks: string[] = [];
-
-  // Consolidated HubSpot query - all CDN patterns in one query
-  const hubspotSites = HUBSPOT_PATTERNS.map(p => `site:${p}`).join(' OR ');
-  dorks.push(`(${hubspotSites}) ${target} ${extensions}`);
-  
-  // Specific HubSpot /hubfs query for better results
-  dorks.push(`site:*.hubspotusercontent*.net inurl:/hubfs ${target}`);
-
-  // Consolidated Salesforce query - all patterns in one
-  dorks.push(`(site:*.my.salesforce.com OR site:*.content.force.com OR site:*.visualforce.com OR site:*.lightning.force.com) ${target} ${extensions}`);
-  
-  // Specific Salesforce file download endpoints
-  dorks.push(`(site:*.my.salesforce.com inurl:"/servlet/servlet.FileDownload" OR site:*.content.force.com inurl:"/sfc/servlet.shepherd/document") ${target}`);
-
-  return dorks;
+// Read dorks from the external file
+async function getDorks(companyName: string, domain: string): Promise<string[]> {
+  try {
+    const dorksTemplate = await fs.readFile(
+      path.resolve(process.cwd(), 'apps/workers/templates/dorks-optimized.txt'),
+      'utf-8'
+    );
+    return dorksTemplate
+      .split('\n')
+      .filter(line => line.trim() && !line.startsWith('#'))
+      .map(line =>
+        line
+          .replace(/COMPANY_NAME/g, `"${companyName}"`)
+          .replace(/DOMAIN/g, domain)
+      );
+  } catch (error) {
+    log('[crmExposure] Error reading dork file, using fallback dorks:', (error as Error).message);
+    // Fallback dorks in case file reading fails
+    return [`site:*.hubspot.com "${companyName}"`, `site:*.salesforce.com "${companyName}"`];
+  }
 }
 
-// Download and analyze file
-async function downloadAndAnalyze(url: string, companyName: string): Promise<{
+// Extended platform detection
+function getPlatform(url: string): string {
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes('hubspot')) return 'HubSpot';
+  if (lowerUrl.includes('salesforce') || lowerUrl.includes('force.com')) return 'Salesforce';
+  if (lowerUrl.includes('drive.google.com') || lowerUrl.includes('docs.google.com')) return 'Google Drive';
+  if (lowerUrl.includes('sharepoint.com')) return 'SharePoint';
+  if (lowerUrl.includes('onedrive.live.com')) return 'OneDrive';
+  if (lowerUrl.includes('app.box.com')) return 'Box';
+  if (lowerUrl.includes('dropbox.com')) return 'Dropbox';
+  return 'Unknown Cloud Storage';
+}
+
+// Verify MIME type using magic numbers
+async function verifyMimeType(buffer: Buffer, reportedMime: string): Promise<{ reported: string; verified: string }> {
+  try {
+    const fileType = await fileTypeFromBuffer(buffer);
+    return {
+      reported: reportedMime,
+      verified: fileType?.mime ?? 'unknown'
+    };
+  } catch (error) {
+    log('[crmExposure] MIME type verification failed:', (error as Error).message);
+    return {
+      reported: reportedMime,
+      verified: 'verification_failed'
+    };
+  }
+}
+
+async function downloadAndAnalyze(url: string, companyName: string, scanId?: string): Promise<{
   sha256: string;
-  mime: string;
+  mimeInfo: { reported: string; verified: string };
   localPath: string;
   sensitivity: number;
   findings: string[];
+  fileMetadata?: Record<string, any>;
 } | null> {
   try {
-    const res = await axios.get<ArrayBuffer>(url, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
-      maxContentLength: 15 * 1024 * 1024, // 15MB limit
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; DealBrief-Scanner/1.0)'
-      }
-    });
-
-    const buf = Buffer.from(res.data);
-    
-    // Skip if too large
-    if (buf.length > 15 * 1024 * 1024) {
-      log('[crmExposure] File too large, skipping:', url);
+    // HEAD request to check file size first
+    const headRes = await axios.head(url, { timeout: 10000 }).catch(() => null);
+    if (headRes && headRes.headers['content-length'] && parseInt(headRes.headers['content-length'], 10) > 15 * 1024 * 1024) {
+      log('[crmExposure] File size > 15MB, skipping download. URL:', url);
+      await insertArtifact({
+        type: 'exposed_large_file',
+        val_text: `Large file found: ${path.basename(url)}, content analysis skipped due to size.`,
+        severity: 'INFO',
+        src_url: url,
+        meta: {
+          scan_id: scanId,
+          scan_module: 'crmExposure',
+          reported_size: headRes.headers['content-length']
+        }
+      });
       return null;
     }
 
+    const res = await axios.get<ArrayBuffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      maxContentLength: 15 * 1024 * 1024
+    });
+
+    const buf = Buffer.from(res.data);
     const sha = crypto.createHash('sha256').update(buf).digest('hex');
     const ext = path.extname(url).split('?')[0].replace(/[^a-z0-9.]/gi, '');
     const tmp = `/tmp/crm_${sha}${ext}`;
     await fs.writeFile(tmp, buf);
 
-    const mime = res.headers['content-type'] ?? 'application/octet-stream';
-    
-    // Analyze content for sensitivity
-    const textContent = buf.toString('utf8', 0, Math.min(buf.length, 50000)); // First 50KB for analysis
-    const { sensitivity, findings } = analyzeSensitivity(textContent, companyName);
+    const reportedMime = res.headers['content-type'] ?? 'application/octet-stream';
+    const mimeInfo = await verifyMimeType(buf, reportedMime);
 
-    return {
-      sha256: sha,
-      mime,
-      localPath: tmp,
-      sensitivity,
-      findings
-    };
+    let fileMetadata: Record<string, any> | undefined;
+    let textContentForAnalysis = '';
+
+    // Extract content and metadata based on MIME type
+    if (mimeInfo.verified === 'application/pdf') {
+      const pdfData = await pdf(buf);
+      fileMetadata = pdfData.info;
+      textContentForAnalysis = pdfData.text;
+    } else {
+      // Basic text extraction for other file types
+      textContentForAnalysis = buf.toString('utf8', 0, Math.min(buf.length, 100000)); // First 100KB
+      // TODO: Add support for DOCX/XLSX metadata extraction if a lightweight library is available
+      if (mimeInfo.verified.includes('officedocument')) {
+         log('[crmExposure] Office file detected, metadata extraction not yet implemented.');
+      }
+    }
+
+    const { sensitivity, findings } = analyzeSensitivity(textContentForAnalysis, companyName, fileMetadata);
+
+    return { sha256: sha, mimeInfo, localPath: tmp, sensitivity, findings, fileMetadata };
+
   } catch (err) {
-    log('[crmExposure] Download error:', url, (err as Error).message);
+    if (axios.isAxiosError(err) && err.response?.status === 404) {
+        log('[crmExposure] File not found (404):', url);
+    } else {
+        log('[crmExposure] Download error:', url, (err as Error).message);
+    }
     return null;
   }
 }
 
-// Analyze content sensitivity
-function analyzeSensitivity(content: string, companyName: string): { sensitivity: number; findings: string[] } {
+// Enhanced sensitivity analysis
+function analyzeSensitivity(content: string, companyName: string, metadata?: Record<string, any>): { sensitivity: number; findings: string[] } {
   const findings: string[] = [];
   let score = 0;
-
   const lowerContent = content.toLowerCase();
 
-  // High-entropy strings (potential keys/tokens)
+  // Regexes for PII
+  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  const phoneRegex = /(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9])\s*\)|([2-9]1[02-9]|[2-9][02-8]1|[2-9][02-8][02-9]))\s*(?:[.-]\s*)?([2-9]1[02-9]|[2-9][02-9]1|[2-9][02-9]{2})\s*(?:[.-]\s*)?([0-9]{4})(?:\s*(?:#|x\.?|ext\.?|extension)\s*(\d+))?/g;
+  
+  // Credit Card Luhn check
+  const potentialCCs = content.match(/\b(?:\d[ -]*?){13,16}\b/g) || [];
+  let validLuhn = 0;
+  for (const cc of potentialCCs) {
+    if (luhn.validate(cc.replace(/\D/g, ''))) {
+      validLuhn++;
+    }
+  }
+  if (validLuhn > 0) {
+    score += validLuhn * 25;
+    findings.push(`Potential credit card number(s) found: ${validLuhn}`);
+  }
+
+  const emails = content.match(emailRegex) || [];
+  if (emails.length > 0) {
+    score += Math.min(emails.length, 10) * 5; // Cap contribution
+    findings.push(`Email addresses found: ${emails.length}`);
+  }
+
+  const phones = content.match(phoneRegex) || [];
+  if (phones.length > 0) {
+    score += Math.min(phones.length, 10) * 5; // Cap contribution
+    findings.push(`US phone numbers found: ${phones.length}`);
+  }
+
+  // Keywords from original function...
+  const piiKeywords = ['social security', 'ssn', 'passport', 'driver.?license'];
+  piiKeywords.forEach(k => {
+    if (lowerContent.includes(k)) {
+      score += 15;
+      findings.push(`High-risk PII keyword: ${k}`);
+    }
+  });
+
+  const confidentialKeywords = ['confidential', 'proprietary', 'internal use only', 'restricted'];
+  confidentialKeywords.forEach(k => {
+    if (lowerContent.includes(k)) {
+      score += 10;
+      findings.push(`Confidential marking: ${k}`);
+    }
+  });
+
+  // Check metadata for keywords
+  if (metadata) {
+    const metaString = JSON.stringify(metadata).toLowerCase();
+    confidentialKeywords.forEach(k => {
+        if (metaString.includes(k)) {
+            score += 10;
+            findings.push(`Confidential keyword in metadata: ${k}`);
+        }
+    });
+  }
+
+  // Other existing checks...
   const highEntropyRegex = /[A-Za-z0-9+/]{40,}[=]{0,2}/g;
   const entropyMatches = content.match(highEntropyRegex) || [];
   if (entropyMatches.length > 0) {
@@ -114,15 +207,6 @@ function analyzeSensitivity(content: string, companyName: string): { sensitivity
     findings.push(`Potential API keys/tokens: ${entropyMatches.length} found`);
   }
 
-  // JWT tokens
-  const jwtRegex = /eyJ[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+/g;
-  const jwtMatches = content.match(jwtRegex) || [];
-  if (jwtMatches.length > 0) {
-    score += jwtMatches.length * 20;
-    findings.push(`JWT tokens: ${jwtMatches.length} found`);
-  }
-
-  // Database connection strings
   const dbRegex = /(postgresql|mysql|mongodb):\/\/[^\s"'<>]+/gi;
   const dbMatches = content.match(dbRegex) || [];
   if (dbMatches.length > 0) {
@@ -130,82 +214,7 @@ function analyzeSensitivity(content: string, companyName: string): { sensitivity
     findings.push(`Database URLs: ${dbMatches.length} found`);
   }
 
-  // PII keywords
-  const piiKeywords = [
-    'social security', 'ssn', 'passport', 'driver.?license', 'birth.?date', 'dob',
-    'credit.?card', 'bank.?account', 'routing.?number', 'tax.?id', 'ein'
-  ];
-  for (const keyword of piiKeywords) {
-    const regex = new RegExp(keyword.replace(/\?/g, '\\s*'), 'gi');
-    if (regex.test(lowerContent)) {
-      score += 10;
-      findings.push(`PII keyword: ${keyword.replace(/\.\?\s*/g, ' ')}`);
-    }
-  }
-
-  // Confidential markings
-  const confidentialKeywords = [
-    'confidential', 'proprietary', 'internal.?use.?only', 'nda', 'non.?disclosure',
-    'classified', 'restricted', 'private', 'sensitive', 'do.?not.?distribute'
-  ];
-  for (const keyword of confidentialKeywords) {
-    const regex = new RegExp(keyword.replace(/\?/g, '\\s*'), 'gi');
-    if (regex.test(lowerContent)) {
-      score += 8;
-      findings.push(`Confidential marking: ${keyword.replace(/\.\?\s*/g, ' ')}`);
-    }
-  }
-
-  // Financial data indicators
-  const financialKeywords = [
-    'revenue', 'profit', 'loss', 'budget', 'financial.?statement', 'balance.?sheet',
-    'cash.?flow', 'quarterly.?report', 'annual.?report', 'investor'
-  ];
-  for (const keyword of financialKeywords) {
-    const regex = new RegExp(keyword.replace(/\?/g, '\\s*'), 'gi');
-    if (regex.test(lowerContent)) {
-      score += 5;
-      findings.push(`Financial data: ${keyword.replace(/\.\?\s*/g, ' ')}`);
-    }
-  }
-
-  // Target company mentions (positive indicator)
-  const companyRegex = new RegExp(companyName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-  const companyMatches = content.match(companyRegex) || [];
-  if (companyMatches.length > 0) {
-    score += companyMatches.length * 3;
-    findings.push(`Company mentions: ${companyMatches.length}`);
-  }
-
-  // Reduce score for marketing boilerplate
-  const marketingKeywords = [
-    'marketing', 'newsletter', 'subscribe', 'unsubscribe', 'webinar', 'download',
-    'whitepaper', 'case.?study', 'brochure', 'datasheet'
-  ];
-  let marketingScore = 0;
-  for (const keyword of marketingKeywords) {
-    const regex = new RegExp(keyword.replace(/\?/g, '\\s*'), 'gi');
-    if (regex.test(lowerContent)) {
-      marketingScore += 2;
-    }
-  }
-  
-  if (marketingScore > 10) {
-    score -= Math.min(score * 0.3, 20); // Reduce by up to 30% or 20 points
-    findings.push('Marketing content detected (reduced sensitivity)');
-  }
-
-  return {
-    sensitivity: Math.max(0, Math.round(score)),
-    findings
-  };
-}
-
-// Determine platform from URL
-function getPlatform(url: string): string {
-  if (url.includes('hubspot')) return 'HubSpot';
-  if (url.includes('salesforce') || url.includes('force.com')) return 'Salesforce';
-  return 'Unknown CRM';
+  return { sensitivity: Math.max(0, Math.round(score)), findings };
 }
 
 // Determine severity based on sensitivity score
@@ -219,22 +228,28 @@ function getSeverity(score: number): 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITI
 
 export async function runCrmExposure(job: { companyName: string; domain: string; scanId?: string }): Promise<number> {
   const { companyName, domain, scanId } = job;
-  log('[crmExposure] Starting CRM exposure scan for', companyName);
+  log('[crmExposure] Starting CRM & Cloud Storage exposure scan for', companyName);
 
-  const headers = { 'X-API-KEY': process.env.SERPER_KEY! };
+  if (!process.env.SERPER_KEY) {
+    log('[crmExposure] SERPER_KEY not found in environment, skipping scan.');
+    await insertArtifact({
+        type: 'scan_error',
+        val_text: 'Module crmExposure skipped: SERPER_KEY is not configured.',
+        severity: 'INFO',
+        meta: { scan_id: scanId, scan_module: 'crmExposure' }
+    });
+    return 0;
+  }
+
+  const headers = { 'X-API-KEY': process.env.SERPER_KEY };
   const seen = new Set<string>();
-  const dorks = generateCrmDorks(companyName, domain);
+  const dorks = await getDorks(companyName, domain);
   let findingsCount = 0;
 
   for (const query of dorks) {
     try {
       log('[crmExposure] Searching:', query);
-      
-      const { data } = await axios.post(
-        SERPER_URL,
-        { q: query, num: 20, gl: 'us', hl: 'en' }, // Increased to 20 results per query since we have fewer queries
-        { headers }
-      );
+      const { data } = await axios.post(SERPER_URL, { q: query, num: 20 }, { headers });
 
       for (const hit of data.organic ?? []) {
         const url: string = hit.link;
@@ -244,68 +259,60 @@ export async function runCrmExposure(job: { companyName: string; domain: string;
         const platform = getPlatform(url);
         log('[crmExposure] Processing', platform, 'file:', url);
 
-        // Handle Salesforce token refresh for 403s
-        let analysisResult = await downloadAndAnalyze(url, companyName);
-        
-        if (!analysisResult && platform === 'Salesforce' && url.includes('/sfc/')) {
-          log('[crmExposure] Retrying Salesforce URL for token refresh');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          analysisResult = await downloadAndAnalyze(url, companyName);
-        }
-
+        const analysisResult = await downloadAndAnalyze(url, companyName, scanId);
         if (!analysisResult) continue;
 
-        const { sha256, mime, localPath, sensitivity, findings } = analysisResult;
+        const { sha256, mimeInfo, localPath, sensitivity, findings, fileMetadata } = analysisResult;
+        const severity = getSeverity(sensitivity);
         
-        // Upload to storage
         const key = `crm/${platform.toLowerCase()}/${sha256}${path.extname(url).split('?')[0]}`;
-        const storageUrl = await uploadFile(localPath, key, mime);
+        const storageUrl = await uploadFile(localPath, key, mimeInfo.verified);
 
-        // Create artifact
+        let val_text = `${platform} exposed file: ${path.basename(url)}`;
+        if (severity === 'HIGH' || severity === 'CRITICAL') {
+            val_text = `Highly sensitive document exposed via ${platform}: ${path.basename(url)}`;
+        }
+
         const artifactId = await insertArtifact({
           type: 'crm_exposure',
-          val_text: `${platform} exposed file: ${path.basename(url)}`,
-          severity: getSeverity(sensitivity),
+          val_text,
+          severity,
           src_url: url,
           sha256,
-          mime,
+          mime: mimeInfo.verified,
           meta: {
             scan_id: scanId,
+            scan_module: 'crmExposure',
             platform,
             sensitivity_score: sensitivity,
-            company_mentions: findings.filter(f => f.includes('Company mentions')).length > 0,
             storage_url: storageUrl,
             file_size: (await fs.stat(localPath)).size,
-            findings: findings.slice(0, 10), // Limit findings in meta
-            preview: (await fs.readFile(localPath, 'utf8')).slice(0, 120) + '...'
+            reported_mime: mimeInfo.reported,
+            verified_mime: mimeInfo.verified,
+            file_metadata: fileMetadata,
+            content_analysis_summary: findings.slice(0, 5) // Top 5 findings
           }
         });
 
-        // Create findings for high-sensitivity content
         if (sensitivity >= 15) {
           await insertFinding(
             artifactId,
             'DATA_EXPOSURE',
-            `Secure the ${platform} CDN by reviewing file permissions and access controls. Consider implementing authentication for sensitive documents.`,
-            `Sensitive document exposed on ${platform} CDN with sensitivity score ${sensitivity}. Found: ${findings.join(', ')}`
+            `Secure the ${platform} service by reviewing file permissions and public access controls.`,
+            `Sensitive document exposed on ${platform} with sensitivity score ${sensitivity}. Top findings: ${findings.slice(0,3).join(', ')}`
           );
         }
 
-        // Cleanup
         await fs.unlink(localPath);
-        
         findingsCount++;
-        log('[crmExposure] Processed', platform, 'file with sensitivity score:', sensitivity);
+        log(`[crmExposure] Processed ${platform} file with sensitivity score: ${sensitivity}`);
       }
-
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+      await new Promise(resolve => setTimeout(resolve, 1500)); // Rate limiting
     } catch (err) {
       log('[crmExposure] Search error for query:', query, (err as Error).message);
     }
   }
 
-  log('[crmExposure] CRM exposure scan completed for', companyName, '- found', findingsCount, 'exposed files');
+  log('[crmExposure] CRM & Cloud Storage scan completed, found', findingsCount, 'exposed files');
   return findingsCount;
 } 

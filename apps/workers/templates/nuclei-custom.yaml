@@ -99,89 +99,48 @@ http:
 
 ---
 
-id: subdomain-takeover-generic
+id: exposed-admin-panels-refined
 
 info:
-  name: Generic Subdomain Takeover
-  author: dealbrief-scanner
-  severity: high
-  description: Detects various subdomain takeover vulnerabilities
-  tags: takeover,subdomain
-
-http:
-  - method: GET
-    path:
-      - "{{BaseURL}}"
-
-    matchers:
-      - type: word
-        words:
-          - "The specified bucket does not exist"
-          - "Repository not found"
-          - "404 - File or directory not found"
-          - "No such app"
-          - "Project not found"
-        condition: or
-
----
-
-id: exposed-admin-panels
-
-info:
-  name: Exposed Admin Panels
+  name: Exposed Admin Login Panels (Refined)
   author: dealbrief-scanner
   severity: medium
-  description: Detects commonly exposed admin panels
-  tags: admin,panel,exposure
+  description: Detects known admin login panels based on specific title tags and form fields.
+  tags: admin,panel,exposure,login
 
 http:
   - method: GET
     path:
-      - "{{BaseURL}}/admin"
-      - "{{BaseURL}}/administrator"
-      - "{{BaseURL}}/wp-admin"
-      - "{{BaseURL}}/phpmyadmin"
-      - "{{BaseURL}}/adminer"
-      - "{{BaseURL}}/admin.php"
-      - "{{BaseURL}}/login"
-      - "{{BaseURL}}/dashboard"
+      - "{{BaseURL}}/wp-login.php"
+      - "{{BaseURL}}/administrator/index.php"
+      - "{{BaseURL}}/admin/login"
 
+    matchers-condition: or
     matchers:
+      # WordPress
       - type: word
+        part: body
         words:
-          - "admin"
-          - "login"
-          - "dashboard"
-          - "authentication"
-        condition: or
-
----
-
-id: rate-limit-bypass-headers
-
-info:
-  name: Rate Limit Bypass Headers
-  author: dealbrief-scanner
-  severity: medium
-  description: Tests for rate limit bypass using various headers
-  tags: rate-limit,bypass,headers
-
-http:
-  - method: GET
-    path:
-      - "{{BaseURL}}/api/"
-    headers:
-      X-Forwarded-For: "127.0.0.1"
-      X-Real-IP: "127.0.0.1"
-      X-Originating-IP: "127.0.0.1"
-      X-Remote-IP: "127.0.0.1"
-      X-Client-IP: "127.0.0.1"
-
-    matchers:
-      - type: status
-        status:
-          - 200
-          - 429
+          - "<title>Log In &lsaquo; WordPress</title>"
+          - 'name="log"'
+          - 'name="pwd"'
+        condition: and
+      # Joomla
+      - type: word
+        part: body
+        words:
+          - '<title>Joomla! Administrator</title>'
+          - 'name="username"'
+          - 'name="passwd"'
+        condition: and
+      # Generic login indicators
+      - type: word
+        part: body
+        words:
+          - '<title>Admin</title>'
+          - 'name="username"'
+          - 'name="password"'
+        condition: and
 
 ---
 

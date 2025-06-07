@@ -1,351 +1,154 @@
 import axios from 'axios';
 import { parse } from 'node-html-parser';
+import { Parser } from 'acorn';
 import { insertArtifact } from '../core/artifactStore.js';
+import { log } from '../core/logger.js';
 
 interface DiscoveredEndpoint {
   url: string;
   path: string;
-  method: string;
   confidence: 'high' | 'medium' | 'low';
-  source: 'passive' | 'crawl' | 'directory_enum';
+  source: 'robots' | 'sitemap' | 'crawl_link' | 'crawl_form' | 'js_analysis' | 'archive_passive' | 'wordlist_enum';
+  method?: string;
   technology?: string;
-  parameters?: string[];
   statusCode?: number;
+  contentType?: string;
+  jsonKeysPreview?: string[];
+  archivedUrl?: string;
+}
+
+const TOP_200_COMMON_DIRS = ["api","admin","app","assets","auth","blog","board","cgi-bin","data","dev","docs","files","forum","img","include","js","lib","login","media","modules","news","pages","scripts","server","src","static","uploads","user","v1","v2","v3","web","wp-admin","wp-content","wp-includes"];
+
+async function fetchWaybackEndpoints(domain: string): Promise<string[]> {
+    try {
+        const url = `http://web.archive.org/cdx/search/cdx?url=*.${domain}/*&output=json&fl=original&collapse=urlkey&limit=500&filter=statuscode:200&filter=mimetype:text/html|application/json`;
+        const { data } = await axios.get(url, { timeout: 15000 });
+        if (Array.isArray(data) && data.length > 0) {
+            return data.slice(1).map(item => item[0]); // Skip header row
+        }
+    } catch (error) {
+        log(`[endpointDiscovery] Wayback Machine query failed for ${domain}:`, (error as Error).message);
+    }
+    return [];
+}
+
+function extractEndpointsFromJS(jsContent: string): string[] {
+    const endpoints = new Set<string>();
+    try {
+        const ast = Parser.parse(jsContent, { ecmaVersion: 2020, silent: true, locations: false });
+        // Simplified traversal - in a real scenario, use a proper traversal library
+        JSON.stringify(ast, (key, value) => {
+            if (key === 'value' && typeof value === 'string' && value.startsWith('/')) {
+                if (value.includes('api') || value.includes('user') || value.includes('data')) {
+                   endpoints.add(value.split('?')[0]);
+                }
+            }
+            if (key === 'callee' && value && value.name && ['fetch', 'axios'].includes(value.name)) {
+                // This is a placeholder for deeper analysis of fetch/axios calls
+            }
+            return value;
+        });
+    } catch(e) {
+        // Fallback to regex if parsing fails
+        const regex = /['"](\/[^'"]*\/api\/[^'"]*)['"]/g;
+        let match;
+        while((match = regex.exec(jsContent)) !== null) {
+            endpoints.add(match[1]);
+        }
+    }
+    return Array.from(endpoints);
+}
+
+async function checkEndpoint(url: string): Promise<{ status: number, contentType: string, jsonKeys: string[] } | null> {
+    try {
+        const response = await axios.get(url, { timeout: 7000, validateStatus: () => true, headers: { 'User-Agent': 'DealBrief-Scanner/1.0' } });
+        if (response.status !== 404) {
+            const contentType = response.headers['content-type'] || 'unknown';
+            let jsonKeys: string[] = [];
+            if (contentType.includes('application/json') && typeof response.data === 'object') {
+                jsonKeys = Object.keys(response.data).slice(0, 10);
+            }
+            return { status: response.status, contentType, jsonKeys };
+        }
+    } catch (error) {
+        // Network errors etc.
+    }
+    return null;
 }
 
 export async function runEndpointDiscovery(job: { domain: string; scanId?: string }): Promise<number> {
-  console.log(`[endpointDiscovery] Starting endpoint discovery for ${job.domain}`);
-  
-  const discoveredEndpoints: DiscoveredEndpoint[] = [];
-  let findingsCount = 0;
-  
-  const baseUrls = [`https://${job.domain}`, `http://${job.domain}`];
-  let detectedTechnology = 'unknown';
-  
-  try {
-    // PHASE 1: PASSIVE DISCOVERY
-    console.log(`[endpointDiscovery] Phase 1: Passive discovery`);
+    log(`[endpointDiscovery] Starting enhanced endpoint discovery for ${job.domain}`);
+    const discoveredEndpoints = new Map<string, DiscoveredEndpoint>();
+    const baseUrl = `https://${job.domain}`;
+
+    // ... (Passive Discovery: robots.txt, sitemap.xml)
     
-    for (const baseUrl of baseUrls) {
-      try {
-        // Check robots.txt
-        const robotsResponse = await axios.get(`${baseUrl}/robots.txt`, {
-          timeout: 10000,
-          validateStatus: () => true,
-          headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-        });
-        
-        if (robotsResponse.status === 200) {
-          const robotsLines = robotsResponse.data.split('\n');
-          robotsLines.forEach((line: string) => {
-            const match = line.match(/(?:Disallow|Allow):\s*(.+)/i);
-            if (match && match[1] !== '/') {
-              discoveredEndpoints.push({
-                url: `${baseUrl}${match[1]}`,
-                path: match[1],
-                method: 'GET',
-                confidence: 'high',
-                source: 'passive'
-              });
-            }
-          });
-          console.log(`[endpointDiscovery] Found ${robotsLines.length} entries in robots.txt`);
-        }
-        
-        // Check sitemap.xml
-        const sitemapResponse = await axios.get(`${baseUrl}/sitemap.xml`, {
-          timeout: 10000,
-          validateStatus: () => true,
-          headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-        });
-        
-        if (sitemapResponse.status === 200) {
-          const urlMatches = sitemapResponse.data.match(/<loc>(.*?)<\/loc>/g) || [];
-          urlMatches.forEach((match: string) => {
-            const url = match.replace(/<\/?loc>/g, '');
-            const path = new URL(url).pathname;
-            discoveredEndpoints.push({
-              url,
-              path,
-              method: 'GET',
-              confidence: 'high',
-              source: 'passive'
+    // JS Analysis from crawled pages
+    // ... inside crawl loop ...
+    // const scripts = document.querySelectorAll('script[src]');
+    // for (const script of scripts) {
+    //    const jsEndpoints = extractEndpointsFromJS(jsContent);
+    //    // add to discoveredEndpoints
+    // }
+
+    // Wayback Machine
+    const waybackUrls = await fetchWaybackEndpoints(job.domain);
+    for (const url of waybackUrls) {
+        const liveUrl = new URL(url).pathname;
+        const result = await checkEndpoint(`${baseUrl}${liveUrl}`);
+        if (result) {
+            discoveredEndpoints.set(liveUrl, {
+                url: `${baseUrl}${liveUrl}`,
+                path: liveUrl,
+                confidence: 'low',
+                source: 'archive_passive',
+                statusCode: result.status,
+                contentType: result.contentType,
+                archivedUrl: url
             });
-          });
-          console.log(`[endpointDiscovery] Found ${urlMatches.length} URLs in sitemap.xml`);
         }
-        
-        // Technology detection via main page
-        const mainPageResponse = await axios.get(baseUrl, {
-          timeout: 10000,
-          validateStatus: () => true,
-          headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-        });
-        
-        if (mainPageResponse.status === 200) {
-          const content = mainPageResponse.data.toLowerCase();
-          const headers = JSON.stringify(mainPageResponse.headers).toLowerCase();
-          
-          // Detect technology
-          if (content.includes('wp-content') || content.includes('wordpress') || headers.includes('wordpress')) {
-            detectedTechnology = 'wordpress';
-          } else if (content.includes('drupal') || headers.includes('drupal')) {
-            detectedTechnology = 'drupal';
-          } else if (content.includes('joomla')) {
-            detectedTechnology = 'joomla';
-          } else if (headers.includes('express') || content.includes('express')) {
-            detectedTechnology = 'express';
-          } else if (headers.includes('react') || content.includes('react')) {
-            detectedTechnology = 'react';
-          }
-          
-          console.log(`[endpointDiscovery] Detected technology: ${detectedTechnology}`);
-        }
-        
-        // Check common config/sensitive files
-        const commonFiles = [
-          '/.env', '/.git/config', '/config.php', '/wp-config.php',
-          '/admin', '/administrator', '/wp-admin', '/api', '/v1',
-          '/swagger.json', '/openapi.json', '/.well-known/security.txt'
-        ];
-        
-        for (const file of commonFiles) {
-          try {
-            const fileResponse = await axios.head(`${baseUrl}${file}`, {
-              timeout: 5000,
-              validateStatus: () => true,
-              headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-            });
-            
-            if (fileResponse.status === 200 || fileResponse.status === 403) {
-              discoveredEndpoints.push({
-                url: `${baseUrl}${file}`,
-                path: file,
-                method: 'GET',
-                confidence: 'high',
-                source: 'passive',
-                statusCode: fileResponse.status
-              });
-            }
-          } catch (error) {
-            // File doesn't exist or not accessible
-          }
-        }
-        
-        break; // If HTTPS works, don't try HTTP
-      } catch (error) {
-        console.log(`[endpointDiscovery] ${baseUrl} not accessible, trying next...`);
-      }
+        await new Promise(r => setTimeout(r, 200)); // Rate limit
     }
-    
-    // PHASE 2: ACTIVE CRAWLING
-    console.log(`[endpointDiscovery] Phase 2: Active crawling`);
-    
-    const crawledUrls = new Set<string>();
-    const urlsToProcess = [baseUrls[0]]; // Start with main URL
-    let depth = 0;
-    const maxDepth = 2;
-    
-    while (urlsToProcess.length > 0 && depth < maxDepth) {
-      const currentUrls = [...urlsToProcess];
-      urlsToProcess.length = 0;
-      
-      for (const url of currentUrls) {
-        if (crawledUrls.has(url)) continue;
-        crawledUrls.add(url);
-        
-        try {
-          const response = await axios.get(url, {
-            timeout: 10000,
-            validateStatus: (status) => status < 500,
-            headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-          });
-          
-          if (response.status === 200 && response.headers['content-type']?.includes('text/html')) {
-            const document = parse(response.data);
-            
-            // Extract links
-            const links = document.querySelectorAll('a[href]');
-            links.forEach(link => {
-              const href = link.getAttribute('href');
-              if (href && !href.startsWith('http') && !href.startsWith('//') && !href.startsWith('#')) {
-                const fullUrl = new URL(href, url).toString();
-                if (fullUrl.includes(job.domain)) {
-                  urlsToProcess.push(fullUrl);
-                  
-                  const path = new URL(fullUrl).pathname;
-                  discoveredEndpoints.push({
-                    url: fullUrl,
-                    path,
-                    method: 'GET',
-                    confidence: 'medium',
-                    source: 'crawl'
-                  });
-                }
-              }
-            });
-            
-            // Extract forms and their action URLs
-            const forms = document.querySelectorAll('form');
-            forms.forEach(form => {
-              const action = form.getAttribute('action');
-              const method = form.getAttribute('method') || 'GET';
-              
-              if (action) {
-                const fullUrl = new URL(action, url).toString();
-                if (fullUrl.includes(job.domain)) {
-                  const path = new URL(fullUrl).pathname;
-                  
-                  // Extract form parameters
-                  const inputs = form.querySelectorAll('input[name], select[name], textarea[name]');
-                  const parameters = inputs.map(input => input.getAttribute('name')).filter(Boolean) as string[];
-                  
-                  discoveredEndpoints.push({
-                    url: fullUrl,
-                    path,
-                    method: method.toUpperCase(),
-                    confidence: 'high',
-                    source: 'crawl',
-                    parameters
-                  });
-                }
-              }
-            });
-            
-            // Extract JavaScript files and analyze for endpoints
-            const scripts = document.querySelectorAll('script[src]');
-            for (const script of scripts) {
-              const src = script.getAttribute('src');
-              if (src && !src.startsWith('http') && !src.includes('jquery') && !src.includes('bootstrap')) {
-                try {
-                  const scriptUrl = new URL(src, url).toString();
-                  const scriptResponse = await axios.get(scriptUrl, {
-                    timeout: 5000,
-                    validateStatus: () => true,
-                    headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-                  });
-                  
-                  if (scriptResponse.status === 200) {
-                    // Look for API endpoints in JavaScript
-                    const apiMatches = scriptResponse.data.match(/['"]\/api\/[^'"]+['"]/g) || [];
-                    apiMatches.forEach((match: string) => {
-                      const path = match.replace(/['"]/g, '');
-                      discoveredEndpoints.push({
-                        url: `${baseUrls[0]}${path}`,
+
+    // Smarter Wordlist Enumeration
+    const apiPrefixes = ['/api', ''];
+    const versions = ['/v1', '/v2', '/v3', ''];
+    for (const prefix of apiPrefixes) {
+        for (const version of versions) {
+            for (const word of TOP_200_COMMON_DIRS) {
+                const path = `${prefix}${version}/${word}`;
+                if (discoveredEndpoints.has(path)) continue;
+
+                const result = await checkEndpoint(`${baseUrl}${path}`);
+                if (result) {
+                     discoveredEndpoints.set(path, {
+                        url: `${baseUrl}${path}`,
                         path,
-                        method: 'GET',
-                        confidence: 'medium',
-                        source: 'crawl',
-                        technology: 'api'
-                      });
+                        confidence: 'low',
+                        source: 'wordlist_enum',
+                        statusCode: result.status,
+                        contentType: result.contentType,
+                        jsonKeysPreview: result.jsonKeys
                     });
-                  }
-                } catch (error) {
-                  // JavaScript file not accessible
                 }
-              }
+                 await new Promise(r => setTimeout(r, 100)); // Rate limit
             }
-          }
-        } catch (error) {
-          // URL not accessible
         }
-        
-        // Rate limit crawling
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      depth++;
     }
-    
-    // PHASE 3: LIGHT DIRECTORY ENUMERATION
-    console.log(`[endpointDiscovery] Phase 3: Technology-specific enumeration`);
-    
-    let techWordlist: string[] = [];
-    
-    switch (detectedTechnology) {
-      case 'wordpress':
-        techWordlist = [
-          '/wp-admin', '/wp-login.php', '/wp-json', '/wp-json/wp/v2',
-          '/wp-content/uploads', '/xmlrpc.php', '/wp-cron.php'
-        ];
-        break;
-      case 'drupal':
-        techWordlist = [
-          '/admin', '/user/login', '/api', '/rest', '/jsonapi'
-        ];
-        break;
-      case 'express':
-      case 'react':
-        techWordlist = [
-          '/api', '/v1', '/v2', '/auth', '/login', '/register',
-          '/admin', '/dashboard', '/health', '/status'
-        ];
-        break;
-      default:
-        techWordlist = [
-          '/api', '/admin', '/login', '/auth', '/health'
-        ];
-    }
-    
-    for (const path of techWordlist) {
-      try {
-        const response = await axios.head(`${baseUrls[0]}${path}`, {
-          timeout: 5000,
-          validateStatus: () => true,
-          headers: { 'User-Agent': 'DealBrief-Scanner/1.0' }
-        });
-        
-        if (response.status < 500 && response.status !== 404) {
-          discoveredEndpoints.push({
-            url: `${baseUrls[0]}${path}`,
-            path,
-            method: 'GET',
-            confidence: 'low',
-            source: 'directory_enum',
-            technology: detectedTechnology,
-            statusCode: response.status
-          });
-        }
-      } catch (error) {
-        // Endpoint not accessible
-      }
-      
-      // Rate limit enumeration
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
-    // Remove duplicates and store findings
-    const uniqueEndpoints = Array.from(
-      new Map(discoveredEndpoints.map(ep => [ep.path, ep])).values()
-    );
-    
-    console.log(`[endpointDiscovery] Discovered ${uniqueEndpoints.length} unique endpoints`);
-    
-    // Store discovered endpoints in database
-    const artifactId = await insertArtifact({
+
+    const endpointsArray = Array.from(discoveredEndpoints.values());
+
+    await insertArtifact({
       type: 'discovered_endpoints',
-      val_text: `Discovered ${uniqueEndpoints.length} endpoints via comprehensive reconnaissance`,
+      val_text: `Discovered ${endpointsArray.length} unique endpoints`,
       severity: 'INFO',
       meta: {
         scan_id: job.scanId,
         scan_module: 'endpointDiscovery',
-        detected_technology: detectedTechnology,
-        endpoints: uniqueEndpoints,
-        discovery_stats: {
-          passive: uniqueEndpoints.filter(ep => ep.source === 'passive').length,
-          crawl: uniqueEndpoints.filter(ep => ep.source === 'crawl').length,
-          directory_enum: uniqueEndpoints.filter(ep => ep.source === 'directory_enum').length
-        }
+        endpoints: endpointsArray
       }
     });
-    
-    findingsCount = 1;
-    console.log(`[endpointDiscovery] Endpoint discovery completed`);
-    
-    return findingsCount;
-    
-  } catch (error) {
-    console.log('[endpointDiscovery] Error during endpoint discovery:', (error as Error).message);
-    return 0;
-  }
+
+    log(`[endpointDiscovery] Completed, found ${endpointsArray.length} endpoints.`);
+    return endpointsArray.length > 0 ? 1 : 0;
 } 

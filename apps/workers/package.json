@@ -17,7 +17,16 @@
     "openai": "^4.77.3",
     "pg": "^8.13.1",
     "puppeteer": "^23.11.1",
-    "axios": "^1.7.2"
+    "axios": "^1.7.2",
+    "node-html-parser": "^6.1.13",
+    "aws-sdk": "^2.1691.0",
+    "pdf-parse": "^1.1.1",
+    "file-type": "^19.0.0",
+    "luhn": "^2.4.1",
+    "fast-xml-parser": "^4.4.0",
+    "semver": "^7.6.3",
+    "acorn": "^8.12.1",
+    "langdetect": "^0.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
