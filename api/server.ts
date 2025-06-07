@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { UpstashQueue } from '../workers/core/queue.js';
 import { nanoid } from 'nanoid';
 import { generateSecurityReport, generateExecutiveSummary } from './services/reportGenerator.js';
+import { pool } from '../workers/core/artifactStore.js';
 
 config();
 
@@ -82,10 +83,18 @@ fastify.get('/scan/:scanId/report', async (request, reply) => {
       return { error: 'Scan not completed yet', status: status.state };
     }
 
-    // Extract company info from scan metadata (you might want to store this in Redis)
-    // For now, we'll use a fallback approach
-    const companyName = 'Target Company'; // TODO: Get from scan metadata
-    const domain = 'example.com'; // TODO: Get from scan metadata
+    // Get company info from the original scan job or artifacts
+    const artifactQuery = await pool.query(
+      `SELECT meta->>'company' as company_name, meta->>'domain' as domain 
+       FROM artifacts 
+       WHERE meta->>'scan_id' = $1 
+       AND meta->>'company' IS NOT NULL
+       LIMIT 1`,
+      [scanId]
+    );
+    
+    const companyName = artifactQuery.rows[0]?.company_name || 'Unknown Company';
+    const domain = artifactQuery.rows[0]?.domain || 'unknown.com';
 
     log('[api] Generating security report for scan', scanId);
     const report = await generateSecurityReport(scanId, companyName, domain);
@@ -119,7 +128,17 @@ fastify.get('/scan/:scanId/summary', async (request, reply) => {
       return { error: 'Scan not completed yet', status: status.state };
     }
 
-    const companyName = 'Target Company'; // TODO: Get from scan metadata
+    // Get company info from artifacts
+    const artifactQuery = await pool.query(
+      `SELECT meta->>'company' as company_name 
+       FROM artifacts 
+       WHERE meta->>'scan_id' = $1 
+       AND meta->>'company' IS NOT NULL
+       LIMIT 1`,
+      [scanId]
+    );
+    
+    const companyName = artifactQuery.rows[0]?.company_name || 'Unknown Company';
     
     log('[api] Generating executive summary for scan', scanId);
     const summary = await generateExecutiveSummary(scanId, companyName);
