@@ -16,7 +16,8 @@
     "node-fetch": "^3.3.2",
     "openai": "^4.77.3",
     "pg": "^8.13.1",
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^23.11.1",
+    "axios": "^1.7.2"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

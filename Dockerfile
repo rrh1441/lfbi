@@ -51,11 +51,16 @@ RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
 RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.sh && \
     ln -s /opt/testssl.sh/testssl.sh /usr/local/bin/testssl.sh
 
-# Copy package files
-COPY package*.json ./
+# Install pnpm and tsx
+RUN npm install -g pnpm tsx
 
-# Install all dependencies (including dev dependencies for tsx)
-RUN npm install
+# Copy package files
+COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/api-main/package.json ./apps/api-main/
+COPY apps/workers/package.json ./apps/workers/
+
+# Install all dependencies using pnpm
+RUN pnpm install
 
 # Copy source code
 COPY . .

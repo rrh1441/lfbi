@@ -32,14 +32,14 @@ const anthropic = new Anthropic({
 
 const MODELS = [
   { 
-    name: 'gpt-4o', 
+    name: 'o4-mini', 
     provider: 'openai', 
-    displayName: 'o4-mini-2025-04-16'
+    displayName: 'o4-mini'
   },
   { 
-    name: 'claude-3-5-sonnet-20241022', 
+    name: 'claude-sonnet-4', 
     provider: 'claude', 
-    displayName: 'claude-sonnet-4-20250514'
+    displayName: 'claude-sonnet-4'
   }
 ];
 
