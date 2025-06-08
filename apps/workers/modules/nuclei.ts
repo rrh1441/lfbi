@@ -39,7 +39,6 @@ async function runNucleiForTarget(target: string, tags: string, scanId?: string)
     try {
         const { stdout } = await exec('nuclei', [
             '-u', target,
-            '-tags', tags,
             '-json',
             '-silent'
         ], { timeout: 300000 }); // 5 minute timeout

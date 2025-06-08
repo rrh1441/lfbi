@@ -1,227 +1,182 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   apps/workers/modules/trufflehog.ts
+   --------------------------------------------------------------------------
+   Runs TruffleHog against websites, Git repos, and downloaded artefacts.
+   The website scan now downloads content first and uses the `filesystem`
+   subcommand (CLI v3).                                           2025-06-07
+   ------------------------------------------------------------------------ */
+
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs/promises';
+import axios from 'axios';
 import { insertArtifact } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
 
-async function scanGit(url: string, scanId?: string) {
+/* ── Git repository scan ──────────────────────────────────────────────── */
+async function scanGit(url: string, scanId?: string): Promise<number> {
   try {
-    log('[trufflehog] Scanning Git repository:', url);
-    const { stdout } = await exec('trufflehog', [
-      'git', 
-      url, 
-      '--json',
-      '--no-verification', // Skip verification for speed
-      '--max-depth=10'     // Limit depth to avoid timeouts
-    ]);
-    
+    log('[trufflehog] Git scan:', url);
+    const { stdout } = await exec(
+      'trufflehog',
+      ['git', url, '--json', '--no-verification', '--max-depth=10'],
+      { maxBuffer: 20 * 1024 * 1024 }
+    );
+
     const lines = stdout.trim().split('\n').filter(Boolean);
-    let findingsCount = 0;
+    let findings = 0;
+
     for (const line of lines) {
       try {
         const obj = JSON.parse(line);
-        if (obj.Verified) {
-          await insertArtifact({
-            type: 'secret',
-            val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}...`,
-            severity: 'CRITICAL',
-            src_url: url,
-            meta: { 
-              detector: obj.DetectorName,
-              verified: obj.Verified,
-              source_type: 'git',
-              file: obj.SourceMetadata?.Data?.Filesystem?.file || 'unknown',
-              line: obj.SourceMetadata?.Data?.Filesystem?.line || 0
-            }
-          });
-          findingsCount++;
-        } else {
-          await insertArtifact({
-            type: 'secret',
-            val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}...`,
-            severity: 'HIGH',
-            src_url: url,
-            meta: { 
-              detector: obj.DetectorName,
-              verified: obj.Verified,
-              source_type: 'git',
-              file: obj.SourceMetadata?.Data?.Filesystem?.file || 'unknown',
-              line: obj.SourceMetadata?.Data?.Filesystem?.line || 0
-            }
-          });
-          findingsCount++;
-        }
-      } catch (parseErr) {
-        log('[trufflehog] Failed to parse JSON line:', line);
+        await insertArtifact({
+          type: 'secret',
+          val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}…`,
+          severity: obj.Verified ? 'CRITICAL' : 'HIGH',
+          src_url: url,
+          meta: {
+            detector: obj.DetectorName,
+            verified: obj.Verified,
+            source_type: 'git',
+            file: obj.SourceMetadata?.Data?.Filesystem?.file ?? 'unknown',
+            line: obj.SourceMetadata?.Data?.Filesystem?.line ?? 0
+          }
+        });
+        findings++;
+      } catch {
+        log('[trufflehog] JSON parse failure (git line)');
       }
     }
-    return findingsCount;
+    return findings;
   } catch (err) {
-    log('[trufflehog] Git scan error for', url, ':', (err as Error).message);
+    log('[trufflehog] Git scan error:', (err as Error).message);
     return 0;
   }
 }
 
-async function scanWebsite(domain: string, scanId?: string) {
+/* ── Website scan (fixed) ─────────────────────────────────────────────── */
+async function scanWebsite(domain: string, scanId?: string): Promise<number> {
   try {
-    log('[trufflehog] Scanning website:', domain);
-    const { stdout } = await exec('trufflehog', [
-      'http',
-      '--url', `https://${domain}`,
-      '--json',
-      '--no-verification',
-      '--max-depth=3' // Limit crawl depth
-    ]);
-    
+    log('[trufflehog] Website scan:', domain);
+
+    /* 1. download page */
+    const url = `https://${domain}`;
+    const resp = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 15_000 });
+    const tmpPath = `/tmp/trufflehog_${domain.replace(/[^\w.-]/g, '_')}.html`;
+    await fs.writeFile(tmpPath, Buffer.from(resp.data));
+
+    /* 2. run filesystem scan */
+    const { stdout } = await exec(
+      'trufflehog',
+      ['filesystem', tmpPath, '--json', '--no-verification'],
+      { maxBuffer: 20 * 1024 * 1024 }
+    );
+
     const lines = stdout.trim().split('\n').filter(Boolean);
-    let findingsCount = 0;
+    let findings = 0;
+
     for (const line of lines) {
       try {
         const obj = JSON.parse(line);
-        if (obj.Verified) {
-          await insertArtifact({
-            type: 'secret',
-            val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}...`,
-            severity: 'CRITICAL',
-            src_url: `https://${domain}`,
-            meta: { 
-              detector: obj.DetectorName,
-              verified: obj.Verified,
-              source_type: 'http',
-              url: obj.SourceMetadata?.Data?.Http?.url || `https://${domain}`
-            }
-          });
-          findingsCount++;
-        } else {
-          await insertArtifact({
-            type: 'secret',
-            val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}...`,
-            severity: 'HIGH',
-            src_url: `https://${domain}`,
-            meta: { 
-              detector: obj.DetectorName,
-              verified: obj.Verified,
-              source_type: 'http',
-              url: obj.SourceMetadata?.Data?.Http?.url || `https://${domain}`
-            }
-          });
-          findingsCount++;
-        }
-      } catch (parseErr) {
-        log('[trufflehog] Failed to parse JSON line:', line);
+        await insertArtifact({
+          type: 'secret',
+          val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}…`,
+          severity: obj.Verified ? 'CRITICAL' : 'HIGH',
+          src_url: url,
+          meta: {
+            detector: obj.DetectorName,
+            verified: obj.Verified,
+            source_type: 'http',
+            file: tmpPath
+          }
+        });
+        findings++;
+      } catch {
+        log('[trufflehog] JSON parse failure (web line)');
       }
     }
-    return findingsCount;
+    return findings;
   } catch (err) {
-    log('[trufflehog] Website scan error for', domain, ':', (err as Error).message);
+    log('[trufflehog] Website scan error:', (err as Error).message);
     return 0;
   }
 }
 
-async function scanFiles(domain: string, scanId?: string) {
-  // Scan previously downloaded files from other modules
-  const tmpFiles = [
+/* ── Local-file scan ──────────────────────────────────────────────────── */
+async function scanFiles(domain: string): Promise<number> {
+  const patterns = [
     `/tmp/spiderfoot-${domain}-*.json`,
     `/tmp/crm_*`,
     `/tmp/file_*`
   ];
-  
-  let findingsCount = 0;
-  
-  for (const pattern of tmpFiles) {
+  let findings = 0;
+
+  for (const pattern of patterns) {
     try {
-      const { stdout } = await exec('ls', [pattern]);
+      const { stdout } = await exec('sh', ['-c', `ls -1 ${pattern}`]);
       const files = stdout.trim().split('\n').filter(Boolean);
-      
+
       for (const file of files) {
         try {
-          const { stdout: scanOut } = await exec('trufflehog', [
-            'filesystem',
-            file,
-            '--json',
-            '--no-verification'
-          ]);
-          
+          const { stdout: scanOut } = await exec(
+            'trufflehog',
+            ['filesystem', file, '--json', '--no-verification'],
+            { maxBuffer: 20 * 1024 * 1024 }
+          );
+
           const lines = scanOut.trim().split('\n').filter(Boolean);
           for (const line of lines) {
             try {
               const obj = JSON.parse(line);
               await insertArtifact({
                 type: 'secret',
-                val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}...`,
+                val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}…`,
                 severity: obj.Verified ? 'CRITICAL' : 'HIGH',
                 src_url: file,
-                meta: { 
+                meta: {
                   detector: obj.DetectorName,
                   verified: obj.Verified,
                   source_type: 'file',
-                  file: file
+                  file
                 }
               });
-              findingsCount++;
-            } catch (parseErr) {
-              // Ignore parse errors
-            }
+              findings++;
+            } catch { /* ignore parse errors */ }
           }
-        } catch (scanErr) {
-          // Ignore scan errors for individual files
-        }
+        } catch { /* ignore scan errors */ }
       }
-    } catch (lsErr) {
-      // No files matching pattern
-    }
+    } catch { /* no matching files */ }
   }
-  return findingsCount;
+  return findings;
 }
 
+/* ── Entry point ──────────────────────────────────────────────────────── */
 export async function runTrufflehog(job: { domain: string; scanId?: string }): Promise<number> {
-  log('[trufflehog] Starting secret scan for', job.domain);
-  
-  let findingsCount = 0;
-  
+  log('[trufflehog] Start secret scan:', job.domain);
+  let total = 0;
+
+  /* 1. main website */
+  total += await scanWebsite(job.domain, job.scanId);
+
+  /* 2. Git repos from SpiderFoot */
   try {
-    // Scan the main website
-    const websiteFindings = await scanWebsite(job.domain, job.scanId);
-    findingsCount += websiteFindings;
-    
-    // Parse links.json from SpiderFoot if available
-    try {
-      const linksData = await fs.readFile('/tmp/spiderfoot-links.json', 'utf8');
-      const links = JSON.parse(linksData) as string[];
-      
-      const gitRepos = links.filter(l => GITHUB_RE.test(l));
-      log('[trufflehog] Found', gitRepos.length, 'GitHub repositories to scan');
-      
-      for (const repo of gitRepos.slice(0, 5)) { // Limit to first 5 repos
-        const repoFindings = await scanGit(repo, job.scanId);
-        findingsCount += repoFindings;
-      }
-    } catch (linkErr) {
-      log('[trufflehog] No SpiderFoot links file found or invalid format');
+    const links = JSON.parse(await fs.readFile('/tmp/spiderfoot-links.json', 'utf8')) as string[];
+    const gitRepos = links.filter(l => GITHUB_RE.test(l)).slice(0, 5);
+    log('[trufflehog] GitHub targets:', gitRepos.length);
+
+    for (const repo of gitRepos) {
+      total += await scanGit(repo, job.scanId);
     }
-    
-    // Scan downloaded files
-    const fileFindings = await scanFiles(job.domain, job.scanId);
-    findingsCount += fileFindings;
-    
-    log('[trufflehog] Secret scan completed for', job.domain, '- found', findingsCount, 'secrets');
-    return findingsCount;
-    
-  } catch (err) {
-    log('[trufflehog] Error during secret scan:', (err as Error).message);
-    await insertArtifact({
-      type: 'secret',
-      val_text: `TruffleHog scan failed for ${job.domain}`,
-      severity: 'INFO',
-      meta: { 
-        error: (err as Error).message,
-        scan_id: job.scanId,
-        scan_module: 'trufflehog'
-      }
-    });
-    return 0;
+  } catch {
+    log('[trufflehog] No SpiderFoot links or unable to parse');
   }
+
+  /* 3. previously downloaded files */
+  total += await scanFiles(job.domain);
+
+  log('[trufflehog] Finished:', job.domain, 'secrets found:', total);
+  return total;
 } 

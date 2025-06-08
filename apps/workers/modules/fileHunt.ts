@@ -2,11 +2,16 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import axios from 'axios';
-import pdf from 'pdf-parse';
+import * as pdf from 'pdf-parse/lib/pdf-parse.js';
 import { detect as detectLanguage } from 'langdetect';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { uploadFile } from '../core/objectStore.js';
 import { log } from '../core/logger.js';
+
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+
+// Set the workerSrc for pdfjs-dist globally once (should be consistent with crmExposure.ts)
+GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.mjs';
 
 const SERPER_URL = 'https://google.serper.dev/search';
 const KNOWN_BREACHED_HASHES = {
@@ -99,9 +104,17 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
                     let fileContent = '';
                     let fileMetadata: any = {};
                     if (mime.includes('pdf')) {
-                        const pdfData = await pdf(buffer);
-                        fileContent = pdfData.text;
-                        fileMetadata = pdfData.info;
+                        const loadingTask = getDocument(buffer);
+                        const pdfDocument = await loadingTask.promise;
+
+                        let fullText = '';
+                        for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+                            const page = await pdfDocument.getPage(pageNum);
+                            const textContent = await page.getTextContent();
+                            fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+                        }
+                        fileContent = fullText;
+                        fileMetadata = pdfDocument.info;
                     } else {
                         fileContent = buffer.toString('utf-8');
                     }

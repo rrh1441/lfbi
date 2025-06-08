@@ -1,4 +1,7 @@
-FROM node:18-alpine
+FROM node:22-alpine
+
+# Check Node version to confirm Promise.withResolvers support
+RUN node -v
 
 WORKDIR /app
 
@@ -21,7 +24,9 @@ RUN apk add --no-cache \
     freetype-dev \
     harfbuzz \
     ca-certificates \
-    ttf-freefont
+    ttf-freefont \
+    coreutils \
+    procps
 
 # Set Chrome path for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \

@@ -16,7 +16,7 @@ import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
 import { pool } from './core/artifactStore.js';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { log } from './core/logger.js';
+import { log as loggerLog } from './core/logger.js';
 import { uploadFile } from './core/objectStore.js';
 import { 
   calculateFinancialImpact, 
@@ -35,7 +35,7 @@ const openai = new OpenAI({
 });
 
 const anthropic = new Anthropic({
-  apiKey: process.env.CLAUDE_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY!,
 });
 
 const MODELS = [
@@ -45,9 +45,9 @@ const MODELS = [
     displayName: 'o4-mini'
   },
   { 
-    name: 'claude-sonnet-4', 
+    name: 'claude-sonnet-4-20250514', 
     provider: 'claude', 
-    displayName: 'claude-sonnet-4'
+    displayName: 'claude-sonnet-4-20250514'
   }
 ];
 
@@ -412,17 +412,45 @@ Assume readers are smart business professionals with limited technical depth and
   return response.choices[0].message.content || 'Report generation failed';
 }
 
-async function callClaude(model: string, prompt: string): Promise<string> {
+type Message = Anthropic.Messages.MessageParam;
+
+export async function callClaude(
+  model: string,
+  messages: Message[],
+  temperature = 0.7,
+  tokenLimit = 8_000
+) {
+  /* shared request fields */
+  const opts: Record<string, unknown> = {
+    model,
+    temperature,
+    stream: false,
+    messages,
+  };
+
+  /* Claude-4 → max_completion_tokens / 3.x & earlier → max_tokens */
+  if (/-4-/.test(model)) {
+    opts.max_completion_tokens = tokenLimit;
+  } else {
+    opts.max_tokens = tokenLimit;
+  }
+
+  /* remove the unused key so TypeScript doesn't complain */
+  delete opts[
+    /-4-/.test(model) ? 'max_tokens' : 'max_completion_tokens'
+  ];
+
+  return anthropic.messages.create(opts as any);
+}
+
+// Legacy wrapper for backward compatibility
+async function callClaudeLegacy(model: string, prompt: string): Promise<string> {
   log(`🤖 Calling ${model}...`);
   
-  const response = await anthropic.messages.create({
-    model: model,
-    max_tokens: 8000,
-    temperature: 0.7,
-    messages: [
-      { 
-        role: 'user', 
-        content: `ROLE  
+  const messages: Message[] = [
+    { 
+      role: 'user', 
+      content: `ROLE  
 You are an elite due-diligence analyst hired by DealBrief.  
 Your mandate is to surface *non-financial* risks for private and public companies, producing an audit-ready briefing that busy investors, M&A teams, and brokers can trust at first glance.
 
@@ -456,10 +484,10 @@ AUDIENCE
 Assume readers are smart business professionals with limited technical depth and <5 minutes to skim the briefing. Clarity and credibility outrank exhaustiveness.
 
 ${prompt}` 
-      }
-    ]
-  });
+    }
+  ];
   
+  const response = await callClaude(model, messages);
   return response.content[0].type === 'text' ? response.content[0].text : 'Report generation failed';
 }
 
@@ -542,7 +570,7 @@ Follow the DealBrief format exactly. Focus on material business risks, not theor
     log(`🤖 Calling both AI models concurrently...`);
     const [openaiResponse, claudeResponse] = await Promise.all([
       callOpenAI(MODELS[0].name, userPrompt),
-      callClaude(MODELS[1].name, userPrompt)
+      callClaudeLegacy(MODELS[1].name, userPrompt)
     ]);
     
     log(`✅ OpenAI completed - ${openaiResponse.length} characters`);

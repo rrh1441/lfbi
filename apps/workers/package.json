@@ -20,7 +20,7 @@
     "axios": "^1.7.2",
     "node-html-parser": "^6.1.13",
     "aws-sdk": "^2.1691.0",
-    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^4.0.379",
     "file-type": "^19.0.0",
     "luhn": "^2.4.1",
     "fast-xml-parser": "^4.4.0",

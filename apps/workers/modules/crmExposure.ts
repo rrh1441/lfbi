@@ -3,13 +3,19 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import axios from 'axios';
 import { fileTypeFromBuffer } from 'file-type';
-import pdf from 'pdf-parse';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import luhn from 'luhn';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { uploadFile } from '../core/objectStore.js';
 import { log } from '../core/logger.js';
 
 const SERPER_URL = 'https://google.serper.dev/search';
+
+// Set the workerSrc for pdfjs-dist globally once
+// In a production environment, this should ideally point to a hosted worker,
+// but for a bundled/docker environment, we can point to the local worker file.
+// We need to ensure this is only set once per process.
+GlobalWorkerOptions.workerSrc = './node_modules/pdfjs-dist/build/pdf.worker.mjs';
 
 // Read dorks from the external file
 async function getDorks(companyName: string, domain: string): Promise<string[]> {
@@ -110,9 +116,17 @@ async function downloadAndAnalyze(url: string, companyName: string, scanId?: str
 
     // Extract content and metadata based on MIME type
     if (mimeInfo.verified === 'application/pdf') {
-      const pdfData = await pdf(buf);
-      fileMetadata = pdfData.info;
-      textContentForAnalysis = pdfData.text;
+      const loadingTask = getDocument(buf);
+      const pdfDocument = await loadingTask.promise;
+
+      let fullText = '';
+      for (let pageNum = 1; pageNum <= pdfDocument.numPages; pageNum++) {
+        const page = await pdfDocument.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+      }
+      fileMetadata = pdfDocument.info;
+      textContentForAnalysis = fullText;
     } else {
       // Basic text extraction for other file types
       textContentForAnalysis = buf.toString('utf8', 0, Math.min(buf.length, 100000)); // First 100KB
