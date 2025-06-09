@@ -87,10 +87,20 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
     for (const [category, dorks] of dorksByCat.entries()) {
         log(`[fileHunt] Running dork category: ${category}`);
         for (const q of dorks) {
-            const query = q.replace(/COMPANY_NAME/g, `"${companyName}"`).replace(/DOMAIN/g, `"${domain}"`);
+            // Use exact organization name matching and domain restriction to avoid false positives
+            const query = q.replace(/COMPANY_NAME/g, `"${companyName}"`).replace(/DOMAIN/g, `site:${domain}`);
             try {
                 const { data } = await axios.post(SERPER_URL, { q: query }, { headers });
                 for (const hit of data.organic ?? []) {
+                    // Additional validation: ensure the result is actually related to the organization
+                    const isRelevant = hit.link.includes(domain) || 
+                                     hit.title?.toLowerCase().includes(companyName.toLowerCase()) ||
+                                     hit.snippet?.toLowerCase().includes(companyName.toLowerCase());
+                    
+                    if (!isRelevant) {
+                        log(`[fileHunt] Skipping irrelevant result: ${hit.link}`);
+                        continue;
+                    }
                     const downloadResult = await download(hit.link);
                     if (!downloadResult) continue;
 

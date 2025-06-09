@@ -69,6 +69,20 @@ async function processScan(job: ScanJob): Promise<void> {
   log(`Processing comprehensive security scan for ${companyName} (${domain})`);
   
   try {
+    // === ON JOB START ===
+    await pool.query(
+      `INSERT INTO scans_master (scan_id, company_name, domain, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'processing', NOW(), NOW())
+       ON CONFLICT (scan_id) DO UPDATE SET 
+         status = 'processing', 
+         company_name = EXCLUDED.company_name,
+         domain = EXCLUDED.domain,
+         updated_at = NOW(),
+         completed_at = NULL, -- Reset completion time for reruns
+         error_message = NULL`,
+      [scanId, companyName, domain]
+    );
+    
     // Update status to processing
     await queue.updateStatus(scanId, 'processing', 'Comprehensive security discovery in progress...');
     
@@ -111,6 +125,13 @@ async function processScan(job: ScanJob): Promise<void> {
 
     // PHASE 2: INFRASTRUCTURE SCANNING  
     log(`=== PHASE 2: INFRASTRUCTURE SCANNING ===`);
+    
+    // Update status for infrastructure scanning phase
+    await pool.query(
+      `UPDATE scans_master SET status = 'analyzing_modules', updated_at = NOW() WHERE scan_id = $1`,
+      [scanId]
+    );
+    await queue.updateStatus(scanId, 'processing', 'Infrastructure scanning in progress...');
     
     // 2a. Comprehensive Shodan scanning against all discovered targets
     log(`Running Shodan scan for ${domain} and all discovered targets`);
@@ -244,6 +265,13 @@ async function processScan(job: ScanJob): Promise<void> {
     // PHASE 5: AI REPORT GENERATION & SUPABASE UPLOAD
     log(`=== PHASE 5: AI REPORT GENERATION ===`);
     
+    // Update status for report generation phase
+    await pool.query(
+      `UPDATE scans_master SET status = 'generating_report', updated_at = NOW() WHERE scan_id = $1`,
+      [scanId]
+    );
+    await queue.updateStatus(scanId, 'processing', 'Generating AI reports...');
+    
     try {
       log(`Generating dual-model AI reports for ${companyName}...`);
       
@@ -276,6 +304,44 @@ async function processScan(job: ScanJob): Promise<void> {
       // Continue - scan data is still valid even if report generation fails
     }
 
+    // === ON JOB COMPLETION ===
+    // Calculate total_findings_count and max_severity
+    const findingsStats = await pool.query(
+        `SELECT 
+            COUNT(*) as total_findings,
+            MAX(CASE 
+                WHEN severity = 'CRITICAL' THEN 5
+                WHEN severity = 'HIGH' THEN 4
+                WHEN severity = 'MEDIUM' THEN 3
+                WHEN severity = 'LOW' THEN 2
+                WHEN severity = 'INFO' THEN 1
+                ELSE 0 
+            END) as max_severity_score
+         FROM findings f
+         JOIN artifacts a ON f.artifact_id = a.id
+         WHERE a.meta->>'scan_id' = $1`,
+        [scanId]
+    );
+
+    const totalFindingsCount = parseInt(findingsStats.rows[0]?.total_findings || '0');
+    const maxSeverityScore = parseInt(findingsStats.rows[0]?.max_severity_score || '0');
+    let maxSeverity = 'INFO';
+    if (maxSeverityScore === 5) maxSeverity = 'CRITICAL';
+    else if (maxSeverityScore === 4) maxSeverity = 'HIGH';
+    else if (maxSeverityScore === 3) maxSeverity = 'MEDIUM';
+    else if (maxSeverityScore === 2) maxSeverity = 'LOW';
+
+    await pool.query(
+      `UPDATE scans_master 
+       SET status = 'done', 
+           completed_at = NOW(), 
+           updated_at = NOW(),
+           total_findings_count = $2,
+           max_severity = $3
+       WHERE scan_id = $1`,
+      [scanId, totalFindingsCount, maxSeverity]
+    );
+
     // Mark scan as complete ONLY with real data
     await queue.updateStatus(
       scanId, 
@@ -288,6 +354,17 @@ async function processScan(job: ScanJob): Promise<void> {
 
   } catch (error) {
     log(`❌ Scan failed for ${companyName}:`, (error as Error).message);
+    
+    // === ON JOB FAILURE ===
+    await pool.query(
+      `UPDATE scans_master 
+       SET status = 'failed', 
+           completed_at = NOW(), 
+           updated_at = NOW(),
+           error_message = $2
+       WHERE scan_id = $1`,
+      [scanId, (error as Error).message]
+    );
     
     await queue.updateStatus(
       scanId, 

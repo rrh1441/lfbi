@@ -78,8 +78,8 @@
      /* locate SpiderFoot binary */
      let spiderFootCommand = '';
      try {
-       await execFileAsync('which', ['sf']);
-       spiderFootCommand = 'sf';
+       await execFileAsync('ls', ['/opt/spiderfoot/sf.py']);
+       spiderFootCommand = 'python3 /opt/spiderfoot/sf.py';
      } catch {
        try {
          await execFileAsync('which', ['spiderfoot.py']);
@@ -98,11 +98,8 @@
    
      await configureSpiderFoot();
    
-     /* build shell command */
-     const spiderfootOutputPath = `/tmp/spiderfoot-${domain}.json`;
-     const cmd =
-       `${spiderFootCommand} -q -s ${domain} -m ${TARGET_MODULES} -o json ` +
-       `> ${spiderfootOutputPath}`;
+     /* build command without shell redirection – parse stdout directly */
+     const cmd = `${spiderFootCommand} -q -s ${domain} -m ${TARGET_MODULES} -o json`;
    
      try {
        const start = Date.now();
@@ -113,15 +110,13 @@
          maxBuffer: 20 * 1024 * 1024 // 20 MiB
        });
        console.log('[SpiderFoot] ✔️ Completed in', Date.now() - start, 'ms');
-       if (stderr) console.warn('[SpiderFoot] stderr:', stderr.slice(0, 500));
-   
-       /* Parse results */
-       let results: any[] = [];
-       try {
-         results = JSON.parse(await fs.readFile(spiderfootOutputPath, 'utf8'));
-       } catch {
-         if (stdout.trim()) results = JSON.parse(stdout);
+       if (stderr) {
+         console.error('[SpiderFoot-stderr]\n', stderr);
+         console.warn('[SpiderFoot] stderr:', stderr.slice(0, 500));
        }
+   
+       /* Parse results (from stdout) */
+       const results: any[] = stdout.trim() ? JSON.parse(stdout) : [];
    
        /* Process results … (unchanged from previous implementation) */
        let artifactsCreated = 0;
@@ -196,6 +191,13 @@
        return artifactsCreated;
      } catch (err: any) {
        console.error('[SpiderFoot] ❌ Scan failed:', err.message);
+       console.error('[SpiderFoot-error-object]', JSON.stringify(err, null, 2));
+       if (err.stderr) {
+         console.error('[SpiderFoot-stderr]\n', err.stderr);
+       }
+       if (err.stdout) {
+         console.error('[SpiderFoot-stdout]\n', err.stdout);
+       }
        await insertArtifact({
          type: 'error',
          val_text: `SpiderFoot scan failed for ${domain}: ${err.message}`,
