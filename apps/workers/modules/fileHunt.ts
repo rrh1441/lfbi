@@ -92,13 +92,26 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
             try {
                 const { data } = await axios.post(SERPER_URL, { q: query }, { headers });
                 for (const hit of data.organic ?? []) {
-                    // Additional validation: ensure the result is actually related to the organization
-                    const isRelevant = hit.link.includes(domain) || 
-                                     hit.title?.toLowerCase().includes(companyName.toLowerCase()) ||
-                                     hit.snippet?.toLowerCase().includes(companyName.toLowerCase());
+                    // Enhanced validation: ensure the result is actually related to the organization
+                    const lowerTitle = hit.title?.toLowerCase() || '';
+                    const lowerSnippet = hit.snippet?.toLowerCase() || '';
+                    const lowerCompany = companyName.toLowerCase();
+                    
+                    // Check for exact company name match (not just individual words)
+                    const hasExactCompanyMatch = lowerTitle.includes(lowerCompany) || 
+                                               lowerSnippet.includes(lowerCompany) ||
+                                               hit.link.includes(domain);
+                    
+                    // Additional check: avoid generic matches on individual words
+                    const companyWords = lowerCompany.split(' ');
+                    const hasAllWords = companyWords.every(word => 
+                        lowerTitle.includes(word) || lowerSnippet.includes(word)
+                    );
+                    
+                    const isRelevant = hasExactCompanyMatch || (hasAllWords && companyWords.length > 1);
                     
                     if (!isRelevant) {
-                        log(`[fileHunt] Skipping irrelevant result: ${hit.link}`);
+                        log(`[fileHunt] Skipping irrelevant result: ${hit.link} (title: "${hit.title}")`);
                         continue;
                     }
                     const downloadResult = await download(hit.link);
@@ -114,7 +127,9 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
                     let fileContent = '';
                     let fileMetadata: any = {};
                     if (mime.includes('pdf')) {
-                        const loadingTask = getDocument(buffer);
+                        // Convert Buffer to Uint8Array for pdfjs-dist
+                        const uint8Array = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+                        const loadingTask = getDocument(uint8Array);
                         const pdfDocument = await loadingTask.promise;
 
                         let fullText = '';
@@ -164,5 +179,20 @@ export async function runFileHunt(job: { companyName: string; domain: string; sc
     }
     
     log('[fileHunt] File hunting completed for', companyName, '- found', findingsCount, 'exposed files');
+    
+    // Add completion tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `File hunting completed: ${findingsCount} exposed files found`,
+      severity: 'INFO',
+      meta: {
+        scan_id: scanId,
+        scan_module: 'fileHunt',
+        total_findings: findingsCount,
+        categories_scanned: dorksByCat.size,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return findingsCount;
 }

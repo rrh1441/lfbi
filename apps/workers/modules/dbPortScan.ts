@@ -202,5 +202,20 @@ export async function runDbPortScan(job: JobData): Promise<number> {
   }
 
   log('[dbPortScan] Completed database scan, found', findingsCount, 'issues');
+  
+  // Add completion tracking
+  await insertArtifact({
+    type: 'scan_summary',
+    val_text: `Database port scan completed: ${findingsCount} issues found`,
+    severity: 'INFO',
+    meta: {
+      scan_id: job.scanId,
+      scan_module: 'dbPortScan',
+      total_findings: findingsCount,
+      targets_scanned: targets.length,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
   return findingsCount;
 } 

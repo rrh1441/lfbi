@@ -48,16 +48,19 @@ async function syncScansMaster() {
                 company_name: r.company_name,
                 domain: r.domain,
                 status: r.status,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
+                progress: '0', // Default progress
+                current_module: null,
+                total_modules: '10', // Default total modules
+                started_at: r.created_at,
+                last_updated: r.updated_at,
                 completed_at: r.completed_at,
                 error_message: r.error_message,
-                total_findings: r.total_findings_count, // Renamed for Supabase if desired
-                max_severity: r.max_severity,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
             }));
 
             const { data, error } = await supabase
-                .from('scans') // Your Supabase table name
+                .from('scan_status') // Your Supabase table name
                 .upsert(recordsToUpsert, { onConflict: 'scan_id', ignoreDuplicates: false });
 
             if (error) {

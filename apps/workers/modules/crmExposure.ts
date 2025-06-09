@@ -116,7 +116,9 @@ async function downloadAndAnalyze(url: string, companyName: string, scanId?: str
 
     // Extract content and metadata based on MIME type
     if (mimeInfo.verified === 'application/pdf') {
-      const loadingTask = getDocument(buf);
+      // Convert Buffer to Uint8Array for pdfjs-dist
+      const uint8Array = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+      const loadingTask = getDocument(uint8Array);
       const pdfDocument = await loadingTask.promise;
 
       let fullText = '';
@@ -328,5 +330,20 @@ export async function runCrmExposure(job: { companyName: string; domain: string;
   }
 
   log('[crmExposure] CRM & Cloud Storage scan completed, found', findingsCount, 'exposed files');
+  
+  // Add completion tracking
+  await insertArtifact({
+    type: 'scan_summary',
+    val_text: `CRM exposure scan completed: ${findingsCount} exposed files found`,
+    severity: 'INFO',
+    meta: {
+      scan_id: scanId,
+      scan_module: 'crmExposure',
+      total_findings: findingsCount,
+      queries_executed: dorks.length,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
   return findingsCount;
 } 

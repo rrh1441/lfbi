@@ -1,9 +1,13 @@
 /* ──────────────────────────────────────────────────────────────────────────
    apps/workers/modules/spiderFoot.ts
    --------------------------------------------------------------------------
-   Executes SpiderFoot from a worker, saves results, inserts artifacts.
-   This version wraps the scan command in `sh -c` so that output redirection
-   works and positional arguments are parsed correctly.
+   Robust SpiderFoot wrapper (VT disabled):
+   • Finds the binary via four fall-backs or an explicit env override
+   • Logs API-key status (no VirusTotal line)
+   • Runs high-signal modules incl. WHOIS and DNS-resolve
+   • Captures core row-types + common DNS/WHOIS intel
+   • Timeout configurable via SPIDERFOOT_TIMEOUT_MS (default 300 000 ms)
+   • Always emits a scan_summary artifact
    ------------------------------------------------------------------------ */
 
    import { execFile, exec as execRaw } from 'node:child_process';
@@ -12,10 +16,12 @@
    import { insertArtifact } from '../core/artifactStore.js';
    import { log } from '../core/logger.js';
    
-   const execFileAsync = promisify(execFile); // direct binary, no shell
-   const execAsync     = promisify(execRaw);  // via shell
+   const execFileAsync = promisify(execFile);
+   const execAsync     = promisify(execRaw);
    
-   // SpiderFoot modules that require API keys
+   type Severity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+   
+   /* ── modules to run ──────────────────────────────────────────────────────── */
    const TARGET_MODULES = [
      'sfp_crtsh',
      'sfp_censys',
@@ -27,116 +33,129 @@
      'sfp_psbdmp',
      'sfp_skymem',
      'sfp_sslcert',
-     'sfp_nuclei'
+     'sfp_nuclei',
+     'sfp_whois',
+     'sfp_dnsresolve',
    ].join(',');
    
-   type Severity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-   
-   /* Configure SpiderFoot ─────────────────────────────────────────────────── */
-   async function configureSpiderFoot(): Promise<boolean> {
-     try {
-       await execFileAsync('mkdir', ['-p', '/tmp/spiderfoot-config']);
-   
-       const config = {
-         shodan_api_key:       process.env.SHODAN_API_KEY  ?? '',
-         censys_api_key:       process.env.CENSYS_API_KEY  ?? '',
-         haveibeenpwnd_api_key:process.env.HIBP_API_KEY    ?? '',
-         chaos_api_key:        process.env.CHAOS_API_KEY   ?? '',
-         dbconnectstr:         'sqlite:////tmp/spiderfoot.db',
-         webport:              '5001',
-         webhost:              '127.0.0.1'
-       };
-   
-       // Mask keys in log
-       const masked = (v: string) => (v ? '✅ SET' : '❌ NOT SET');
-       console.log('[spiderfoot] API key status:',
-         `Shodan ${masked(config.shodan_api_key)},`,
-         `Censys ${masked(config.censys_api_key)},`,
-         `HIBP ${masked(config.haveibeenpwnd_api_key)},`,
-         `Chaos ${masked(config.chaos_api_key)}`);
-   
-       const confText = Object.entries(config)
-         .map(([k, v]) => `${k}=${v}`)
-         .join('\n');
-       await fs.writeFile('/tmp/spiderfoot-config/spiderfoot.conf', confText);
-   
-       log('[spiderfoot] Configuration written');
-       return true;
-     } catch (err) {
-       log('[spiderfoot] Configuration error:', (err as Error).message);
-       return false;
+   /* ── binary discovery ────────────────────────────────────────────────────── */
+   async function resolveSpiderFootCommand(): Promise<string | null> {
+     if (process.env.SPIDERFOOT_CMD) return process.env.SPIDERFOOT_CMD;
+     const candidates = [
+       '/opt/spiderfoot/sf.py',
+       '/usr/local/bin/sf',
+       '/usr/local/bin/spiderfoot.py',
+       'sf',
+       'spiderfoot.py',
+     ];
+     for (const cand of candidates) {
+       try {
+         if (cand.startsWith('/')) {
+           await fs.access(cand, fs.constants.X_OK);
+           return cand.includes('.py') ? `python3 ${cand}` : cand;
+         }
+         await execFileAsync('which', [cand]);
+         return cand;
+       } catch { /* next */ }
      }
+     return null;
    }
    
-   /* Run SpiderFoot ───────────────────────────────────────────────────────── */
+   /* ── main entry ──────────────────────────────────────────────────────────── */
    export async function runSpiderFoot(
-     job: { domain: string; scanId?: string }
+     job: { domain: string; scanId: string },
    ): Promise<number> {
      const { domain, scanId } = job;
-     console.log('[SpiderFoot] 🚀 Starting scan for', domain, 'ID:', scanId);
+     log(`[SpiderFoot] 🚀 Starting scan for ${domain} (scanId=${scanId})`);
    
-     /* locate SpiderFoot binary */
-     let spiderFootCommand = '';
-     try {
-       await execFileAsync('ls', ['/opt/spiderfoot/sf.py']);
-       spiderFootCommand = 'python3 /opt/spiderfoot/sf.py';
-     } catch {
-       try {
-         await execFileAsync('which', ['spiderfoot.py']);
-         spiderFootCommand = 'spiderfoot.py';
-       } catch {
-         console.error('[SpiderFoot] SpiderFoot not installed');
-         await insertArtifact({
-           type: 'scan_error',
-           val_text: 'SpiderFoot binary not found in PATH',
-           severity: 'HIGH',
-           meta: { scan_id: scanId, timestamp: new Date().toISOString() }
-         });
-         return 0;
-       }
+     const spiderFootCmd = await resolveSpiderFootCommand();
+     if (!spiderFootCmd) {
+       log('[SpiderFoot] ❌ Binary not found – module skipped');
+       await insertArtifact({
+         type: 'scan_error',
+         val_text: 'SpiderFoot binary not found in container',
+         severity: 'HIGH',
+         meta: { scan_id: scanId, module: 'spiderfoot' },
+       });
+       return 0;
      }
    
-     await configureSpiderFoot();
+     /* per-run config dir */
+     const confDir = `/tmp/spiderfoot-${scanId}`;
+     await fs.mkdir(confDir, { recursive: true });
    
-     /* build command without shell redirection – parse stdout directly */
-     const cmd = `${spiderFootCommand} -q -s ${domain} -m ${TARGET_MODULES} -o json`;
+     /* API-key config + masked log */
+     const config = {
+       shodan_api_key:        process.env.SHODAN_API_KEY ?? '',
+       censys_api_key:        process.env.CENSYS_API_KEY ?? '',
+       haveibeenpwnd_api_key: process.env.HIBP_API_KEY   ?? '',
+       chaos_api_key:         process.env.CHAOS_API_KEY  ?? '',
+       dbconnectstr:          `sqlite:////tmp/spiderfoot-${scanId}.db`,
+       webport:               '5001',
+       webhost:               '127.0.0.1',
+     };
+     const mask = (v: string) => (v ? '✅' : '❌');
+     log(
+       '[SpiderFoot] API keys: ' +
+         `Shodan ${mask(config.shodan_api_key)}, ` +
+         `Censys ${mask(config.censys_api_key)}, ` +
+         `HIBP ${mask(config.haveibeenpwnd_api_key)}, ` +
+         `Chaos ${mask(config.chaos_api_key)}`,
+     );
+   
+     await fs.writeFile(
+       `${confDir}/spiderfoot.conf`,
+       Object.entries(config).map(([k, v]) => `${k}=${v}`).join('\n'),
+     );
+   
+     /* command */
+     const cmd = `${spiderFootCmd} -q -s ${domain} -m ${TARGET_MODULES} -o json`;
+     log('[SpiderFoot] Command:', cmd);
+   
+     /* runtime env */
+     const env = { ...process.env, SF_CONFDIR: confDir };
+     const TIMEOUT_MS = parseInt(process.env.SPIDERFOOT_TIMEOUT_MS || '300000', 10);
    
      try {
        const start = Date.now();
        const { stdout, stderr } = await execAsync(cmd, {
-         timeout: 180_000,
-         env: { ...process.env, SF_CONFDIR: '/tmp/spiderfoot-config' },
+         env,
+         timeout: TIMEOUT_MS,
          shell: '/bin/sh',
-         maxBuffer: 20 * 1024 * 1024 // 20 MiB
+         maxBuffer: 20 * 1024 * 1024,
        });
-       console.log('[SpiderFoot] ✔️ Completed in', Date.now() - start, 'ms');
-       if (stderr) {
-         console.error('[SpiderFoot-stderr]\n', stderr);
-         console.warn('[SpiderFoot] stderr:', stderr.slice(0, 500));
-       }
    
-       /* Parse results (from stdout) */
-       const results: any[] = stdout.trim() ? JSON.parse(stdout) : [];
+       if (stderr) log('[SpiderFoot-stderr]', stderr.slice(0, 400));
+       log(`[SpiderFoot] Raw output size: ${stdout.length} bytes`);
    
-       /* Process results … (unchanged from previous implementation) */
-       let artifactsCreated = 0;
+       const results = stdout.trim() ? JSON.parse(stdout) : [];
+       let artifacts = 0;
        const linkUrls: string[] = [];
    
+       /* high-signal row types we want to persist */
+       const keepAsIntel = new Set([
+         'INTERNET_DOMAIN',
+         'DOMAIN_NAME',
+         'CO_HOSTED_SITE',
+         'NETBLOCK_OWNER',
+         'RAW_RIR_DATA',
+         'AFFILIATE_INTERNET_DOMAIN',
+       ]);
+   
        for (const row of results) {
-         /* choose severity first so it has the right literal type */
          const sev: Severity =
            /VULNERABILITY|MALICIOUS/.test(row.type) ? 'HIGH' : 'INFO';
    
          const base = {
-           severity: sev,                 // <- typed as Severity, not string
-           src_url:  row.sourceUrl ?? domain,
+           severity: sev,
+           src_url: row.sourceUrl ?? domain,
            meta: {
-             scan_id:         scanId,
+             scan_id: scanId,
              spiderfoot_type: row.type,
-             source_module:   row.module,
-             confidence:      row.confidence ?? 100
-           }
-         } as const;                      // keeps literal types
+             source_module: row.module,
+             confidence: row.confidence ?? 100,
+           },
+         } as const;
    
          let created = false;
    
@@ -144,70 +163,92 @@
            case 'AFFILIATE_INTERNET_NAME':
            case 'INTERNET_NAME':
              await insertArtifact({ ...base, type: 'subdomain', val_text: row.data });
-             created = true; break;
+             created = true;
+             break;
            case 'IP_ADDRESS':
              await insertArtifact({ ...base, type: 'ip', val_text: row.data });
-             created = true; break;
+             created = true;
+             break;
            case 'EMAILADDR':
              await insertArtifact({ ...base, type: 'email', val_text: row.data });
-             created = true; break;
+             created = true;
+             break;
            case 'VULNERABILITY_CVE':
-             await insertArtifact({ ...base, type: 'vuln', val_text: `CVE: ${row.data}`, meta: { ...base.meta, cve_id: row.data } });
-             created = true; break;
+             await insertArtifact({
+               ...base,
+               type: 'vuln',
+               val_text: `CVE: ${row.data}`,
+               meta: { ...base.meta, cve_id: row.data },
+             });
+             created = true;
+             break;
            case 'MALICIOUS_IPADDR':
            case 'MALICIOUS_INTERNET_NAME':
-             await insertArtifact({ ...base, type: 'threat', val_text: `Indicator: ${row.data}` });
-             created = true; break;
+             await insertArtifact({
+               ...base,
+               type: 'threat',
+               val_text: `Indicator: ${row.data}`,
+             });
+             created = true;
+             break;
            case 'LEAKSITE_CONTENT':
            case 'PASTESITE_CONTENT':
-             await insertArtifact({ ...base, type: 'breach', val_text: row.data, meta: { ...base.meta, breach_source: row.sourceUrl } });
-             created = true; break;
+             await insertArtifact({
+               ...base,
+               type: 'breach',
+               val_text: row.data,
+               meta: { ...base.meta, breach_source: row.sourceUrl },
+             });
+             created = true;
+             break;
            case 'LINKED_URL_EXTERNAL':
            case 'LINKED_URL_INTERNAL':
              linkUrls.push(row.data);
              break;
+           default:
+             if (keepAsIntel.has(row.type)) {
+               await insertArtifact({
+                 ...base,
+                 type: 'intel',
+                 val_text: row.data,
+               });
+               created = true;
+             }
          }
-         if (created) artifactsCreated++;
+         if (created) artifacts++;
        }
    
+       /* save link list for TruffleHog */
        if (linkUrls.length) {
-         await fs.writeFile('/tmp/spiderfoot-links.json', JSON.stringify(linkUrls, null, 2));
+         const linkPath = `/tmp/spiderfoot-links-${scanId}.json`;
+         await fs.writeFile(linkPath, JSON.stringify(linkUrls, null, 2));
          log('[SpiderFoot] Saved', linkUrls.length, 'links for TruffleHog');
        }
    
+       /* summary */
        await insertArtifact({
          type: 'scan_summary',
-         val_text: `SpiderFoot scan completed: ${artifactsCreated} artifacts`,
-         severity: 'INFO',
-         meta: {
-           scan_id:          scanId,
-           results_processed: results.length,
-           artifacts_created: artifactsCreated,
-           links_discovered:  linkUrls.length,
-           timestamp:         new Date().toISOString()
-         }
-       });
-   
-       return artifactsCreated;
-     } catch (err: any) {
-       console.error('[SpiderFoot] ❌ Scan failed:', err.message);
-       console.error('[SpiderFoot-error-object]', JSON.stringify(err, null, 2));
-       if (err.stderr) {
-         console.error('[SpiderFoot-stderr]\n', err.stderr);
-       }
-       if (err.stdout) {
-         console.error('[SpiderFoot-stdout]\n', err.stdout);
-       }
-       await insertArtifact({
-         type: 'error',
-         val_text: `SpiderFoot scan failed for ${domain}: ${err.message}`,
+         val_text: `SpiderFoot scan completed: ${artifacts} artifacts`,
          severity: 'INFO',
          meta: {
            scan_id: scanId,
-           error:   err.message,
-           stderr:  err.stderr,
-           stdout:  err.stdout
-         }
+           duration_ms: Date.now() - start,
+           results_processed: results.length,
+           artifacts_created: artifacts,
+           links_discovered: linkUrls.length,
+           timestamp: new Date().toISOString(),
+         },
+       });
+   
+       log(`[SpiderFoot] ✔️ Completed – ${artifacts} artifacts`);
+       return artifacts;
+     } catch (err: any) {
+       log('[SpiderFoot] ❌ Scan failed:', err.message);
+       await insertArtifact({
+         type: 'scan_error',
+         val_text: `SpiderFoot scan failed: ${err.message}`,
+         severity: 'HIGH',
+         meta: { scan_id: scanId, module: 'spiderfoot' },
        });
        return 0;
      }

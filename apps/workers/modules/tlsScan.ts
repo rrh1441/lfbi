@@ -9,13 +9,13 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
   log('[tlsScan] Starting TLS/SSL security scan for', job.domain);
   
   try {
-    const { stdout } = await exec('testssl.sh', [
+    const { stdout } = await exec('/opt/testssl.sh/testssl.sh', [
       '--quiet',
-      '--warnings',
+      '--warnings', 'off',
       '--jsonfile-pretty', '/tmp/testssl.json',
       job.domain
     ], {
-      timeout: 120000 // 2 minute timeout
+      timeout: 300000 // 5 minute timeout
     });
     
     let findingsCount = 0;
@@ -95,10 +95,39 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
     }
     
     log('[tlsScan] Completed TLS scan, found', findingsCount, 'issues');
+    
+    // Add completion tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `TLS scan completed: ${findingsCount} issues found`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'tlsScan',
+        total_findings: findingsCount,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return findingsCount;
     
   } catch (error) {
     log('[tlsScan] Error during scan:', (error as Error).message);
+    
+    // Add error tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `TLS scan failed: ${(error as Error).message}`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'tlsScan',
+        total_findings: 0,
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return 0;
   }
 }

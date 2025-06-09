@@ -40,8 +40,10 @@ async function runNucleiForTarget(target: string, tags: string, scanId?: string)
         const { stdout } = await exec('nuclei', [
             '-u', target,
             '-json',
-            '-silent'
-        ], { timeout: 300000 }); // 5 minute timeout
+            '-silent',
+            '-timeout', '10',
+            '-retries', '2'
+        ], { timeout: 600000 }); // 10 minute timeout
 
         const findings = stdout.trim().split('\n').filter(Boolean);
         for (const line of findings) {
@@ -106,5 +108,20 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
     }
 
     log('[nuclei] Completed vulnerability scan.');
+    
+    // Add completion tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `Nuclei scan completed: ${totalFindings} vulnerabilities found`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'nuclei',
+        total_findings: totalFindings,
+        targets_scanned: targets.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return totalFindings;
 } 

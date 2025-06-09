@@ -210,10 +210,40 @@ export async function runZapRateTest(job: { domain: string; scanId?: string }): 
     }
     
     log('[zapRateTest] Rate limiting tests completed, found', findingsCount, 'issues');
+    
+    // Add completion tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `Rate limiting tests completed: ${findingsCount} issues found`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'zapRateTest',
+        total_findings: findingsCount,
+        endpoints_tested: testableEndpoints.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return findingsCount;
     
   } catch (error) {
     log('[zapRateTest] Error during rate limit testing:', (error as Error).message);
+    
+    // Add error tracking
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `Rate limiting tests failed: ${(error as Error).message}`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'zapRateTest',
+        total_findings: 0,
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
     return 0;
   }
 } 

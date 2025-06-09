@@ -1,83 +1,92 @@
+# ────────────────────────────────────────────────────────────────────────
+# DealBrief-Scanner Runtime Image
+# • Installs all security tools (SpiderFoot, nuclei, testssl.sh, TruffleHog)
+# • Adds sf + spiderfoot.py entry-points so wrapper code finds the binary
+# • Uses node:22-alpine (Promise.withResolvers supported)
+# ────────────────────────────────────────────────────────────────────────
 FROM node:22-alpine
 
-# Check Node version to confirm Promise.withResolvers support
+# ----- Verify base image -------------------------------------------------
 RUN node -v
 
+# ----- Working directory -------------------------------------------------
 WORKDIR /app
 
-# Install system dependencies and security tools including Chrome
+# ----- System packages & headless Chrome for Puppeteer -------------------
 RUN apk add --no-cache \
-    bash \
-    curl \
-    wget \
-    git \
-    openssl \
-    bind-tools \
-    nmap \
-    nmap-scripts \
-    python3 \
-    py3-pip \
-    unzip \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
-    coreutils \
-    procps
+    bash curl wget git openssl bind-tools \
+    nmap nmap-scripts \
+    python3 py3-pip unzip \
+    chromium nss freetype freetype-dev harfbuzz \
+    ca-certificates ttf-freefont coreutils procps
 
-# Set Chrome path for Puppeteer
+# Puppeteer points to system Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Install TruffleHog
-RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+# ------------------------------------------------------------------------
+# Security tooling
+# ------------------------------------------------------------------------
 
-# Install Nuclei
-RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.2.9/nuclei_3.2.9_linux_amd64.zip -o nuclei.zip && \
+# TruffleHog
+RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh \
+    | sh -s -- -b /usr/local/bin
+
+# nuclei
+RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.2.9/nuclei_3.2.9_linux_amd64.zip \
+        -o nuclei.zip && \
     unzip nuclei.zip && \
     mv nuclei /usr/local/bin/ && \
     rm nuclei.zip && \
     chmod +x /usr/local/bin/nuclei
 
-# Install Python packages with system override
+# nuclei templates (stored read-only under /opt)
+RUN mkdir -p /opt/nuclei-templates && \
+    nuclei -update-templates -ut /opt/nuclei-templates
+ENV NUCLEI_TEMPLATES=/opt/nuclei-templates
+
+# dnstwist (Python) – use --break-system-packages to avoid venv bloat
 RUN pip3 install --break-system-packages dnstwist
 
-# Install SpiderFoot
+# SpiderFoot
 RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
-    cd /opt/spiderfoot && \
-    pip3 install --break-system-packages -r requirements.txt && \
+    pip3 install --break-system-packages -r /opt/spiderfoot/requirements.txt && \
+    chmod +x /opt/spiderfoot/sf.py && \
     ln -s /opt/spiderfoot/sf.py /usr/local/bin/sf && \
-    chmod +x /opt/spiderfoot/sf.py
+    ln -s /opt/spiderfoot/sf.py /usr/local/bin/spiderfoot.py   # legacy name
 
-# Install testssl.sh
+# testssl.sh
 RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.sh && \
     ln -s /opt/testssl.sh/testssl.sh /usr/local/bin/testssl.sh
 
-# Install pnpm and tsx
+# ------------------------------------------------------------------------
+# Node-level tooling
+# ------------------------------------------------------------------------
 RUN npm install -g pnpm tsx
 
-# Copy package files
+# ------------------------------------------------------------------------
+# Project dependencies
+# ------------------------------------------------------------------------
 COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api-main/package.json ./apps/api-main/
 COPY apps/workers/package.json ./apps/workers/
 
-# Install all dependencies using pnpm
 RUN pnpm install
 
-# Copy source code
+# ------------------------------------------------------------------------
+# Copy application source
+# ------------------------------------------------------------------------
 COPY . .
 
-# Create necessary directories
+# Ensure temp directories are writeable
 RUN mkdir -p /tmp && chmod 777 /tmp
 
-# Update nuclei templates
-RUN nuclei -update-templates
-
-# Expose port 3000 to match Fly.io configuration
+# ------------------------------------------------------------------------
+# Network
+# ------------------------------------------------------------------------
 EXPOSE 3000
 
-# Start the application directly with tsx
+# ------------------------------------------------------------------------
+# Entrypoint
+# ------------------------------------------------------------------------
 CMD ["npx", "tsx", "apps/api-main/server.ts"]

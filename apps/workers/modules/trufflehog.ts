@@ -64,7 +64,11 @@ async function scanWebsite(domain: string, scanId?: string): Promise<number> {
 
     /* 1. download page */
     const url = `https://${domain}`;
-    const resp = await axios.get<ArrayBuffer>(url, { responseType: 'arraybuffer', timeout: 15_000 });
+    const resp = await axios.get<ArrayBuffer>(url, { 
+      responseType: 'arraybuffer', 
+      timeout: 15_000,
+      httpsAgent: new (await import('https')).Agent({ rejectUnauthorized: false })
+    });
     const tmpPath = `/tmp/trufflehog_${domain.replace(/[^\w.-]/g, '_')}.html`;
     await fs.writeFile(tmpPath, Buffer.from(resp.data));
 
@@ -178,5 +182,19 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
   total += await scanFiles(job.domain);
 
   log('[trufflehog] Finished:', job.domain, 'secrets found:', total);
+  
+  // Add completion tracking
+  await insertArtifact({
+    type: 'scan_summary',
+    val_text: `TruffleHog scan completed: ${total} secrets found`,
+    severity: 'INFO',
+    meta: {
+      scan_id: job.scanId,
+      scan_module: 'trufflehog',
+      total_findings: total,
+      timestamp: new Date().toISOString()
+    }
+  });
+  
   return total;
 } 
