@@ -52,9 +52,11 @@ const MAX_CONTENT_ANALYSIS_BYTES = 250000;
 const MAX_WORKER_MEMORY_MB = 512; // Max RSS memory before aborting a task.
 
 try {
-    GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+    const pdfWorkerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+    GlobalWorkerOptions.workerSrc = pdfWorkerPath;
+    log('[docExposure] pdfjs-dist workerSrc successfully set to:', pdfWorkerPath);
 } catch (error) {
-    log('[docExposure] [ERROR] Could not resolve pdf.worker.mjs. PDF processing will fail.', error);
+    log('[docExposure] [CRITICAL ERROR] Could not resolve pdf.worker.mjs. PDF processing will likely fail.', error);
 }
 
 // --- Dork & Platform Management ---

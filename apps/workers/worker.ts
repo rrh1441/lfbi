@@ -13,7 +13,6 @@ import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
 import { pool } from './core/artifactStore.js';
-import { supabase } from './core/supabaseClient.js';
 
 config();
 
@@ -59,27 +58,27 @@ interface ScanMasterUpdate {
 
 // Helper function to update scans_master table
 async function updateScanMasterStatus(scanId: string, updates: ScanMasterUpdate): Promise<void> {
-  const setClause = Object.keys(updates)
-    .map((key, index) => `${key} = $${index + 2}`)
-    .join(', ');
-  
-  const values = [scanId, ...Object.values(updates)];
-  
-  await pool.query(
-    `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
-    values
-  );
-  
-  // Mirror to Supabase
-  await supabase.from('scan_status').upsert({
-    scan_id:         scanId,
-    status:          updates.status        ?? undefined,
-    progress:        updates.progress      ?? undefined,
-    current_module:  updates.current_module?? undefined,
-    error_message:   updates.error_message ?? undefined,
-    max_severity:    updates.max_severity  ?? undefined,
-    updated_at:      new Date().toISOString(),
-  }, { onConflict: 'scan_id' }).throwOnError();
+  try {
+    const setClause = Object.keys(updates)
+      .map((key, index) => `${key} = $${index + 2}`)
+      .join(', ');
+    
+    const values = [scanId, ...Object.values(updates)];
+    
+    const result = await pool.query(
+      `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
+      values
+    );
+    
+    log(`[updateScanMasterStatus] Updated scan ${scanId} with:`, Object.keys(updates).join(', '));
+    
+    if (result.rowCount === 0) {
+      log(`[updateScanMasterStatus] WARNING: No rows updated for scan ${scanId}, may not exist in scans_master table`);
+    }
+  } catch (error) {
+    log(`[updateScanMasterStatus] ERROR: Failed to update scan ${scanId}:`, (error as Error).message);
+    // Don't throw the error to avoid breaking the scan process
+  }
 }
 
 // Initialize scans_master table
@@ -282,14 +281,16 @@ async function processScan(job: ScanJob): Promise<void> {
         `SELECT 
             COUNT(*) as total_findings,
             MAX(CASE 
-                WHEN severity = 'CRITICAL' THEN 5
-                WHEN severity = 'HIGH' THEN 4
-                WHEN severity = 'MEDIUM' THEN 3
-                WHEN severity = 'LOW' THEN 2
-                WHEN severity = 'INFO' THEN 1
+                WHEN a.severity = 'CRITICAL' THEN 5
+                WHEN a.severity = 'HIGH' THEN 4
+                WHEN a.severity = 'MEDIUM' THEN 3
+                WHEN a.severity = 'LOW' THEN 2
+                WHEN a.severity = 'INFO' THEN 1
                 ELSE 0 
             END) as max_severity_score
-         FROM findings WHERE scan_id = $1`,
+         FROM findings f
+         JOIN artifacts a ON f.artifact_id = a.id
+         WHERE a.meta->>'scan_id' = $1`,
         [scanId]
     );
 

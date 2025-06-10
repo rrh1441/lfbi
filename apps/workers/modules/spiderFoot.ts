@@ -155,6 +155,7 @@ export async function runSpiderFoot(job: { domain: string; scanId: string }): Pr
 
         const results = stdout.trim() ? JSON.parse(stdout) : [];
         let artifacts = 0;
+        const linkUrls: string[] = []; // Collect URLs for TruffleHog
         
         for (const row of results) {
             if (!shouldPersist(row.type)) continue;
@@ -167,18 +168,101 @@ export async function runSpiderFoot(job: { domain: string; scanId: string }): Pr
             
             let created = false;
             switch (row.type) {
+                // Network Infrastructure
+                case 'IP_ADDRESS':
+                    await insertArtifact({ ...base, type: 'ip', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                case 'INTERNET_NAME':
                 case 'AFFILIATE_INTERNET_NAME':
-                case 'INTERNET_NAME': {
-                    await insertArtifact({ ...base, type: 'subdomain', val_text: row.data });
+                case 'CO_HOSTED_SITE':
+                    await insertArtifact({ ...base, type: 'hostname', val_text: row.data });
                     const urlsCreated = await probeAndCreateUrlArtifacts(row.data, base);
                     artifacts += (1 + urlsCreated);
                     continue;
-                }
+                    
+                case 'SUBDOMAIN':
+                    await insertArtifact({ ...base, type: 'subdomain', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                // Personal Information
+                case 'EMAILADDR':
+                    await insertArtifact({ ...base, type: 'email', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                case 'PHONE_NUMBER':
+                    await insertArtifact({ ...base, type: 'phone_number', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                case 'USERNAME':
+                    await insertArtifact({ ...base, type: 'username', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                case 'GEOINFO':
+                    await insertArtifact({ ...base, type: 'geolocation', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                // Vulnerabilities
+                case 'VULNERABILITY_CVE_CRITICAL':
+                case 'VULNERABILITY_CVE_HIGH':
+                case 'VULNERABILITY':
+                    await insertArtifact({ ...base, type: 'vuln', val_text: row.data, severity: 'HIGH' });
+                    created = true;
+                    break;
+                    
+                // Malicious Indicators
+                case 'MALICIOUS_IPADDR':
+                case 'MALICIOUS_SUBDOMAIN':
+                case 'MALICIOUS_INTERNET_NAME':
+                    await insertArtifact({ ...base, type: 'malicious_indicator', val_text: row.data, severity: 'HIGH' });
+                    created = true;
+                    break;
+                    
+                // Data Leaks
+                case 'LEAKSITE_CONTENT':
+                case 'DARKWEB_MENTION':
+                case 'PASTESITE_CONTENT':
+                    await insertArtifact({ ...base, type: 'data_leak', val_text: row.data, severity: 'MEDIUM' });
+                    created = true;
+                    break;
+                    
+                // URLs for TruffleHog
+                case 'CODE_REPOSITORY':
+                case 'LINKED_URL_EXTERNAL':
+                case 'LINKED_URL_INTERNAL':
+                    // Check if URL looks like a Git repo or paste site
+                    const url = row.data.toLowerCase();
+                    if (url.includes('github.com') || url.includes('gitlab.com') || 
+                        url.includes('bitbucket.org') || url.includes('pastebin.com') ||
+                        url.includes('paste.') || url.includes('.git') || 
+                        url.includes('gist.github.com')) {
+                        linkUrls.push(row.data);
+                        log(`[SpiderFoot] Added to TruffleHog queue: ${row.data}`);
+                    }
+                    await insertArtifact({ ...base, type: 'linked_url', val_text: row.data });
+                    created = true;
+                    break;
+                    
+                // Default case for less common types
                 default:
                     await insertArtifact({ ...base, type: 'intel', val_text: row.data });
                     created = true;
+                    break;
             }
             if (created) artifacts++;
+        }
+        
+        // Save collected URLs for TruffleHog
+        if (linkUrls.length > 0) {
+            log(`[SpiderFoot] Collected linkUrls for TruffleHog:`, linkUrls);
+            await fs.writeFile(`/tmp/spiderfoot-links-${scanId}.json`, JSON.stringify(linkUrls, null, 2));
+            log(`[SpiderFoot] Saved ${linkUrls.length} URLs to /tmp/spiderfoot-links-${scanId}.json for TruffleHog`);
         }
         
         await insertArtifact({

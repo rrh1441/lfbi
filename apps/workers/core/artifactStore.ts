@@ -1,5 +1,4 @@
 import { Pool } from 'pg';
-import { supabase } from './supabaseClient.js';
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.DB_URL
@@ -42,19 +41,6 @@ export async function insertArtifact(artifact: ArtifactInput): Promise<number> {
     
     const artifactId = result.rows[0].id;
     
-    // Mirror to Supabase
-    await supabase.from('findings').insert({
-      artifact_id: artifactId,
-      type:        artifact.type,
-      severity:    artifact.severity,
-      val_text:    artifact.val_text,
-      src_url:     artifact.src_url ?? null,
-      sha256:      artifact.sha256 ?? null,
-      mime:        artifact.mime ?? null,
-      meta:        artifact.meta ?? {},
-      created_at:  new Date().toISOString(),
-    }).throwOnError();
-    
     console.log(`[artifactStore] Inserted ${artifact.type} artifact: ${artifact.val_text.slice(0, 60)}...`);
     return artifactId;
   } catch (error) {
@@ -77,15 +63,6 @@ export async function insertFinding(
        RETURNING id`,
       [artifactId, findingType, recommendation, description]
     );
-    
-    // Mirror to Supabase
-    await supabase.from('findings_detail').insert({
-      artifact_id:   artifactId,
-      category:      findingType,
-      recommendation,
-      description,
-      created_at:    new Date().toISOString(),
-    }).throwOnError();
     
     console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}`);
     return result.rows[0].id;
@@ -132,6 +109,9 @@ export async function initializeDatabase(): Promise<void> {
         company_name VARCHAR(255),
         domain VARCHAR(255),
         status VARCHAR(50) NOT NULL DEFAULT 'queued',
+        progress INTEGER DEFAULT 0,
+        current_module VARCHAR(100),
+        total_modules INTEGER DEFAULT 0,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP WITH TIME ZONE,
@@ -166,10 +146,12 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_artifacts_type ON artifacts(type);
       CREATE INDEX IF NOT EXISTS idx_artifacts_severity ON artifacts(severity);
       CREATE INDEX IF NOT EXISTS idx_artifacts_created_at ON artifacts(created_at);
+      CREATE INDEX IF NOT EXISTS idx_artifacts_meta_scan_id ON artifacts((meta->>'scan_id'));
       CREATE INDEX IF NOT EXISTS idx_findings_artifact_id ON findings(artifact_id);
       CREATE INDEX IF NOT EXISTS idx_findings_type ON findings(finding_type);
       CREATE INDEX IF NOT EXISTS idx_findings_created_at ON findings(created_at);
       CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
     `);
 
     console.log('[artifactStore] Database initialized successfully');

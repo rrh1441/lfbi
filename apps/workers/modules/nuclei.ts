@@ -55,11 +55,15 @@ const LAST_UPDATE_TIMESTAMP_PATH = '/tmp/nuclei_last_update.txt';
 
 async function validateDependencies(): Promise<boolean> {
     try {
-        await exec('nuclei', ['-version']);
+        const result = await exec('nuclei', ['-version']);
         log('[nuclei] Nuclei binary found.');
+        if (result.stderr) {
+            log('[nuclei] Version check stderr:', result.stderr);
+        }
         return true;
     } catch (error) {
         log('[nuclei] [CRITICAL] Nuclei binary not found. Scans will be skipped.');
+        log('[nuclei] [CRITICAL] Error details:', (error as Error).message);
         return false;
     }
 }
@@ -83,7 +87,13 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 
         if (Date.now() - lastUpdateTime > oneDay) {
             log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            await exec('nuclei', ['-update-templates'], { timeout: 300000 }); // 5 min timeout
+            const result = await exec('nuclei', ['-update-templates'], { timeout: 300000 }); // 5 min timeout
+            if (result.stderr) {
+                log('[nuclei] Template update stderr:', result.stderr);
+            }
+            if (result.stdout) {
+                log('[nuclei] Template update stdout:', result.stdout.substring(0, 500));
+            }
             await fs.writeFile(LAST_UPDATE_TIMESTAMP_PATH, Date.now().toString());
             log('[nuclei] Template update complete.');
         } else {
@@ -140,7 +150,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
 
     log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
     try {
-        const { stdout } = await exec('nuclei', [
+        const { stdout, stderr } = await exec('nuclei', [
             '-u', target.url,
             '-tags', tags,
             '-json',
@@ -149,6 +159,10 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
             '-retries', '2',
             '-headless'
         ], { timeout: 600000 });
+
+        if (stderr) {
+            log(`[nuclei] [Tag Scan] stderr for ${target.url}:`, stderr);
+        }
 
         return await processNucleiOutput(stdout, scanId!, 'tags');
     } catch (error) {
@@ -172,13 +186,17 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
     }
 
     try {
-        const { stdout } = await exec('nuclei', [
+        const { stdout, stderr } = await exec('nuclei', [
             '-u', target.url,
             '-w', workflowPath,
             '-json',
             '-silent',
             '-timeout', '15'
         ], { timeout: 900000 });
+
+        if (stderr) {
+            log(`[nuclei] [Workflow Scan] stderr for ${target.url}:`, stderr);
+        }
 
         return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
     } catch (error) {

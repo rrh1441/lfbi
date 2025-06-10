@@ -70,7 +70,9 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
     try {
         const testsslPath = await resolveTestsslPath();
         
-        await exec(testsslPath, [
+        log(`[tlsScan] Executing testssl.sh: ${testsslPath} --quiet --warnings off --jsonfile ${jsonOutputFile} ${job.domain}`);
+        
+        const result = await exec(testsslPath, [
             '--quiet',
             '--warnings', 'off',
             '--jsonfile', jsonOutputFile,
@@ -78,6 +80,13 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
         ], {
             timeout: TLS_SCAN_TIMEOUT_MS
         });
+        
+        if (result.stderr) {
+            log(`[tlsScan] testssl.sh stderr output:`, result.stderr);
+        }
+        if (result.stdout) {
+            log(`[tlsScan] testssl.sh stdout (first 500 chars):`, result.stdout.substring(0, 500));
+        }
 
         const reportData = await fs.readFile(jsonOutputFile, 'utf-8');
         const report = JSON.parse(reportData);
