@@ -16,6 +16,45 @@
    import { insertArtifact } from '../core/artifactStore.js';
    import { log } from '../core/logger.js';
    
+   // --- Row-type filter (runtime-tunable) ---------------------------------
+   // SPIDERFOOT_FILTER_MODE: off | allow | deny    (defaults to allow)
+   const ALLOW_SET = new Set<string>([
+     'DOMAIN_NAME',
+     'INTERNET_DOMAIN',
+     'SUBDOMAIN',
+     'INTERNET_NAME',
+     'CO_HOSTED_SITE',
+     'NETBLOCK_OWNER',
+     'RAW_RIR_DATA',
+     'AFFILIATE_INTERNET_DOMAIN',
+     'IP_ADDRESS',
+     'EMAILADDR',
+     'VULNERABILITY_CVE',
+     'MALICIOUS_IPADDR',
+     'MALICIOUS_INTERNET_NAME',
+     'LEAKSITE_CONTENT',
+     'PASTESITE_CONTENT',
+   ]);
+   const DENY_SET = new Set<string>(); // populate via env if desired
+   
+   function shouldPersist(rowType: string): boolean {
+     const mode = (process.env.SPIDERFOOT_FILTER_MODE || 'allow').toLowerCase();
+     switch (mode) {
+       case 'off':
+         return true;
+       case 'deny':
+         return !DENY_SET.has(rowType);
+       case 'allow':
+       default:
+         return ALLOW_SET.has(rowType);
+     }
+   }
+   
+   // helper: normalise host -> https://host/
+   function asUrl(host: string): string {
+     return host.startsWith('http') ? host : `https://${host}/`;
+   }
+   
    const execFileAsync = promisify(execFile);
    const execAsync     = promisify(execRaw);
    
@@ -132,16 +171,6 @@
        let artifacts = 0;
        const linkUrls: string[] = [];
    
-       /* high-signal row types we want to persist */
-       const keepAsIntel = new Set([
-         'INTERNET_DOMAIN',
-         'DOMAIN_NAME',
-         'CO_HOSTED_SITE',
-         'NETBLOCK_OWNER',
-         'RAW_RIR_DATA',
-         'AFFILIATE_INTERNET_DOMAIN',
-       ]);
-   
        for (const row of results) {
          const sev: Severity =
            /VULNERABILITY|MALICIOUS/.test(row.type) ? 'HIGH' : 'INFO';
@@ -157,14 +186,23 @@
            },
          } as const;
    
+         // Skip rows based on runtime filter
+         if (!shouldPersist(row.type)) {
+           continue;
+         }
+   
          let created = false;
    
          switch (row.type) {
            case 'AFFILIATE_INTERNET_NAME':
-           case 'INTERNET_NAME':
+           case 'INTERNET_NAME': {
+             // 1) keep subdomain artifact
              await insertArtifact({ ...base, type: 'subdomain', val_text: row.data });
-             created = true;
-             break;
+             // 2) new URL artifact for crawlers
+             await insertArtifact({ ...base, type: 'url', val_text: asUrl(row.data) });
+             artifacts += 2;
+             continue;
+           }
            case 'IP_ADDRESS':
              await insertArtifact({ ...base, type: 'ip', val_text: row.data });
              created = true;
@@ -202,11 +240,15 @@
              created = true;
              break;
            case 'LINKED_URL_EXTERNAL':
-           case 'LINKED_URL_INTERNAL':
-             linkUrls.push(row.data);
+           case 'LINKED_URL_INTERNAL': {
+             const url = row.data;
+             linkUrls.push(url);
+             await insertArtifact({ ...base, type: 'url', val_text: url });
+             created = true;
              break;
+           }
            default:
-             if (keepAsIntel.has(row.type)) {
+             if (shouldPersist(row.type)) {
                await insertArtifact({
                  ...base,
                  type: 'intel',

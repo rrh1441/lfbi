@@ -69,192 +69,169 @@ async function processScan(job: ScanJob): Promise<void> {
   log(`Processing comprehensive security scan for ${companyName} (${domain})`);
   
   try {
-    // === ON JOB START ===
+    // === SCAN INITIALIZATION ===
+    const TOTAL_MODULES = ALL_MODULES_IN_ORDER.length;
+    
+    // Insert or update scan record
     await pool.query(
-      `INSERT INTO scans_master (scan_id, company_name, domain, status, created_at, updated_at)
-       VALUES ($1, $2, $3, 'processing', NOW(), NOW())
+      `INSERT INTO scans_master (scan_id, company_name, domain, status, progress, total_modules, created_at, updated_at)
+       VALUES ($1, $2, $3, 'queued', 0, $4, NOW(), NOW())
        ON CONFLICT (scan_id) DO UPDATE SET 
-         status = 'processing', 
+         status = 'queued', 
+         progress = 0,
+         current_module = NULL,
+         total_modules = $4,
          company_name = EXCLUDED.company_name,
          domain = EXCLUDED.domain,
          updated_at = NOW(),
-         completed_at = NULL, -- Reset completion time for reruns
+         completed_at = NULL,
          error_message = NULL`,
-      [scanId, companyName, domain]
+      [scanId, companyName, domain, TOTAL_MODULES]
     );
     
-    // Update status to processing
     await queue.updateStatus(scanId, 'processing', 'Comprehensive security discovery in progress...');
     
     let totalFindings = 0;
-
-    // PHASE 1: DISCOVERY & RECONNAISSANCE
-    log(`=== PHASE 1: DISCOVERY & RECONNAISSANCE ===`);
+    let modulesCompleted = 0;
     
-    // 1a. SpiderFoot for subdomain/IP discovery
-    log(`Running SpiderFoot discovery for ${domain}`);
-    try {
-      const discoveryFindings = await runSpiderFoot({ domain, scanId });
-      totalFindings += discoveryFindings;
-      log(`SpiderFoot discovery completed: ${discoveryFindings} targets found`);
-    } catch (error) {
-      log(`SpiderFoot discovery failed:`, (error as Error).message);
-      log(`Continuing with main domain only: ${domain}`);
-    }
-
-    // 1b. DNS Twist for typo-squatting detection
-    log(`Running DNS Twist scan for ${domain}`);
-    try {
-      const dnsFindings = await runDnsTwist({ domain, scanId });
-      totalFindings += dnsFindings;
-      log(`DNS Twist completed: ${dnsFindings} typo-domains found`);
-    } catch (error) {
-      log(`DNS Twist failed:`, (error as Error).message);
-    }
-
-    // 1c. CRM & File hunting via Google dorking  
-    log(`Running CRM exposure and file hunting for ${companyName}`);
-    try {
-      const crmFindings = await runCrmExposure({ companyName, domain, scanId });
-      const fileFindings = await runFileHunt({ companyName, domain, scanId });
-      totalFindings += (crmFindings + fileFindings);
-      log(`CRM/File hunting completed: ${crmFindings + fileFindings} discoveries`);
-    } catch (error) {
-      log(`CRM/File hunting failed:`, (error as Error).message);
-    }
-
-    // PHASE 2: INFRASTRUCTURE SCANNING  
-    log(`=== PHASE 2: INFRASTRUCTURE SCANNING ===`);
-    
-    // Update status for infrastructure scanning phase
-    await pool.query(
-      `UPDATE scans_master SET status = 'analyzing_modules', updated_at = NOW() WHERE scan_id = $1`,
-      [scanId]
-    );
-    await queue.updateStatus(scanId, 'processing', 'Infrastructure scanning in progress...');
-    
-    // 2a. Comprehensive Shodan scanning against all discovered targets
-    log(`Running Shodan scan for ${domain} and all discovered targets`);
-    console.log('[worker] 🔍 SHODAN SCAN STARTING');
-    console.log('[worker] Domain:', domain);
-    console.log('[worker] Company:', companyName);
-    console.log('[worker] Scan ID:', scanId);
-    
-    const apiKey = process.env.SHODAN_API_KEY;
-    if (!apiKey) {
-      console.error('[worker] ❌ CRITICAL: SHODAN_API_KEY not configured');
-      throw new Error('SHODAN_API_KEY not configured - cannot run real scans');
-    }
-    
-    try {
-      console.log('[worker] ✅ Shodan API key verified, initiating scan...');
-      const startTime = Date.now();
+    // === MODULE EXECUTION ===
+    for (const moduleName of ALL_MODULES_IN_ORDER) {
+      const progress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
       
-      const shodanFindings = await runShodanScan(domain, scanId, companyName);
-      
-      const duration = Date.now() - startTime;
-      totalFindings += shodanFindings;
-      
-      console.log('[worker] ✅ SHODAN SCAN COMPLETED');
-      console.log('[worker] Duration:', duration, 'ms');
-      console.log('[worker] Findings:', shodanFindings);
-      log(`Shodan infrastructure scan completed: ${shodanFindings} services found`);
-      
-      // Create artifact to confirm Shodan ran
-      await insertArtifact({
-        type: 'module_execution',
-        val_text: `Shodan scan executed successfully`,
-        severity: 'INFO',
-        meta: {
-          scan_id: scanId,
-          module: 'shodan',
-          findings: shodanFindings,
-          duration_ms: duration,
-          timestamp: new Date().toISOString()
-        }
+      // Update status before running module
+      await updateScanMasterStatus(scanId, {
+        status: 'processing',
+        current_module: moduleName,
+        progress: progress
       });
-    } catch (error) {
-      console.error('[worker] ❌ SHODAN SCAN FAILED');
-      console.error('[worker] Error:', (error as Error).message);
-      console.error('[worker] Stack:', (error as Error).stack);
-      log(`Shodan scan failed:`, (error as Error).message);
-      throw new Error(`Real Shodan scan failed: ${(error as Error).message}`);
-    }
-
-    // 2b. Database port scanning
-    log(`Running database port scan for ${domain}`);
-    try {
-      const dbFindings = await runDbPortScan({ domain, scanId });
-      totalFindings += dbFindings;
-      log(`Database scan completed: ${dbFindings} database issues found`);
-    } catch (error) {
-      log(`Database scan failed:`, (error as Error).message);
-    }
-
-    // PHASE 3: APPLICATION SECURITY
-    log(`=== PHASE 3: APPLICATION SECURITY ===`);
-
-    // 3a. Endpoint discovery (must run before other application tests)
-    log(`Running endpoint discovery for ${domain}`);
-    try {
-      const endpointFindings = await runEndpointDiscovery({ domain, scanId });
-      totalFindings += endpointFindings;
-      log(`Endpoint discovery completed: ${endpointFindings} endpoint collections found`);
-    } catch (error) {
-      log(`Endpoint discovery failed:`, (error as Error).message);
-    }
-
-    // 3b. TLS/SSL security scan
-    log(`Running TLS security scan for ${domain}`);
-    try {
-      const tlsFindings = await runTlsScan({ domain, scanId });
-      totalFindings += tlsFindings;
-      log(`TLS scan completed: ${tlsFindings} TLS issues found`);
-    } catch (error) {
-      log(`TLS scan failed:`, (error as Error).message);
-    }
-
-    // 3c. Nuclei vulnerability scanning
-    log(`Running Nuclei vulnerability scan for ${domain}`);
-    try {
-      const nucleiFindings = await runNuclei({ domain, scanId });
-      totalFindings += nucleiFindings;
-      log(`Nuclei scan completed: ${nucleiFindings} vulnerabilities found`);
-    } catch (error) {
-      log(`Nuclei scan failed:`, (error as Error).message);
-    }
-
-    // 3d. Rate limiting and API security tests (now uses discovered endpoints)
-    log(`Running rate limiting tests for ${domain}`);
-    try {
-      const rateFindings = await runZapRateTest({ domain, scanId });
-      totalFindings += rateFindings;
-      log(`Rate testing completed: ${rateFindings} rate limit issues found`);
-    } catch (error) {
-      log(`Rate testing failed:`, (error as Error).message);
-    }
-
-    // PHASE 4: EMAIL & DATA SECURITY
-    log(`=== PHASE 4: EMAIL & DATA SECURITY ===`);
-
-    // 4a. SPF/DMARC email security
-    log(`Running SPF/DMARC email security scan for ${domain}`);
-    try {
-      const emailFindings = await runSpfDmarc({ domain, scanId });
-      totalFindings += emailFindings;
-      log(`Email security scan completed: ${emailFindings} email issues found`);
-    } catch (error) {
-      log(`Email security scan failed:`, (error as Error).message);
-    }
-
-    // 4b. TruffleHog secret detection on all discovered files/repos
-    log(`Running TruffleHog secret detection for ${domain}`);
-    try {
-      const secretFindings = await runTrufflehog({ domain, scanId });
-      totalFindings += secretFindings;
-      log(`Secret detection completed: ${secretFindings} secrets found`);
-    } catch (error) {
-      log(`Secret detection failed:`, (error as Error).message);
+      
+      log(`=== Running module: ${moduleName} (${modulesCompleted + 1}/${TOTAL_MODULES}) ===`);
+      
+      try {
+        let moduleFindings = 0;
+        
+        switch (moduleName) {
+          case 'spiderfoot':
+            log(`Running SpiderFoot discovery for ${domain}`);
+            moduleFindings = await runSpiderFoot({ domain, scanId });
+            log(`SpiderFoot discovery completed: ${moduleFindings} targets found`);
+            break;
+            
+          case 'dns_twist':
+            log(`Running DNS Twist scan for ${domain}`);
+            moduleFindings = await runDnsTwist({ domain, scanId });
+            log(`DNS Twist completed: ${moduleFindings} typo-domains found`);
+            break;
+            
+          case 'crm_exposure':
+            log(`Running CRM exposure scan for ${companyName}`);
+            moduleFindings = await runCrmExposure({ companyName, domain, scanId });
+            log(`CRM exposure completed: ${moduleFindings} discoveries`);
+            break;
+            
+          case 'file_hunt':
+            log(`Running file hunting for ${companyName}`);
+            moduleFindings = await runFileHunt({ companyName, domain, scanId });
+            log(`File hunting completed: ${moduleFindings} discoveries`);
+            break;
+            
+          case 'shodan':
+            log(`Running Shodan scan for ${domain}`);
+            console.log('[worker] 🔍 SHODAN SCAN STARTING');
+            
+            const apiKey = process.env.SHODAN_API_KEY;
+            if (!apiKey) {
+              throw new Error('SHODAN_API_KEY not configured');
+            }
+            
+            const startTime = Date.now();
+            moduleFindings = await runShodanScan(domain, scanId, companyName);
+            const duration = Date.now() - startTime;
+            
+            console.log('[worker] ✅ SHODAN SCAN COMPLETED');
+            console.log('[worker] Duration:', duration, 'ms');
+            console.log('[worker] Findings:', moduleFindings);
+            log(`Shodan infrastructure scan completed: ${moduleFindings} services found`);
+            break;
+            
+          case 'db_port_scan':
+            log(`Running database port scan for ${domain}`);
+            moduleFindings = await runDbPortScan({ domain, scanId });
+            log(`Database scan completed: ${moduleFindings} database issues found`);
+            break;
+            
+          case 'endpoint_discovery':
+            log(`Running endpoint discovery for ${domain}`);
+            moduleFindings = await runEndpointDiscovery({ domain, scanId });
+            log(`Endpoint discovery completed: ${moduleFindings} endpoint collections found`);
+            break;
+            
+          case 'tls_scan':
+            log(`Running TLS security scan for ${domain}`);
+            moduleFindings = await runTlsScan({ domain, scanId });
+            log(`TLS scan completed: ${moduleFindings} TLS issues found`);
+            break;
+            
+          case 'nuclei':
+            log(`Running Nuclei vulnerability scan for ${domain}`);
+            moduleFindings = await runNuclei({ domain, scanId });
+            log(`Nuclei scan completed: ${moduleFindings} vulnerabilities found`);
+            break;
+            
+          case 'rate_testing':
+            log(`Running rate limiting tests for ${domain}`);
+            moduleFindings = await runZapRateTest({ domain, scanId });
+            log(`Rate testing completed: ${moduleFindings} rate limit issues found`);
+            break;
+            
+          case 'spf_dmarc':
+            log(`Running SPF/DMARC email security scan for ${domain}`);
+            moduleFindings = await runSpfDmarc({ domain, scanId });
+            log(`Email security scan completed: ${moduleFindings} email issues found`);
+            break;
+            
+          case 'trufflehog':
+            log(`Running TruffleHog secret detection for ${domain}`);
+            moduleFindings = await runTrufflehog({ domain, scanId });
+            log(`Secret detection completed: ${moduleFindings} secrets found`);
+            break;
+            
+          default:
+            log(`Unknown module: ${moduleName}, skipping`);
+            break;
+        }
+        
+        totalFindings += moduleFindings;
+        modulesCompleted++;
+        
+        // Update progress after successful module completion
+        const newProgress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
+        await updateScanMasterStatus(scanId, {
+          progress: newProgress
+        });
+        
+      } catch (moduleError) {
+        log(`Module ${moduleName} failed:`, (moduleError as Error).message);
+        
+        // Update status to indicate module failure but continue
+        await updateScanMasterStatus(scanId, {
+          status: 'module_failed',
+          error_message: `Module ${moduleName} failed: ${(moduleError as Error).message}`
+        });
+        
+        // For critical modules, fail the entire scan
+        if (moduleName === 'shodan' || moduleName === 'spiderfoot') {
+          throw new Error(`Critical module ${moduleName} failed: ${(moduleError as Error).message}`);
+        }
+        
+        // For non-critical modules, continue
+        modulesCompleted++;
+        const newProgress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
+        await updateScanMasterStatus(scanId, {
+          status: 'processing', // Reset to processing after module failure
+          progress: newProgress
+        });
+      }
     }
 
     // If no real findings, the scan failed
@@ -262,14 +239,13 @@ async function processScan(job: ScanJob): Promise<void> {
       throw new Error(`No real security findings discovered for ${domain}. Comprehensive scan failed to produce actionable results.`);
     }
 
-    // PHASE 5: AI REPORT GENERATION & SUPABASE UPLOAD
-    log(`=== PHASE 5: AI REPORT GENERATION ===`);
+    // === AI REPORT GENERATION ===
+    log(`=== AI REPORT GENERATION ===`);
     
-    // Update status for report generation phase
-    await pool.query(
-      `UPDATE scans_master SET status = 'generating_report', updated_at = NOW() WHERE scan_id = $1`,
-      [scanId]
-    );
+    await updateScanMasterStatus(scanId, {
+      status: 'generating_report',
+      progress: 95
+    });
     await queue.updateStatus(scanId, 'processing', 'Generating AI reports...');
     
     try {
@@ -282,7 +258,7 @@ async function processScan(job: ScanJob): Promise<void> {
       log(`📝 OpenAI Report: ${openaiReport.length} characters`);
       log(`📝 Claude Report: ${claudeReport.length} characters`);
       
-      // Store the URLs for later use
+      // Store the reports
       await insertArtifact({
         type: 'ai_reports',
         val_text: `AI reports generated successfully for ${companyName}`,
@@ -301,11 +277,10 @@ async function processScan(job: ScanJob): Promise<void> {
       
     } catch (reportError) {
       log(`⚠️ Report generation failed but scan data preserved:`, (reportError as Error).message);
-      // Continue - scan data is still valid even if report generation fails
     }
 
-    // === ON JOB COMPLETION ===
-    // Calculate total_findings_count and max_severity
+    // === SCAN COMPLETION ===
+    // Calculate findings stats
     const findingsStats = await pool.query(
         `SELECT 
             COUNT(*) as total_findings,
@@ -317,9 +292,7 @@ async function processScan(job: ScanJob): Promise<void> {
                 WHEN severity = 'INFO' THEN 1
                 ELSE 0 
             END) as max_severity_score
-         FROM findings f
-         JOIN artifacts a ON f.artifact_id = a.id
-         WHERE a.meta->>'scan_id' = $1`,
+         FROM findings WHERE scan_id = $1`,
         [scanId]
     );
 
@@ -331,40 +304,31 @@ async function processScan(job: ScanJob): Promise<void> {
     else if (maxSeverityScore === 3) maxSeverity = 'MEDIUM';
     else if (maxSeverityScore === 2) maxSeverity = 'LOW';
 
-    await pool.query(
-      `UPDATE scans_master 
-       SET status = 'done', 
-           completed_at = NOW(), 
-           updated_at = NOW(),
-           total_findings_count = $2,
-           max_severity = $3
-       WHERE scan_id = $1`,
-      [scanId, totalFindingsCount, maxSeverity]
-    );
+    await updateScanMasterStatus(scanId, {
+      status: 'done',
+      progress: 100,
+      completed_at: new Date(),
+      total_findings_count: totalFindingsCount,
+      max_severity: maxSeverity
+    });
 
-    // Mark scan as complete ONLY with real data
     await queue.updateStatus(
       scanId, 
       'done', 
-      `Comprehensive security scan completed - ${totalFindings} verified findings across 8 security modules. AI reports generated and ready for editing.`,
-      '' // Remove the old PDF path since we now have formatted text reports
+      `Comprehensive security scan completed - ${totalFindings} verified findings across ${TOTAL_MODULES} security modules. AI reports generated and ready for editing.`
     );
     
-    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings across all security modules`);
+    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings across ${TOTAL_MODULES} security modules`);
 
   } catch (error) {
     log(`❌ Scan failed for ${companyName}:`, (error as Error).message);
     
-    // === ON JOB FAILURE ===
-    await pool.query(
-      `UPDATE scans_master 
-       SET status = 'failed', 
-           completed_at = NOW(), 
-           updated_at = NOW(),
-           error_message = $2
-       WHERE scan_id = $1`,
-      [scanId, (error as Error).message]
-    );
+    // === SCAN FAILURE ===
+    await updateScanMasterStatus(scanId, {
+      status: 'failed',
+      completed_at: new Date(),
+      error_message: (error as Error).message
+    });
     
     await queue.updateStatus(
       scanId, 
@@ -372,7 +336,7 @@ async function processScan(job: ScanJob): Promise<void> {
       `Scan failed: ${(error as Error).message}`
     );
     
-    // Store ONLY the error - no fake data
+    // Store error artifact
     await insertArtifact({
       type: 'scan_error',
       val_text: `Comprehensive scan failed: ${(error as Error).message}`,
@@ -385,7 +349,7 @@ async function processScan(job: ScanJob): Promise<void> {
       }
     });
     
-    throw error; // Re-throw to ensure failure is clear
+    throw error;
   }
 }
 
@@ -401,7 +365,8 @@ async function startWorker() {
   // Initialize database
   try {
     await initializeDatabase();
-    log('Database initialized successfully');
+    await initializeScansMasterTable();
+    log('Database and scans_master table initialized successfully');
   } catch (error) {
     log('Database initialization failed:', (error as Error).message);
     process.exit(1);
@@ -664,4 +629,69 @@ Follow the DealBrief format exactly. Focus on material business risks, not theor
     log(`❌ Dual-model report generation failed:`, (error as Error).message);
     throw error;
   }
+}
+
+// All modules in execution order
+const ALL_MODULES_IN_ORDER = [
+  'spiderfoot',
+  'dns_twist', 
+  'crm_exposure',
+  'file_hunt',
+  'shodan',
+  'db_port_scan',
+  'endpoint_discovery',
+  'tls_scan',
+  'nuclei',
+  'rate_testing',
+  'spf_dmarc',
+  'trufflehog'
+];
+
+interface ScanMasterUpdate {
+  status?: string;
+  progress?: number;
+  current_module?: string;
+  total_modules?: number;
+  error_message?: string;
+  total_findings_count?: number;
+  max_severity?: string;
+  completed_at?: Date;
+}
+
+// Helper function to update scans_master table
+async function updateScanMasterStatus(scanId: string, updates: ScanMasterUpdate): Promise<void> {
+  const setClause = Object.keys(updates)
+    .map((key, index) => `${key} = $${index + 2}`)
+    .join(', ');
+  
+  const values = [scanId, ...Object.values(updates)];
+  
+  await pool.query(
+    `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
+    values
+  );
+}
+
+// Initialize scans_master table
+async function initializeScansMasterTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS scans_master (
+      scan_id VARCHAR(255) PRIMARY KEY,
+      company_name VARCHAR(255) NOT NULL,
+      domain VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'queued',
+      progress INTEGER DEFAULT 0,
+      current_module VARCHAR(100),
+      total_modules INTEGER DEFAULT 0,
+      error_message TEXT,
+      total_findings_count INTEGER DEFAULT 0,
+      max_severity VARCHAR(20),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      completed_at TIMESTAMP WITH TIME ZONE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
+  `);
 }
