@@ -1,55 +1,23 @@
 import { config } from 'dotenv';
 import { UpstashQueue } from './core/queue.js';
-import { initializeDatabase, insertArtifact, insertFinding } from './core/artifactStore.js';
+import { initializeDatabase, insertArtifact } from './core/artifactStore.js';
 import { runShodanScan } from './modules/shodan.js';
 import { runSpiderFoot } from './modules/spiderFoot.js';
-import { runCrmExposure } from './modules/crmExposure.js';
+import { runDocumentExposure } from './modules/documentExposure.js';
 import { runTrufflehog } from './modules/trufflehog.js';
-import { runZapRateTest } from './modules/zapRateTest.js';
+import { runRateLimitScan } from './modules/rateLimitScan.js';
 import { runDnsTwist } from './modules/dnsTwist.js';
 import { runTlsScan } from './modules/tlsScan.js';
 import { runNuclei } from './modules/nuclei.js';
 import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
-import { runFileHunt } from './modules/fileHunt.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
 import { pool } from './core/artifactStore.js';
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { log as loggerLog } from './core/logger.js';
-import { uploadFile } from './core/objectStore.js';
-import { 
-  calculateFinancialImpact, 
-  generateFinancialJustification, 
-  formatFinancialRange,
-  type CompanyProfile 
-} from './core/riskCalculator.js';
+import { supabase } from './core/supabaseClient.js';
 
 config();
 
 const queue = new UpstashQueue(process.env.REDIS_URL!);
-
-// AI clients
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
-});
-
-const MODELS = [
-  { 
-    name: 'o4-mini', 
-    provider: 'openai', 
-    displayName: 'o4-mini'
-  },
-  { 
-    name: 'claude-sonnet-4-20250514', 
-    provider: 'claude', 
-    displayName: 'claude-sonnet-4-20250514'
-  }
-];
 
 function log(...args: any[]) {
   const timestamp = new Date().toISOString();
@@ -61,6 +29,81 @@ interface ScanJob {
   companyName: string;
   domain: string;
   createdAt: string;
+}
+
+// All modules in execution order
+const ALL_MODULES_IN_ORDER = [
+  'spiderfoot',
+  'dns_twist',
+  'document_exposure',
+  'shodan',
+  'db_port_scan',
+  'endpoint_discovery',
+  'tls_scan',
+  'nuclei',
+  'rate_limit_scan',
+  'spf_dmarc',
+  'trufflehog'
+];
+
+interface ScanMasterUpdate {
+  status?: string;
+  progress?: number;
+  current_module?: string;
+  total_modules?: number;
+  error_message?: string;
+  total_findings_count?: number;
+  max_severity?: string;
+  completed_at?: Date;
+}
+
+// Helper function to update scans_master table
+async function updateScanMasterStatus(scanId: string, updates: ScanMasterUpdate): Promise<void> {
+  const setClause = Object.keys(updates)
+    .map((key, index) => `${key} = $${index + 2}`)
+    .join(', ');
+  
+  const values = [scanId, ...Object.values(updates)];
+  
+  await pool.query(
+    `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
+    values
+  );
+  
+  // Mirror to Supabase
+  await supabase.from('scan_status').upsert({
+    scan_id:         scanId,
+    status:          updates.status        ?? undefined,
+    progress:        updates.progress      ?? undefined,
+    current_module:  updates.current_module?? undefined,
+    error_message:   updates.error_message ?? undefined,
+    max_severity:    updates.max_severity  ?? undefined,
+    updated_at:      new Date().toISOString(),
+  }, { onConflict: 'scan_id' }).throwOnError();
+}
+
+// Initialize scans_master table
+async function initializeScansMasterTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS scans_master (
+      scan_id VARCHAR(255) PRIMARY KEY,
+      company_name VARCHAR(255) NOT NULL,
+      domain VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'queued',
+      progress INTEGER DEFAULT 0,
+      current_module VARCHAR(100),
+      total_modules INTEGER DEFAULT 0,
+      error_message TEXT,
+      total_findings_count INTEGER DEFAULT 0,
+      max_severity VARCHAR(20),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      completed_at TIMESTAMP WITH TIME ZONE
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
+    CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
+  `);
 }
 
 async function processScan(job: ScanJob): Promise<void> {
@@ -123,16 +166,10 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`DNS Twist completed: ${moduleFindings} typo-domains found`);
             break;
             
-          case 'crm_exposure':
-            log(`Running CRM exposure scan for ${companyName}`);
-            moduleFindings = await runCrmExposure({ companyName, domain, scanId });
-            log(`CRM exposure completed: ${moduleFindings} discoveries`);
-            break;
-            
-          case 'file_hunt':
-            log(`Running file hunting for ${companyName}`);
-            moduleFindings = await runFileHunt({ companyName, domain, scanId });
-            log(`File hunting completed: ${moduleFindings} discoveries`);
+          case 'document_exposure':
+            log(`Running document exposure scan for ${companyName}`);
+            moduleFindings = await runDocumentExposure({ companyName, domain, scanId });
+            log(`Document exposure completed: ${moduleFindings} discoveries`);
             break;
             
           case 'shodan':
@@ -145,7 +182,7 @@ async function processScan(job: ScanJob): Promise<void> {
             }
             
             const startTime = Date.now();
-            moduleFindings = await runShodanScan(domain, scanId, companyName);
+            moduleFindings = await runShodanScan({ domain, scanId, companyName });
             const duration = Date.now() - startTime;
             
             console.log('[worker] ✅ SHODAN SCAN COMPLETED');
@@ -178,10 +215,10 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`Nuclei scan completed: ${moduleFindings} vulnerabilities found`);
             break;
             
-          case 'rate_testing':
-            log(`Running rate limiting tests for ${domain}`);
-            moduleFindings = await runZapRateTest({ domain, scanId });
-            log(`Rate testing completed: ${moduleFindings} rate limit issues found`);
+          case 'rate_limit_scan':
+            log(`Running rate-limit tests for ${domain}`);
+            moduleFindings = await runRateLimitScan({ domain, scanId });
+            log(`Rate limiting tests completed: ${moduleFindings} rate limit issues found`);
             break;
             
           case 'spf_dmarc':
@@ -239,46 +276,6 @@ async function processScan(job: ScanJob): Promise<void> {
       throw new Error(`No real security findings discovered for ${domain}. Comprehensive scan failed to produce actionable results.`);
     }
 
-    // === AI REPORT GENERATION ===
-    log(`=== AI REPORT GENERATION ===`);
-    
-    await updateScanMasterStatus(scanId, {
-      status: 'generating_report',
-      progress: 95
-    });
-    await queue.updateStatus(scanId, 'processing', 'Generating AI reports...');
-    
-    try {
-      log(`Generating dual-model AI reports for ${companyName}...`);
-      
-      // Generate both OpenAI and Claude reports as formatted text
-      const { openaiReport, claudeReport } = await generateDualModelReports(scanId, companyName, domain);
-      
-      log(`✅ Both AI reports generated successfully!`);
-      log(`📝 OpenAI Report: ${openaiReport.length} characters`);
-      log(`📝 Claude Report: ${claudeReport.length} characters`);
-      
-      // Store the reports
-      await insertArtifact({
-        type: 'ai_reports',
-        val_text: `AI reports generated successfully for ${companyName}`,
-        severity: 'INFO',
-        meta: {
-          scan_id: scanId,
-          openai_report: openaiReport,
-          claude_report: claudeReport,
-          openai_model: MODELS[0].displayName,
-          claude_model: MODELS[1].displayName,
-          company: companyName,
-          domain: domain,
-          timestamp: new Date().toISOString()
-        }
-      });
-      
-    } catch (reportError) {
-      log(`⚠️ Report generation failed but scan data preserved:`, (reportError as Error).message);
-    }
-
     // === SCAN COMPLETION ===
     // Calculate findings stats
     const findingsStats = await pool.query(
@@ -315,7 +312,7 @@ async function processScan(job: ScanJob): Promise<void> {
     await queue.updateStatus(
       scanId, 
       'done', 
-      `Comprehensive security scan completed - ${totalFindings} verified findings across ${TOTAL_MODULES} security modules. AI reports generated and ready for editing.`
+      `Comprehensive security scan completed - ${totalFindings} verified findings across ${TOTAL_MODULES} security modules. Findings ready for processing.`
     );
     
     log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings across ${TOTAL_MODULES} security modules`);
@@ -354,7 +351,7 @@ async function processScan(job: ScanJob): Promise<void> {
 }
 
 async function startWorker() {
-  log('Starting REAL security scanning worker - NO SIMULATIONS');
+  log('Starting security scanning worker');
   
   // Validate required environment
   if (!process.env.SHODAN_API_KEY) {
@@ -378,7 +375,7 @@ async function startWorker() {
       const job = await queue.getNextJob();
       
       if (job) {
-        log('Processing REAL scan job:', job.id);
+        log('Processing scan job:', job.id);
         await processScan(job);
       } else {
         // No jobs available, wait
@@ -407,291 +404,3 @@ startWorker().catch(error => {
   log('CRITICAL: Failed to start worker:', (error as Error).message);
   process.exit(1);
 });
-
-async function callOpenAI(model: string, prompt: string): Promise<string> {
-  log(`🤖 Calling ${model}...`);
-  
-  const response = await openai.chat.completions.create({
-    model: model,
-    messages: [
-      { role: 'system', content: `ROLE  
-You are an elite due-diligence analyst hired by DealBrief.  
-Your mandate is to surface *non-financial* risks for private and public companies, producing an audit-ready briefing that busy investors, M&A teams, and brokers can trust at first glance.
-
-SCOPE OF ANALYSIS  
-Investigate only through OSINT and other lawful public sources. Ignore purely financial metrics unless they materially affect the risks below.
-
-1. Cybersecurity Exposure  
-   • Breached data, leaked credentials, ransomware events  
-   • Exposed infrastructure (open ports, misconfigured cloud buckets, outdated software)  
-
-DELIVERABLE FORMAT  
-
-0. **Executive Snapshot** – ≤150 words summarising the overall risk posture plus a 3-color (Green / Yellow / Red) *overall* rating.  
-2. **Key Red Flags** – bullet list (≤8) of the most material issues that warrant immediate follow-up.  
-3. **Detailed Findings** – subsections matching the focus areas above; for each finding, provide: What was found (technical), how threat actors use it (plain english), the business impact (plain english), and how to fix it (plain english)
-4. **Appendix A – Source Index** – numbered list of every URL, title, and access date, in order of first citation.  
-5. **Appendix B – Method & Coverage Gaps** – outline search terms used, APIs queried, and any areas where reliable data was unavailable.
-
-WRITING & CITATION RULES  
-- Plain English; no jargon, no speculation.  
-- Every discrete claim **must** carry a superscript numeric citation that maps to Appendix A.  
-- If sources conflict, note the conflict and default to the most recent or authoritative evidence.  
-- Do not include AI-generated text as a citation.  
-
-QUALITY CONTROLS  
-- Cross-verify critical facts with ≥2 independent sources where possible.  
-- Highlight any missing or ambiguous data as a "Coverage Gap" rather than guessing.  
-- Strictly limit the briefing to facts discovered; do **not** extrapolate future performance.  
-
-AUDIENCE  
-Assume readers are smart business professionals with limited technical depth and <5 minutes to skim the briefing. Clarity and credibility outrank exhaustiveness.` },
-      { role: 'user', content: prompt }
-    ],
-    max_tokens: 8000
-  });
-  
-  return response.choices[0].message.content || 'Report generation failed';
-}
-
-type Message = Anthropic.Messages.MessageParam;
-
-export async function callClaude(
-  model: string,
-  messages: Message[],
-  temperature = 0.7,
-  tokenLimit = 8_000
-) {
-  /* shared request fields */
-  const opts: Record<string, unknown> = {
-    model,
-    temperature,
-    stream: false,
-    messages,
-  };
-
-  /* Claude-4 → max_completion_tokens / 3.x & earlier → max_tokens */
-  if (/-4-/.test(model)) {
-    opts.max_completion_tokens = tokenLimit;
-  } else {
-    opts.max_tokens = tokenLimit;
-  }
-
-  /* remove the unused key so TypeScript doesn't complain */
-  delete opts[
-    /-4-/.test(model) ? 'max_tokens' : 'max_completion_tokens'
-  ];
-
-  return anthropic.messages.create(opts as any);
-}
-
-// Legacy wrapper for backward compatibility
-async function callClaudeLegacy(model: string, prompt: string): Promise<string> {
-  log(`🤖 Calling ${model}...`);
-  
-  const messages: Message[] = [
-    { 
-      role: 'user', 
-      content: `ROLE  
-You are an elite due-diligence analyst hired by DealBrief.  
-Your mandate is to surface *non-financial* risks for private and public companies, producing an audit-ready briefing that busy investors, M&A teams, and brokers can trust at first glance.
-
-SCOPE OF ANALYSIS  
-Investigate only through OSINT and other lawful public sources. Ignore purely financial metrics unless they materially affect the risks below.
-
-1. Cybersecurity Exposure  
-   • Breached data, leaked credentials, ransomware events  
-   • Exposed infrastructure (open ports, misconfigured cloud buckets, outdated software)  
-
-DELIVERABLE FORMAT  
-
-0. **Executive Snapshot** – ≤150 words summarising the overall risk posture plus a 3-color (Green / Yellow / Red) *overall* rating.  
-2. **Key Red Flags** – bullet list (≤8) of the most material issues that warrant immediate follow-up.  
-3. **Detailed Findings** – subsections matching the focus areas above; for each finding, provide: What was found (technical), how threat actors use it (plain english), the business impact (plain english), and how to fix it (plain english)
-4. **Appendix A – Source Index** – numbered list of every URL, title, and access date, in order of first citation.  
-5. **Appendix B – Method & Coverage Gaps** – outline search terms used, APIs queried, and any areas where reliable data was unavailable.
-
-WRITING & CITATION RULES  
-- Plain English; no jargon, no speculation.  
-- Every discrete claim **must** carry a superscript numeric citation that maps to Appendix A.  
-- If sources conflict, note the conflict and default to the most recent or authoritative evidence.  
-- Do not include AI-generated text as a citation.  
-
-QUALITY CONTROLS  
-- Cross-verify critical facts with ≥2 independent sources where possible.  
-- Highlight any missing or ambiguous data as a "Coverage Gap" rather than guessing.  
-- Strictly limit the briefing to facts discovered; do **not** extrapolate future performance.  
-
-AUDIENCE  
-Assume readers are smart business professionals with limited technical depth and <5 minutes to skim the briefing. Clarity and credibility outrank exhaustiveness.
-
-${prompt}` 
-    }
-  ];
-  
-  const response = await callClaude(model, messages);
-  return response.content[0].type === 'text' ? response.content[0].text : 'Report generation failed';
-}
-
-async function generateDualModelReports(scanId: string, companyName: string, domain: string): Promise<{ openaiReport: string; claudeReport: string }> {
-  try {
-    log(`🤖 Generating dual-model reports for ${companyName}...`);
-    
-    // Get scan findings data
-    const artifactsResult = await pool.query(`
-      SELECT * FROM artifacts 
-      WHERE meta->>'scan_id' = $1
-      ORDER BY severity DESC, created_at DESC
-    `, [scanId]);
-    
-    log(`📊 Found ${artifactsResult.rows.length} artifacts for scan ${scanId}`);
-    
-    if (artifactsResult.rows.length === 0) {
-      throw new Error(`No scan data found for scan ${scanId}`);
-    }
-    
-    // Calculate explicit financial impact using our methodology
-    const companyProfile: CompanyProfile = {
-      industry: 'hospitality', // TODO: Auto-detect or make configurable
-      hasCustomerData: true,
-      isPublicCompany: false,
-      regulatoryScope: ['GDPR', 'PCI-DSS'] // TODO: Auto-detect based on findings
-    };
-    
-    const findingsForCalculation = artifactsResult.rows.map(finding => ({
-      type: finding.type,
-      severity: finding.severity,
-      count: 1
-    }));
-    
-    const financialCalculation = calculateFinancialImpact(findingsForCalculation, companyProfile);
-    const financialJustification = generateFinancialJustification(financialCalculation);
-    
-    log(`💰 Financial impact calculated: ${formatFinancialRange(financialCalculation)}`);
-    
-    const findingsSummary = artifactsResult.rows.map(finding => {
-      const meta = finding.meta || {};
-      return {
-        type: finding.type,
-        severity: finding.severity,
-        description: finding.val_text,
-        source: finding.src_url,
-        technical_details: {
-          ip_address: meta.service_info?.ip || 'Unknown',
-          port: meta.service_info?.port || 'Unknown',
-          protocol: meta.service_info?.protocol || 'Unknown',
-          product: meta.service_info?.product || 'Unknown',
-          version: meta.service_info?.version || 'Unknown',
-          banner: meta.service_info?.banner || 'No banner',
-          organization: meta.service_info?.organization || 'Unknown',
-          isp: meta.service_info?.isp || 'Unknown',
-          location: meta.service_info?.location || 'Unknown'
-        },
-        scan_module: meta.tool || 'Unknown',
-        discovered: finding.created_at
-      };
-    });
-    
-    const userPrompt = `Generate a due diligence briefing for ${companyName} (${domain}) based on cybersecurity reconnaissance data.
-
-COMPANY: ${companyName}
-DOMAIN: ${domain}
-SCAN DATE: ${new Date().toISOString().split('T')[0]}
-DATA SOURCES: Network scanning via Shodan and other OSINT tools
-
-FINDINGS DATA:
-${JSON.stringify(findingsSummary, null, 2)}
-
-${financialJustification}
-
-**CRITICAL REQUIREMENT:** Use the financial impact calculation above as the basis for all dollar amounts in your report. Do not create new financial estimates. Reference the specific data sources and methodology provided.
-
-Follow the DealBrief format exactly. Focus on material business risks, not theoretical concerns. Use plain English and cite sources properly.`;
-
-    // Call both AI models CONCURRENTLY 
-    log(`🤖 Calling both AI models concurrently...`);
-    const [openaiResponse, claudeResponse] = await Promise.all([
-      callOpenAI(MODELS[0].name, userPrompt),
-      callClaudeLegacy(MODELS[1].name, userPrompt)
-    ]);
-    
-    log(`✅ OpenAI completed - ${openaiResponse.length} characters`);
-    log(`✅ Claude completed - ${claudeResponse.length} characters`);
-    
-    log(`📝 Both AI reports generated successfully!`);
-    
-    return {
-      openaiReport: openaiResponse,
-      claudeReport: claudeResponse
-    };
-    
-  } catch (error) {
-    log(`❌ Dual-model report generation failed:`, (error as Error).message);
-    throw error;
-  }
-}
-
-// All modules in execution order
-const ALL_MODULES_IN_ORDER = [
-  'spiderfoot',
-  'dns_twist', 
-  'crm_exposure',
-  'file_hunt',
-  'shodan',
-  'db_port_scan',
-  'endpoint_discovery',
-  'tls_scan',
-  'nuclei',
-  'rate_testing',
-  'spf_dmarc',
-  'trufflehog'
-];
-
-interface ScanMasterUpdate {
-  status?: string;
-  progress?: number;
-  current_module?: string;
-  total_modules?: number;
-  error_message?: string;
-  total_findings_count?: number;
-  max_severity?: string;
-  completed_at?: Date;
-}
-
-// Helper function to update scans_master table
-async function updateScanMasterStatus(scanId: string, updates: ScanMasterUpdate): Promise<void> {
-  const setClause = Object.keys(updates)
-    .map((key, index) => `${key} = $${index + 2}`)
-    .join(', ');
-  
-  const values = [scanId, ...Object.values(updates)];
-  
-  await pool.query(
-    `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
-    values
-  );
-}
-
-// Initialize scans_master table
-async function initializeScansMasterTable(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS scans_master (
-      scan_id VARCHAR(255) PRIMARY KEY,
-      company_name VARCHAR(255) NOT NULL,
-      domain VARCHAR(255) NOT NULL,
-      status VARCHAR(50) NOT NULL DEFAULT 'queued',
-      progress INTEGER DEFAULT 0,
-      current_module VARCHAR(100),
-      total_modules INTEGER DEFAULT 0,
-      error_message TEXT,
-      total_findings_count INTEGER DEFAULT 0,
-      max_severity VARCHAR(20),
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      completed_at TIMESTAMP WITH TIME ZONE
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
-    CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
-  `);
-}

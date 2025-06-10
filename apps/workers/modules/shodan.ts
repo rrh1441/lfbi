@@ -1,5 +1,24 @@
+/*
+ * =============================================================================
+ * MODULE: shodan.ts (Refactored)
+ * =============================================================================
+ * This module uses the Shodan API to find exposed services and vulnerabilities
+ * associated with a target domain and organization.
+ *
+ * Key Improvements from previous version:
+ * 1.  **More Comprehensive Target List:** The number of subdomains and IPs pulled
+ * from previous scan phases (e.g., spiderFoot) has been increased from 20
+ * to 100 for more thorough scanning of larger organizations.
+ * 2.  **Context-Aware Recommendations:** The recommendation engine is no longer
+ * generic. It now provides specific, actionable advice based on the
+ * discovered service, port, and version, including tailored hardening guides
+ * and patch notifications for known CVEs.
+ * =============================================================================
+ */
+
 import axios from 'axios';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
+import { log } from '../core/logger.js';
 
 interface ShodanResult {
   ip_str: string;
@@ -12,7 +31,8 @@ interface ShodanResult {
   isp?: string;
   product?: string;
   version?: string;
-  vulns?: string[];
+  // REFACTOR: vulns is an object with CVEs as keys for better structure.
+  vulns?: Record<string, any>;
   ssl?: {
     cert?: {
       subject?: {
@@ -29,6 +49,7 @@ interface ShodanResult {
     server?: string;
   };
   banner?: string;
+  hostnames?: string[];
 }
 
 interface ShodanResponse {
@@ -36,171 +57,77 @@ interface ShodanResponse {
   total: number;
 }
 
-export async function runShodanScan(domain: string, scanId: string, companyName: string): Promise<number> {
-  const apiKey = process.env.SHODAN_API_KEY;
-  if (!apiKey) {
-    console.error('[shodan] ❌ CRITICAL: API key not found in environment variables');
-    console.error('[shodan] Please ensure SHODAN_API_KEY is set in your environment');
-    
-    // Create error artifact for visibility
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: 'Shodan scan skipped - API key not configured',
-      severity: 'HIGH',
-      meta: {
-        scan_id: scanId,
-        company: companyName,
-        scan_module: 'shodan',
-        error_type: 'missing_api_key',
-        timestamp: new Date().toISOString()
-      }
-    });
-    return 0;
-  }
+/**
+ * REFACTOR: The recommendation function is now much more dynamic and context-aware.
+ * It generates specific advice based on the service, version, and finding.
+ */
+function getShodanRecommendation(port: number, serviceInfo: { product: string; version: string; }, finding: string): string {
+  const recommendations: Record<number, string> = {
+    21: 'Disable FTP or enforce FTPS with strong authentication.',
+    22: 'Secure SSH with key-based auth, disable password auth, use fail2ban, and consider changing the default port.',
+    23: 'CRITICAL: Disable Telnet immediately. It is an insecure plaintext protocol. Use SSH instead.',
+    25: 'Secure SMTP with modern authentication (SPF, DKIM, DMARC) and enforce STARTTLS.',
+    53: 'Secure DNS server against cache poisoning and amplification attacks. Use DNSSEC if possible.',
+    80: 'Migrate to HTTPS (port 443) and redirect all HTTP traffic. Implement HSTS.',
+    110: 'Use POP3S (port 995) instead of plaintext POP3.',
+    135: 'Block RPC ports from internet access. This is a common vector for worms.',
+    139: 'Block NetBIOS/SMB ports from internet access. This is a critical security risk.',
+    445: 'Block SMB from internet access. This is a critical security risk and a common ransomware vector.',
+    143: 'Use IMAPS (port 993) instead of plaintext IMAP.',
+    1433: 'Block SQL Server access from the internet. Access should be via a VPN or bastion host.',
+    1521: 'Block Oracle DB access from the internet. Access should be via a VPN or bastion host.',
+    3306: 'Block MySQL/MariaDB access from the internet. Access should be via a VPN or bastion host.',
+    3389: 'Block RDP from the internet or protect it with a Gateway and Multi-Factor Authentication.',
+    5432: 'Block PostgreSQL access from the internet. Access should be via a VPN or bastion host.',
+    5900: 'Block VNC from the internet. It is often unencrypted. Use a secure remote access solution like SSH tunneling or a VPN.',
+    6379: 'Block Redis from the internet. Enable password authentication and run in protected mode.',
+    9200: 'Block Elasticsearch from the internet. Use authentication and role-based access control.',
+  };
 
-  console.log(`[shodan] ✅ API key found, starting comprehensive scan for ${domain}`);
-  console.log(`[shodan] Company: ${companyName}, Scan ID: ${scanId}`);
-  console.log(`[shodan] Timestamp: ${new Date().toISOString()}`);
+  if (finding.includes('vulnerability')) {
+    const cve = finding.split(':')[1]?.trim();
+    if (cve) {
+      return `CRITICAL: Immediately patch the identified vulnerability ${cve} for ${serviceInfo.product} ${serviceInfo.version}. Review vendor advisories for mitigation steps.`;
+    }
+    return `CRITICAL: Immediately investigate and patch all identified vulnerabilities for ${serviceInfo.product} ${serviceInfo.version}.`;
+  }
   
-  try {
-    let totalFindings = 0;
-
-    // Get discovered subdomains and IPs from SpiderFoot
-    const discoveredTargets = await getDiscoveredTargets(scanId);
-    const allTargets = [domain, ...discoveredTargets];
-    
-    console.log(`[shodan] Scanning ${allTargets.length} targets: ${allTargets.slice(0, 5).join(', ')}${allTargets.length > 5 ? '...' : ''}`);
-
-    // Search each target
-    for (const target of allTargets) {
-      const searchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=hostname:${target}`;
-      
-      try {
-        console.log(`[shodan] 🔍 Querying Shodan API for: ${target}`);
-        const startTime = Date.now();
-        
-        const response = await axios.get<ShodanResponse>(searchUrl, {
-          timeout: 30000,
-          headers: {
-            'User-Agent': 'DealBrief-Scanner/1.0'
-          }
-        });
-
-        const queryTime = Date.now() - startTime;
-        console.log(`[shodan] ✅ Query completed in ${queryTime}ms`);
-        console.log(`[shodan] 📊 Results: ${response.data.matches.length} matches found for ${target}`);
-        console.log(`[shodan] Total available results: ${response.data.total}`);
-        totalFindings += await processShodanResults(response.data.matches, scanId, companyName, target);
-        
-        // Rate limiting - wait between requests
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-      } catch (error) {
-        const err = error as any;
-        console.error(`[shodan] ❌ Search failed for ${target}`);
-        console.error(`[shodan] Error type: ${err.code || 'Unknown'}`);
-        console.error(`[shodan] Error message: ${err.message}`);
-        
-        if (err.response) {
-          console.error(`[shodan] Response status: ${err.response.status}`);
-          console.error(`[shodan] Response data: ${JSON.stringify(err.response.data)}`);
-          
-          // Check for common API errors
-          if (err.response.status === 401) {
-            console.error('[shodan] ⚠️  401 Unauthorized - Check API key validity');
-          } else if (err.response.status === 403) {
-            console.error('[shodan] ⚠️  403 Forbidden - Check API permissions or rate limits');
-          } else if (err.response.status === 429) {
-            console.error('[shodan] ⚠️  429 Rate Limited - Too many requests');
-          }
-        }
-      }
-    }
-
-    // Also search for organization name
-    if (companyName && companyName !== domain) {
-      totalFindings += await searchByOrganization(companyName, scanId, apiKey);
-    }
-
-    console.log(`[shodan] ✅ Scan completed successfully`);
-    console.log(`[shodan] 📊 Summary: ${totalFindings} total findings across ${allTargets.length} targets`);
-    console.log(`[shodan] Timestamp: ${new Date().toISOString()}`);
-    
-    // Create success artifact for tracking
-    await insertArtifact({
-      type: 'scan_summary',
-      val_text: `Shodan scan completed: ${totalFindings} findings`,
-      severity: 'INFO',
-      meta: {
-        scan_id: scanId,
-        company: companyName,
-        scan_module: 'shodan',
-        total_findings: totalFindings,
-        targets_scanned: allTargets.length,
-        timestamp: new Date().toISOString()
-      }
-    });
-    
-    return totalFindings;
-
-  } catch (error) {
-    console.error('[shodan] ❌ CRITICAL: Scan failed with unexpected error');
-    console.error('[shodan] Error:', (error as Error).message);
-    console.error('[shodan] Stack:', (error as Error).stack);
-    
-    // Create error artifact
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: `Shodan scan failed: ${(error as Error).message}`,
-      severity: 'INFO',
-      meta: {
-        scan_id: scanId,
-        company: companyName,
-        scan_module: 'shodan',
-        error: true
-      }
-    });
-
-    throw error;
+  if(finding.includes('Expired SSL certificate')) {
+      return 'Renew the SSL/TLS certificate immediately to prevent trust errors and potential security warnings for users.';
   }
+
+  return recommendations[port] || `Review the configuration for ${serviceInfo.product} on port ${port} and restrict internet access if it's not required. Follow security best practices for this service.`;
 }
 
+
+/**
+ * REFACTOR: Increased the limit to 100 to get a more comprehensive list of targets.
+ */
 async function getDiscoveredTargets(scanId: string): Promise<string[]> {
-  console.log('[shodan] 🔍 Querying database for discovered targets...');
-  
+  log('[shodan] Querying database for discovered targets...');
   try {
-    // Get subdomains discovered by SpiderFoot
     const subdomainQuery = `
       SELECT DISTINCT val_text 
       FROM artifacts 
       WHERE meta->>'scan_id' = $1 
       AND type IN ('subdomain', 'ip', 'INTERNET_NAME', 'AFFILIATE_INTERNET_NAME')
       AND val_text IS NOT NULL
-      LIMIT 20
+      LIMIT 100
     `;
-    
     const result = await pool.query(subdomainQuery, [scanId]);
     const targets = result.rows.map(row => row.val_text.trim());
-    
-    console.log(`[shodan] ✅ Found ${targets.length} discovered targets from previous scans`);
-    if (targets.length > 0) {
-      console.log(`[shodan] Sample targets: ${targets.slice(0, 3).join(', ')}${targets.length > 3 ? '...' : ''}`);
-    }
+    log(`[shodan] Found ${targets.length} discovered targets from previous scans.`);
     return targets;
-    
   } catch (error) {
-    console.error('[shodan] ❌ Failed to get discovered targets from database');
-    console.error('[shodan] Error:', (error as Error).message);
-    console.log('[shodan] ℹ️  Continuing with primary domain only');
+    log('[shodan] [ERROR] Failed to get discovered targets from database:', (error as Error).message);
     return [];
   }
 }
 
 async function processShodanResults(matches: ShodanResult[], scanId: string, companyName: string, searchTarget: string): Promise<number> {
-  let findings = 0;
-  
+  let findingsCount = 0;
   for (const result of matches) {
-    // Store IP and service information
+    findingsCount++;
     const serviceInfo = {
       ip: result.ip_str,
       port: result.port,
@@ -208,46 +135,38 @@ async function processShodanResults(matches: ShodanResult[], scanId: string, com
       version: result.version || 'Unknown',
       organization: result.org || 'Unknown',
       isp: result.isp || 'Unknown',
-      location: result.location.city && result.location.country_name 
+      location: result.location?.city && result.location?.country_name 
         ? `${result.location.city}, ${result.location.country_name}`
         : 'Unknown',
       banner: result.banner || '',
+      hostnames: result.hostnames || [],
       search_target: searchTarget
     };
 
-    // Determine severity based on findings
     let severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'INFO';
-    let findingsList: string[] = [];
-
-    // Check for common vulnerable ports
-    const vulnerablePorts = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379];
-    if (vulnerablePorts.includes(result.port)) {
-      findingsList.push(`Exposed service on port ${result.port}`);
-      severity = 'MEDIUM';
-    }
-
-    // Check for critical services
-    const criticalPorts = [22, 23, 3389, 5900]; // SSH, Telnet, RDP, VNC
+    const findingsList: string[] = [];
+    
+    const criticalPorts = [23, 139, 445, 3389, 5900];
+    const highPorts = [21, 22, 1433, 1521, 3306, 5432, 6379, 9200];
+    
     if (criticalPorts.includes(result.port)) {
-      severity = 'HIGH';
-      findingsList.push(`Critical remote access service exposed on port ${result.port}`);
+        severity = 'HIGH';
+    } else if (highPorts.includes(result.port)) {
+        severity = 'MEDIUM';
     }
 
-    // Check for known vulnerabilities
-    if (result.vulns && result.vulns.length > 0) {
+    if (result.vulns && Object.keys(result.vulns).length > 0) {
       severity = 'CRITICAL';
-      for (const vuln of result.vulns) {
-        findingsList.push(`Known vulnerability: ${vuln}`);
+      for (const cve of Object.keys(result.vulns)) {
+        findingsList.push(`Known vulnerability: ${cve}`);
       }
     }
 
-    // Check for expired SSL certificates
     if (result.ssl?.cert?.expired) {
-      severity = severity === 'INFO' ? 'MEDIUM' : severity;
+      severity = severity === 'INFO' ? 'LOW' : severity === 'MEDIUM' ? 'MEDIUM' : 'HIGH'; // Elevate severity
       findingsList.push('Expired SSL certificate detected');
     }
 
-    // Create artifact
     const artifactId = await insertArtifact({
       type: 'shodan_service',
       val_text: `${result.ip_str}:${result.port} - ${serviceInfo.product} ${serviceInfo.version}`,
@@ -257,72 +176,103 @@ async function processShodanResults(matches: ShodanResult[], scanId: string, com
         scan_id: scanId,
         company: companyName,
         service_info: serviceInfo,
+        shodan_vulns: result.vulns,
         scan_module: 'shodan'
       }
     });
 
-    // Create findings for issues discovered
+    if (findingsList.length === 0) {
+        findingsList.push(`Exposed service on port ${result.port}`);
+    }
+
     for (const finding of findingsList) {
       await insertFinding(
         artifactId,
-        'vulnerability',
-        getShodanRecommendation(result.port, finding),
+        'EXPOSED_SERVICE',
+        // REFACTOR: Pass the full serviceInfo object to the recommendation engine.
+        getShodanRecommendation(result.port, serviceInfo, finding),
         finding
       );
     }
-
-    findings++;
   }
-  
-  return findings;
+  return findingsCount;
 }
 
 async function searchByOrganization(companyName: string, scanId: string, apiKey: string): Promise<number> {
   const orgSearchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=org:"${companyName}"`;
-  
   try {
-    const orgResponse = await axios.get<ShodanResponse>(orgSearchUrl, {
-      timeout: 30000,
-      headers: {
-        'User-Agent': 'DealBrief-Scanner/1.0'
-      }
-    });
-
-    console.log(`[shodan] Found ${orgResponse.data.matches.length} results for organization "${companyName}"`);
-    return await processShodanResults(orgResponse.data.matches.slice(0, 10), scanId, companyName, `org:"${companyName}"`);
-    
+    const orgResponse = await axios.get<ShodanResponse>(orgSearchUrl, { timeout: 30000 });
+    log(`[shodan] Found ${orgResponse.data.matches.length} results for organization "${companyName}"`);
+    // Limit processing for org searches to avoid noise, but get a good sample.
+    return await processShodanResults(orgResponse.data.matches.slice(0, 50), scanId, companyName, `org:"${companyName}"`);
   } catch (orgError) {
-    console.log('[shodan] Organization search failed:', (orgError as Error).message);
+    log('[shodan] Organization search failed:', (orgError as Error).message);
     return 0;
   }
 }
 
-function getShodanRecommendation(port: number, finding: string): string {
-  const recommendations: Record<number, string> = {
-    21: 'Disable FTP or use SFTP/FTPS with strong authentication',
-    22: 'Secure SSH with key-based auth, disable password auth, change default port',
-    23: 'Disable Telnet immediately - use SSH instead',
-    25: 'Secure SMTP with authentication and encryption (TLS)',
-    53: 'Secure DNS server, prevent DNS amplification attacks',
-    80: 'Migrate to HTTPS (port 443) and disable HTTP',
-    110: 'Use POP3S (port 995) instead of plain POP3',
-    135: 'Block RPC ports from internet access',
-    139: 'Block NetBIOS ports from internet access',
-    143: 'Use IMAPS (port 993) instead of plain IMAP',
-    993: 'Ensure strong SSL/TLS configuration for IMAPS',
-    995: 'Ensure strong SSL/TLS configuration for POP3S',
-    1433: 'Block SQL Server from internet, use VPN access',
-    1521: 'Block Oracle DB from internet, use VPN access',
-    3306: 'Block MySQL from internet, use VPN access',
-    3389: 'Block RDP from internet or use VPN with MFA',
-    5432: 'Block PostgreSQL from internet, use VPN access',
-    5900: 'Block VNC from internet, use secure tunneling',
-    6379: 'Block Redis from internet, enable authentication'
-  };
+export async function runShodanScan(job: { domain: string, scanId: string, companyName: string }): Promise<number> {
+    const { domain, scanId, companyName } = job;
+    const apiKey = process.env.SHODAN_API_KEY;
+    if (!apiKey) {
+        log('[shodan] [CRITICAL] SHODAN_API_KEY not found. Scan skipped.');
+        await insertArtifact({
+            type: 'scan_error',
+            val_text: 'Shodan scan skipped - API key not configured',
+            severity: 'HIGH',
+            meta: { scan_id: scanId, scan_module: 'shodan' }
+        });
+        return 0;
+    }
 
-  if (finding.includes('vulnerability')) {
-    return 'Immediately patch the identified vulnerability and review security posture';
-  }
+    log(`[shodan] Starting comprehensive scan for domain: ${domain}, company: ${companyName}`);
+    let totalFindings = 0;
+    const allTargets = new Set<string>([domain]);
 
-  return recommendations[port] || 'Review service configuration and restrict internet access if not required';
-} 
+    try {
+        const discoveredTargets = await getDiscoveredTargets(scanId);
+        discoveredTargets.forEach(t => allTargets.add(t));
+        
+        log(`[shodan] Scanning ${allTargets.size} unique targets.`);
+
+        for (const target of allTargets) {
+            const searchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=hostname:${target}`;
+            try {
+                log(`[shodan] Querying for: ${target}`);
+                const response = await axios.get<ShodanResponse>(searchUrl, { timeout: 30000 });
+                totalFindings += await processShodanResults(response.data.matches, scanId, companyName, target);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (error) {
+                log(`[shodan] [ERROR] Search failed for ${target}:`, (error as Error).message);
+            }
+        }
+
+        if (companyName && companyName !== domain) {
+            totalFindings += await searchByOrganization(companyName, scanId, apiKey);
+        }
+
+        log(`[shodan] Scan completed. Total findings: ${totalFindings}`);
+        await insertArtifact({
+            type: 'scan_summary',
+            val_text: `Shodan scan completed: ${totalFindings} findings`,
+            severity: 'INFO',
+            meta: {
+                scan_id: scanId,
+                scan_module: 'shodan',
+                total_findings: totalFindings,
+                targets_scanned: allTargets.size,
+                timestamp: new Date().toISOString()
+            }
+        });
+        return totalFindings;
+    } catch (error) {
+        log('[shodan] [CRITICAL] Scan failed with unexpected error:', (error as Error).message);
+        await insertArtifact({
+            type: 'scan_error',
+            val_text: `Shodan scan failed: ${(error as Error).message}`,
+            severity: 'HIGH',
+            meta: { scan_id: scanId, scan_module: 'shodan' }
+        });
+        return 0;
+    }
+}

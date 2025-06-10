@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { supabase } from './supabaseClient.js';
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL || process.env.DB_URL
@@ -39,8 +40,23 @@ export async function insertArtifact(artifact: ArtifactInput): Promise<number> {
       ]
     );
     
+    const artifactId = result.rows[0].id;
+    
+    // Mirror to Supabase
+    await supabase.from('findings').insert({
+      artifact_id: artifactId,
+      type:        artifact.type,
+      severity:    artifact.severity,
+      val_text:    artifact.val_text,
+      src_url:     artifact.src_url ?? null,
+      sha256:      artifact.sha256 ?? null,
+      mime:        artifact.mime ?? null,
+      meta:        artifact.meta ?? {},
+      created_at:  new Date().toISOString(),
+    }).throwOnError();
+    
     console.log(`[artifactStore] Inserted ${artifact.type} artifact: ${artifact.val_text.slice(0, 60)}...`);
-    return result.rows[0].id;
+    return artifactId;
   } catch (error) {
     console.error('[artifactStore] Insert artifact error:', error);
     throw error;
@@ -61,6 +77,15 @@ export async function insertFinding(
        RETURNING id`,
       [artifactId, findingType, recommendation, description]
     );
+    
+    // Mirror to Supabase
+    await supabase.from('findings_detail').insert({
+      artifact_id:   artifactId,
+      category:      findingType,
+      recommendation,
+      description,
+      created_at:    new Date().toISOString(),
+    }).throwOnError();
     
     console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}`);
     return result.rows[0].id;
