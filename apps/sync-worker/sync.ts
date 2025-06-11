@@ -86,7 +86,8 @@ async function syncScansMasterTable() {
                 completed_at,
                 error_message,
                 total_findings_count,
-                max_severity
+                max_severity,
+                total_artifacts_count
              FROM scans_master 
              WHERE updated_at > $1 
              ORDER BY updated_at ASC
@@ -113,6 +114,7 @@ async function syncScansMasterTable() {
                 error_message: r.error_message,
                 created_at: r.created_at,
                 updated_at: r.updated_at,
+                total_artifacts_count: r.total_artifacts_count || 0,
             }));
 
             logDebug(`Upserting ${recordsToUpsert.length} records to Supabase scan_status table`);

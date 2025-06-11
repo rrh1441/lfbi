@@ -78,7 +78,8 @@ CREATE TABLE scans (
   completed_at TIMESTAMPTZ,
   error_message TEXT,
   total_findings INTEGER,
-  max_severity VARCHAR(20)
+  max_severity VARCHAR(20),
+  total_artifacts_count INTEGER
 );
 ```
 
@@ -93,4 +94,4 @@ CREATE TABLE findings (
   severity VARCHAR(20),
   created_at TIMESTAMPTZ
 );
-``` 
+```

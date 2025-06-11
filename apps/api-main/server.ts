@@ -33,31 +33,64 @@ fastify.get('/health', async (request, reply) => {
 
 // Create a new scan
 fastify.post('/scan', async (request, reply) => {
-  const { companyName, domain } = request.body as { companyName: string; domain: string };
-  
-  if (!companyName || !domain) {
-    reply.status(400);
-    return { error: 'Company name and domain are required' };
+  try {
+    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    
+    if (!companyName || !domain) {
+      log('[api] Scan creation failed: Missing required fields - companyName or domain');
+      reply.status(400);
+      return { error: 'Company name and domain are required' };
+    }
+
+    const scanId = nanoid(11);
+    
+    // Validate scanId is a non-empty string
+    if (!scanId || typeof scanId !== 'string' || scanId.trim().length === 0) {
+      log('[api] CRITICAL: Failed to generate valid scanId');
+      reply.status(500);
+      return { error: 'Failed to generate scan ID', details: 'Internal server error during scan ID generation' };
+    }
+    
+    const job = {
+      id: scanId,
+      companyName,
+      domain,
+      createdAt: new Date().toISOString()
+    };
+
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain})`);
+    
+    try {
+      await queue.addJob(scanId, job);
+      log(`[api] ✅ Successfully created scan job ${scanId} for ${companyName}`);
+    } catch (queueError) {
+      log('[api] CRITICAL: Failed to add job to queue:', (queueError as Error).message);
+      reply.status(500);
+      return { 
+        error: 'Failed to queue scan job', 
+        details: `Queue operation failed: ${(queueError as Error).message}`,
+        scanId: null
+      };
+    }
+
+    return {
+      scanId,
+      status: 'queued',
+      companyName,
+      domain,
+      message: 'Scan started successfully'
+    };
+
+  } catch (error) {
+    log('[api] CRITICAL: Unexpected error in POST /scan:', (error as Error).message);
+    log('[api] Error stack:', (error as Error).stack);
+    reply.status(500);
+    return { 
+      error: 'Internal server error during scan creation', 
+      details: (error as Error).message,
+      scanId: null
+    };
   }
-
-  const scanId = nanoid(11);
-  const job = {
-    id: scanId,
-    companyName,
-    domain,
-    createdAt: new Date().toISOString()
-  };
-
-  await queue.addJob(scanId, job);
-  log('[api] Created scan job', scanId, 'for', companyName);
-
-  return {
-    scanId,
-    status: 'queued',
-    companyName,
-    domain,
-    message: 'Scan started successfully'
-  };
 });
 
 // Get scan status
@@ -82,12 +115,16 @@ fastify.get('/scan/:scanId/artifacts', async (request, reply) => {
   const { scanId } = request.params as { scanId: string };
   
   try {
+    log(`[api] Retrieving artifacts for scan: ${scanId}`);
+    
     const artifactsResult = await pool.query(`
       SELECT id, type, val_text, severity, src_url, sha256, mime, created_at, meta
       FROM artifacts 
       WHERE meta->>'scan_id' = $1
       ORDER BY severity DESC, created_at DESC
     `, [scanId]);
+    
+    log(`[api] Found ${artifactsResult.rows.length} artifacts for scan ${scanId}`);
     
     if (artifactsResult.rows.length === 0) {
       reply.status(404);
@@ -112,14 +149,18 @@ fastify.get('/scan/:scanId/findings', async (request, reply) => {
   const { scanId } = request.params as { scanId: string };
   
   try {
+    log(`[api] Retrieving findings for scan: ${scanId}`);
+    
     const findingsResult = await pool.query(`
-      SELECT f.id, f.finding_type, f.title, f.description, f.created_at,
+      SELECT f.id, f.finding_type, f.description, f.recommendation, f.created_at,
              a.type as artifact_type, a.val_text, a.severity, a.src_url
       FROM findings f
       JOIN artifacts a ON f.artifact_id = a.id
       WHERE a.meta->>'scan_id' = $1
       ORDER BY a.severity DESC, f.created_at DESC
     `, [scanId]);
+    
+    log(`[api] Found ${findingsResult.rows.length} findings for scan ${scanId}`);
     
     if (findingsResult.rows.length === 0) {
       reply.status(404);

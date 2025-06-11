@@ -54,6 +54,7 @@ interface ScanMasterUpdate {
   total_findings_count?: number;
   max_severity?: string;
   completed_at?: Date;
+  total_artifacts_count?: number;
 }
 
 // Helper function to update scans_master table
@@ -97,7 +98,8 @@ async function initializeScansMasterTable(): Promise<void> {
       max_severity VARCHAR(20),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-      completed_at TIMESTAMP WITH TIME ZONE
+      completed_at TIMESTAMP WITH TIME ZONE,
+      total_artifacts_count INTEGER DEFAULT 0
     );
     
     CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
@@ -108,6 +110,7 @@ async function initializeScansMasterTable(): Promise<void> {
 async function processScan(job: ScanJob): Promise<void> {
   const { id: scanId, companyName, domain } = job;
   
+  log(`✅ JOB PICKED UP: Processing scan job ${scanId} for ${companyName} (${domain})`);
   log(`Processing comprehensive security scan for ${companyName} (${domain})`);
   
   try {
@@ -154,25 +157,25 @@ async function processScan(job: ScanJob): Promise<void> {
         
         switch (moduleName) {
           case 'spiderfoot':
-            log(`Running SpiderFoot discovery for ${domain}`);
+            log(`[${scanId}] STARTING SpiderFoot discovery for ${domain}`);
             moduleFindings = await runSpiderFoot({ domain, scanId });
-            log(`SpiderFoot discovery completed: ${moduleFindings} targets found`);
+            log(`[${scanId}] COMPLETED SpiderFoot discovery: ${moduleFindings} targets found`);
             break;
             
           case 'dns_twist':
-            log(`Running DNS Twist scan for ${domain}`);
+            log(`[${scanId}] STARTING DNS Twist scan for ${domain}`);
             moduleFindings = await runDnsTwist({ domain, scanId });
-            log(`DNS Twist completed: ${moduleFindings} typo-domains found`);
+            log(`[${scanId}] COMPLETED DNS Twist: ${moduleFindings} typo-domains found`);
             break;
             
           case 'document_exposure':
-            log(`Running document exposure scan for ${companyName}`);
+            log(`[${scanId}] STARTING document exposure scan for ${companyName}`);
             moduleFindings = await runDocumentExposure({ companyName, domain, scanId });
-            log(`Document exposure completed: ${moduleFindings} discoveries`);
+            log(`[${scanId}] COMPLETED document exposure: ${moduleFindings} discoveries`);
             break;
             
           case 'shodan':
-            log(`Running Shodan scan for ${domain}`);
+            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
             console.log('[worker] 🔍 SHODAN SCAN STARTING');
             
             const apiKey = process.env.SHODAN_API_KEY;
@@ -187,49 +190,49 @@ async function processScan(job: ScanJob): Promise<void> {
             console.log('[worker] ✅ SHODAN SCAN COMPLETED');
             console.log('[worker] Duration:', duration, 'ms');
             console.log('[worker] Findings:', moduleFindings);
-            log(`Shodan infrastructure scan completed: ${moduleFindings} services found`);
+            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${moduleFindings} services found`);
             break;
             
           case 'db_port_scan':
-            log(`Running database port scan for ${domain}`);
+            log(`[${scanId}] STARTING database port scan for ${domain}`);
             moduleFindings = await runDbPortScan({ domain, scanId });
-            log(`Database scan completed: ${moduleFindings} database issues found`);
+            log(`[${scanId}] COMPLETED database scan: ${moduleFindings} database issues found`);
             break;
             
           case 'endpoint_discovery':
-            log(`Running endpoint discovery for ${domain}`);
+            log(`[${scanId}] STARTING endpoint discovery for ${domain}`);
             moduleFindings = await runEndpointDiscovery({ domain, scanId });
-            log(`Endpoint discovery completed: ${moduleFindings} endpoint collections found`);
+            log(`[${scanId}] COMPLETED endpoint discovery: ${moduleFindings} endpoint collections found`);
             break;
             
           case 'tls_scan':
-            log(`Running TLS security scan for ${domain}`);
+            log(`[${scanId}] STARTING TLS security scan for ${domain}`);
             moduleFindings = await runTlsScan({ domain, scanId });
-            log(`TLS scan completed: ${moduleFindings} TLS issues found`);
+            log(`[${scanId}] COMPLETED TLS scan: ${moduleFindings} TLS issues found`);
             break;
             
           case 'nuclei':
-            log(`Running Nuclei vulnerability scan for ${domain}`);
+            log(`[${scanId}] STARTING Nuclei vulnerability scan for ${domain}`);
             moduleFindings = await runNuclei({ domain, scanId });
-            log(`Nuclei scan completed: ${moduleFindings} vulnerabilities found`);
+            log(`[${scanId}] COMPLETED Nuclei scan: ${moduleFindings} vulnerabilities found`);
             break;
             
           case 'rate_limit_scan':
-            log(`Running rate-limit tests for ${domain}`);
+            log(`[${scanId}] STARTING rate-limit tests for ${domain}`);
             moduleFindings = await runRateLimitScan({ domain, scanId });
-            log(`Rate limiting tests completed: ${moduleFindings} rate limit issues found`);
+            log(`[${scanId}] COMPLETED rate limiting tests: ${moduleFindings} rate limit issues found`);
             break;
             
           case 'spf_dmarc':
-            log(`Running SPF/DMARC email security scan for ${domain}`);
+            log(`[${scanId}] STARTING SPF/DMARC email security scan for ${domain}`);
             moduleFindings = await runSpfDmarc({ domain, scanId });
-            log(`Email security scan completed: ${moduleFindings} email issues found`);
+            log(`[${scanId}] COMPLETED email security scan: ${moduleFindings} email issues found`);
             break;
             
           case 'trufflehog':
-            log(`Running TruffleHog secret detection for ${domain}`);
+            log(`[${scanId}] STARTING TruffleHog secret detection for ${domain}`);
             moduleFindings = await runTrufflehog({ domain, scanId });
-            log(`Secret detection completed: ${moduleFindings} secrets found`);
+            log(`[${scanId}] COMPLETED secret detection: ${moduleFindings} secrets found`);
             break;
             
           default:
@@ -276,6 +279,19 @@ async function processScan(job: ScanJob): Promise<void> {
     }
 
     // === SCAN COMPLETION ===
+    // Calculate artifacts count
+    const artifactsStats = await pool.query(
+      `SELECT COUNT(*) as total_artifacts 
+       FROM artifacts 
+       WHERE meta->>'scan_id' = $1 
+       AND type <> 'scan_summary' 
+       AND type <> 'scan_error'`,
+      [scanId]
+    );
+    
+    const totalArtifactsCount = parseInt(artifactsStats.rows[0]?.total_artifacts || '0');
+    log(`[processScan] Counted ${totalArtifactsCount} artifacts for scan ${scanId}`);
+    
     // Calculate findings stats
     const findingsStats = await pool.query(
         `SELECT 
@@ -307,7 +323,8 @@ async function processScan(job: ScanJob): Promise<void> {
       progress: 100,
       completed_at: new Date(),
       total_findings_count: totalFindingsCount,
-      max_severity: maxSeverity
+      max_severity: maxSeverity,
+      total_artifacts_count: totalArtifactsCount
     });
 
     await queue.updateStatus(
@@ -316,7 +333,7 @@ async function processScan(job: ScanJob): Promise<void> {
       `Comprehensive security scan completed - ${totalFindings} verified findings across ${TOTAL_MODULES} security modules. Findings ready for processing.`
     );
     
-    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings across ${TOTAL_MODULES} security modules`);
+    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings, ${totalArtifactsCount} artifacts across ${TOTAL_MODULES} security modules`);
 
   } catch (error) {
     log(`❌ Scan failed for ${companyName}:`, (error as Error).message);

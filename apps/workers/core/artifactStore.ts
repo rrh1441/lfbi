@@ -117,7 +117,8 @@ export async function initializeDatabase(): Promise<void> {
         completed_at TIMESTAMP WITH TIME ZONE,
         error_message TEXT,
         total_findings_count INTEGER DEFAULT 0,
-        max_severity VARCHAR(20)
+        max_severity VARCHAR(20),
+        total_artifacts_count INTEGER DEFAULT 0
       )
     `);
 
