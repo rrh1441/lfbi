@@ -12,6 +12,7 @@ import { runNuclei } from './modules/nuclei.js';
 import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
+import { runTechStackScan } from './modules/techStackScan.js';                 // ← ADDED
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -38,6 +39,7 @@ const ALL_MODULES_IN_ORDER = [
   'shodan',
   'db_port_scan',
   'endpoint_discovery',
+  'tech_stack_scan',                                                      // ← ADDED
   'tls_scan',
   'nuclei',
   'rate_limit_scan',
@@ -204,7 +206,13 @@ async function processScan(job: ScanJob): Promise<void> {
             moduleFindings = await runEndpointDiscovery({ domain, scanId });
             log(`[${scanId}] COMPLETED endpoint discovery: ${moduleFindings} endpoint collections found`);
             break;
-            
+
+          case 'tech_stack_scan':                                              // ← ADDED
+            log(`[${scanId}] STARTING tech stack scan for ${domain}`);         // ← ADDED
+            moduleFindings = await runTechStackScan({ domain, scanId });       // ← ADDED
+            log(`[${scanId}] COMPLETED tech stack scan: ${moduleFindings} technologies detected`); // ← ADDED
+            break;                                                             // ← ADDED
+          
           case 'tls_scan':
             log(`[${scanId}] STARTING TLS security scan for ${domain}`);
             moduleFindings = await runTlsScan({ domain, scanId });
