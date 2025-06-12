@@ -142,6 +142,34 @@ export async function initializeDatabase(): Promise<void> {
       EXECUTE FUNCTION update_updated_at_column();
     `);
 
+    // Ensure total_artifacts_count column exists (handles legacy tables)
+    try {
+      console.log('[artifactStore] Attempting to ensure scans_master.total_artifacts_count column exists...');
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'scans_master' AND column_name = 'total_artifacts_count'
+          ) THEN
+            ALTER TABLE public.scans_master ADD COLUMN total_artifacts_count INTEGER DEFAULT 0;
+            RAISE NOTICE '[artifactStore] SUCCESS: Added total_artifacts_count column to scans_master.';
+          ELSE
+            RAISE NOTICE '[artifactStore] INFO: Column total_artifacts_count already exists in scans_master.';
+          END IF;
+        EXCEPTION
+          WHEN duplicate_column THEN
+            RAISE NOTICE '[artifactStore] INFO: Column total_artifacts_count already exists (caught duplicate_column).';
+          WHEN OTHERS THEN
+            RAISE WARNING '[artifactStore] WARNING: Could not ensure total_artifacts_count column: %', SQLERRM;
+        END$$;
+      `);
+      console.log('[artifactStore] ✅ Successfully processed total_artifacts_count column check');
+    } catch (e: any) {
+      console.log(`[artifactStore] Error during ALTER TABLE for scans_master.total_artifacts_count: ${e.message}`);
+      // Do not re-throw here, allow initialization to continue with other tables if possible
+    }
+
     // Create indexes for performance
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_artifacts_type ON artifacts(type);
@@ -154,6 +182,25 @@ export async function initializeDatabase(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
       CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
     `);
+
+    // Verify schema and log current state
+    try {
+      const schemaCheck = await pool.query(`
+        SELECT table_name, column_name, data_type, is_nullable, column_default
+        FROM information_schema.columns 
+        WHERE table_name IN ('scans_master', 'artifacts', 'findings')
+        ORDER BY table_name, ordinal_position
+      `);
+      console.log('[artifactStore] Current database schema:');
+      console.log('[artifactStore] scans_master columns:', 
+        schemaCheck.rows.filter(r => r.table_name === 'scans_master').map(r => `${r.column_name}(${r.data_type})`));
+      console.log('[artifactStore] artifacts columns:', 
+        schemaCheck.rows.filter(r => r.table_name === 'artifacts').map(r => `${r.column_name}(${r.data_type})`));
+      console.log('[artifactStore] findings columns:', 
+        schemaCheck.rows.filter(r => r.table_name === 'findings').map(r => `${r.column_name}(${r.data_type})`));
+    } catch (e: any) {
+      console.log(`[artifactStore] Could not verify schema: ${e.message}`);
+    }
 
     console.log('[artifactStore] Database initialized successfully');
   } catch (error) {

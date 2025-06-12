@@ -191,7 +191,7 @@ async function syncFindingsTable() {
                     f.finding_type,
                     f.description,
                     f.recommendation,
-                    COALESCE(f.severity, a.severity) as severity,
+                    a.severity as severity,
                     f.created_at
                 FROM findings f
                 JOIN artifacts a ON f.artifact_id = a.id

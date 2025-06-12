@@ -70,6 +70,8 @@ RUN npm install -g pnpm tsx
 COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api-main/package.json ./apps/api-main/
 COPY apps/workers/package.json ./apps/workers/
+COPY apps/sync-worker/package.json ./apps/sync-worker/
+COPY apps/sync-worker/tsconfig.json ./apps/sync-worker/
 
 RUN pnpm install
 
@@ -77,6 +79,11 @@ RUN pnpm install
 # Copy application source
 # ------------------------------------------------------------------------
 COPY . .
+
+# ------------------------------------------------------------------------
+# Build TypeScript applications
+# ------------------------------------------------------------------------
+RUN pnpm build
 
 # Ensure temp directories are writeable
 RUN mkdir -p /tmp && chmod 777 /tmp
