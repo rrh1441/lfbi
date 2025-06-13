@@ -100,21 +100,21 @@ async function syncScansMasterTable() {
         if (rows.length > 0) {
             logDebug('Sample scan data:', rows[0]);
             
-            const recordsToUpsert = rows.map(r => ({
-                scan_id: r.scan_id,
-                company_name: r.company_name,
-                domain: r.domain,
-                status: r.status,
-                progress: r.progress?.toString() || '0',
-                current_module: r.current_module,
-                total_modules: r.total_modules?.toString() || '10',
-                started_at: r.created_at,
-                last_updated: r.updated_at,
-                completed_at: r.completed_at,
-                error_message: r.error_message,
-                created_at: r.created_at,
-                updated_at: r.updated_at,
-                total_artifacts_count: r.total_artifacts_count || 0,
+            const recordsToUpsert = rows.map(pgScan => ({
+                scan_id: pgScan.scan_id,
+                company_name: pgScan.company_name,
+                domain: pgScan.domain,
+                status: pgScan.status,
+                progress: parseInt(pgScan.progress, 10),
+                current_module: pgScan.current_module,
+                total_modules: parseInt(pgScan.total_modules, 10),
+                started_at: pgScan.created_at,
+                last_updated: pgScan.updated_at,
+                completed_at: pgScan.completed_at,
+                error_message: pgScan.error_message,
+                total_findings_count: pgScan.total_findings_count,
+                max_severity: pgScan.max_severity,
+                total_artifacts_count: pgScan.total_artifacts_count || 0,
             }));
 
             logDebug(`Upserting ${recordsToUpsert.length} records to Supabase scan_status table`);
