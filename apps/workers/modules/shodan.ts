@@ -1,278 +1,278 @@
 /*
  * =============================================================================
- * MODULE: shodan.ts (Refactored)
+ * MODULE: shodan.ts  (Hardened v2.1 — compile-clean)
  * =============================================================================
- * This module uses the Shodan API to find exposed services and vulnerabilities
- * associated with a target domain and organization.
+ * Queries the Shodan REST API for exposed services and vulnerabilities
+ * associated with a target domain and discovered sub-targets.  
  *
- * Key Improvements from previous version:
- * 1.  **More Comprehensive Target List:** The number of subdomains and IPs pulled
- * from previous scan phases (e.g., spiderFoot) has been increased from 20
- * to 100 for more thorough scanning of larger organizations.
- * 2.  **Context-Aware Recommendations:** The recommendation engine is no longer
- * generic. It now provides specific, actionable advice based on the
- * discovered service, port, and version, including tailored hardening guides
- * and patch notifications for known CVEs.
+ * Key features
+ *   • Built-in rate-limit guard (configurable RPS) and exponential back-off
+ *   • Pagination (PAGE_LIMIT pages per query) and target-set cap (TARGET_LIMIT)
+ *   • CVSS-aware severity escalation and contextual recommendations
+ *   • All findings persisted through insertArtifact / insertFinding
+ *   • Lint-clean & strict-mode TypeScript
  * =============================================================================
  */
 
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
-interface ShodanResult {
+/* -------------------------------------------------------------------------- */
+/*  Configuration                                                              */
+/* -------------------------------------------------------------------------- */
+
+const API_KEY = process.env.SHODAN_API_KEY ?? '';
+if (!API_KEY) throw new Error('SHODAN_API_KEY env var must be set');
+
+const RPS          = Number.parseInt(process.env.SHODAN_RPS ?? '1', 10);       // reqs / second
+const PAGE_LIMIT   = Number.parseInt(process.env.SHODAN_PAGE_LIMIT ?? '10', 10);
+const TARGET_LIMIT = Number.parseInt(process.env.SHODAN_TARGET_LIMIT ?? '100', 10);
+
+const SEARCH_BASE  = 'https://api.shodan.io/shodan/host/search';
+
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+interface ShodanMatch {
   ip_str: string;
   port: number;
-  location: {
-    country_name?: string;
-    city?: string;
-  };
+  location?: { country_name?: string; city?: string };
   org?: string;
   isp?: string;
   product?: string;
   version?: string;
-  // REFACTOR: vulns is an object with CVEs as keys for better structure.
-  vulns?: Record<string, any>;
-  ssl?: {
-    cert?: {
-      subject?: {
-        CN?: string;
-      };
-      issuer?: {
-        CN?: string;
-      };
-      expired?: boolean;
-    };
-  };
-  http?: {
-    title?: string;
-    server?: string;
-  };
-  banner?: string;
+  vulns?: Record<string, { cvss?: number }>;
+  ssl?: { cert?: { expired?: boolean } };
   hostnames?: string[];
 }
 
 interface ShodanResponse {
-  matches: ShodanResult[];
+  matches: ShodanMatch[];
   total: number;
 }
 
-/**
- * REFACTOR: The recommendation function is now much more dynamic and context-aware.
- * It generates specific advice based on the service, version, and finding.
- */
-function getShodanRecommendation(port: number, serviceInfo: { product: string; version: string; }, finding: string): string {
-  const recommendations: Record<number, string> = {
-    21: 'Disable FTP or enforce FTPS with strong authentication.',
-    22: 'Secure SSH with key-based auth, disable password auth, use fail2ban, and consider changing the default port.',
-    23: 'CRITICAL: Disable Telnet immediately. It is an insecure plaintext protocol. Use SSH instead.',
-    25: 'Secure SMTP with modern authentication (SPF, DKIM, DMARC) and enforce STARTTLS.',
-    53: 'Secure DNS server against cache poisoning and amplification attacks. Use DNSSEC if possible.',
-    80: 'Migrate to HTTPS (port 443) and redirect all HTTP traffic. Implement HSTS.',
-    110: 'Use POP3S (port 995) instead of plaintext POP3.',
-    135: 'Block RPC ports from internet access. This is a common vector for worms.',
-    139: 'Block NetBIOS/SMB ports from internet access. This is a critical security risk.',
-    445: 'Block SMB from internet access. This is a critical security risk and a common ransomware vector.',
-    143: 'Use IMAPS (port 993) instead of plaintext IMAP.',
-    1433: 'Block SQL Server access from the internet. Access should be via a VPN or bastion host.',
-    1521: 'Block Oracle DB access from the internet. Access should be via a VPN or bastion host.',
-    3306: 'Block MySQL/MariaDB access from the internet. Access should be via a VPN or bastion host.',
-    3389: 'Block RDP from the internet or protect it with a Gateway and Multi-Factor Authentication.',
-    5432: 'Block PostgreSQL access from the internet. Access should be via a VPN or bastion host.',
-    5900: 'Block VNC from the internet. It is often unencrypted. Use a secure remote access solution like SSH tunneling or a VPN.',
-    6379: 'Block Redis from the internet. Enable password authentication and run in protected mode.',
-    9200: 'Block Elasticsearch from the internet. Use authentication and role-based access control.',
-  };
+/* -------------------------------------------------------------------------- */
+/*  Severity helpers                                                           */
+/* -------------------------------------------------------------------------- */
 
-  if (finding.includes('vulnerability')) {
-    const cve = finding.split(':')[1]?.trim();
-    if (cve) {
-      return `CRITICAL: Immediately patch the identified vulnerability ${cve} for ${serviceInfo.product} ${serviceInfo.version}. Review vendor advisories for mitigation steps.`;
-    }
-    return `CRITICAL: Immediately investigate and patch all identified vulnerabilities for ${serviceInfo.product} ${serviceInfo.version}.`;
+const PORT_RISK: Record<number, 'LOW' | 'MEDIUM' | 'HIGH'> = {
+  21:  'MEDIUM',
+  22:  'MEDIUM',
+  23:  'HIGH',
+  25:  'LOW',
+  53:  'LOW',
+  80:  'LOW',
+  110: 'LOW',
+  135: 'HIGH',
+  139: 'HIGH',
+  445: 'HIGH',
+  3306:'MEDIUM',
+  3389:'HIGH',
+  5432:'MEDIUM',
+  5900:'HIGH',
+  6379:'MEDIUM',
+  9200:'MEDIUM',
+};
+
+type Sev = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+const cvssToSeverity = (s?: number): Sev => {
+  if (s === undefined) return 'INFO';
+  if (s >= 9) return 'CRITICAL';
+  if (s >= 7) return 'HIGH';
+  if (s >= 4) return 'MEDIUM';
+  return 'LOW';
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Rate-limited fetch with retry                                              */
+/* -------------------------------------------------------------------------- */
+
+const tsQueue: number[] = [];
+
+async function rlFetch<T>(url: string, attempt = 0): Promise<T> {
+  const now = Date.now();
+  while (tsQueue.length && now - tsQueue[0] > 1_000) tsQueue.shift();
+  if (tsQueue.length >= RPS) {
+    await new Promise((r) => setTimeout(r, 1_000 - (now - tsQueue[0])));
   }
-  
-  if(finding.includes('Expired SSL certificate')) {
-      return 'Renew the SSL/TLS certificate immediately to prevent trust errors and potential security warnings for users.';
-  }
+  tsQueue.push(Date.now());
 
-  return recommendations[port] || `Review the configuration for ${serviceInfo.product} on port ${port} and restrict internet access if it's not required. Follow security best practices for this service.`;
-}
-
-
-/**
- * REFACTOR: Increased the limit to 100 to get a more comprehensive list of targets.
- */
-async function getDiscoveredTargets(scanId: string): Promise<string[]> {
-  log('[shodan] Querying database for discovered targets...');
   try {
-    const subdomainQuery = `
-      SELECT DISTINCT val_text 
-      FROM artifacts 
-      WHERE meta->>'scan_id' = $1 
-      AND type IN ('subdomain', 'ip', 'INTERNET_NAME', 'AFFILIATE_INTERNET_NAME')
-      AND val_text IS NOT NULL
-      LIMIT 100
-    `;
-    const result = await pool.query(subdomainQuery, [scanId]);
-    const targets = result.rows.map(row => row.val_text.trim());
-    log(`[shodan] Found ${targets.length} discovered targets from previous scans.`);
-    return targets;
-  } catch (error) {
-    log('[shodan] [ERROR] Failed to get discovered targets from database:', (error as Error).message);
-    return [];
+    const res = await axios.get<T>(url, { timeout: 30_000 });
+    return res.data;
+  } catch (err) {
+    const ae = err as AxiosError;
+    const retriable =
+      ae.code === 'ECONNABORTED' || (ae.response && ae.response.status >= 500);
+    if (retriable && attempt < 3) {
+      const backoff = 500 * 2 ** attempt;
+      await new Promise((r) => setTimeout(r, backoff));
+      return rlFetch<T>(url, attempt + 1);
+    }
+    throw err;
   }
 }
 
-async function processShodanResults(matches: ShodanResult[], scanId: string, companyName: string, searchTarget: string): Promise<number> {
-  let findingsCount = 0;
-  for (const result of matches) {
-    findingsCount++;
-    const serviceInfo = {
-      ip: result.ip_str,
-      port: result.port,
-      product: result.product || 'Unknown',
-      version: result.version || 'Unknown',
-      organization: result.org || 'Unknown',
-      isp: result.isp || 'Unknown',
-      location: result.location?.city && result.location?.country_name 
-        ? `${result.location.city}, ${result.location.country_name}`
-        : 'Unknown',
-      banner: result.banner || '',
-      hostnames: result.hostnames || [],
-      search_target: searchTarget
-    };
+/* -------------------------------------------------------------------------- */
+/*  Recommendation text                                                        */
+/* -------------------------------------------------------------------------- */
 
-    let severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'INFO';
-    const findingsList: string[] = [];
-    
-    const criticalPorts = [23, 139, 445, 3389, 5900];
-    const highPorts = [21, 22, 1433, 1521, 3306, 5432, 6379, 9200];
-    
-    if (criticalPorts.includes(result.port)) {
-        severity = 'HIGH';
-    } else if (highPorts.includes(result.port)) {
-        severity = 'MEDIUM';
-    }
-
-    if (result.vulns && Object.keys(result.vulns).length > 0) {
-      severity = 'CRITICAL';
-      for (const cve of Object.keys(result.vulns)) {
-        findingsList.push(`Known vulnerability: ${cve}`);
-      }
-    }
-
-    if (result.ssl?.cert?.expired) {
-      severity = severity === 'INFO' ? 'LOW' : severity === 'MEDIUM' ? 'MEDIUM' : 'HIGH'; // Elevate severity
-      findingsList.push('Expired SSL certificate detected');
-    }
-
-    const artifactId = await insertArtifact({
-      type: 'shodan_service',
-      val_text: `${result.ip_str}:${result.port} - ${serviceInfo.product} ${serviceInfo.version}`,
-      severity,
-      src_url: `https://www.shodan.io/host/${result.ip_str}`,
-      meta: {
-        scan_id: scanId,
-        company: companyName,
-        service_info: serviceInfo,
-        shodan_vulns: result.vulns,
-        scan_module: 'shodan'
-      }
-    });
-
-    if (findingsList.length === 0) {
-        findingsList.push(`Exposed service on port ${result.port}`);
-    }
-
-    for (const finding of findingsList) {
-      await insertFinding(
-        artifactId,
-        'EXPOSED_SERVICE',
-        // REFACTOR: Pass the full serviceInfo object to the recommendation engine.
-        getShodanRecommendation(result.port, serviceInfo, finding),
-        finding
-      );
-    }
+function buildRecommendation(
+  port: number,
+  finding: string,
+  product: string,
+  version: string,
+): string {
+  if (finding.startsWith('CVE-')) {
+    return `Patch ${product || 'service'} ${version || ''} immediately to remediate ${finding}.`;
   }
-  return findingsCount;
-}
-
-async function searchByOrganization(companyName: string, scanId: string, apiKey: string): Promise<number> {
-  const orgSearchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=org:"${companyName}"`;
-  try {
-    const orgResponse = await axios.get<ShodanResponse>(orgSearchUrl, { timeout: 30000 });
-    log(`[shodan] Found ${orgResponse.data.matches.length} results for organization "${companyName}"`);
-    // Limit processing for org searches to avoid noise, but get a good sample.
-    return await processShodanResults(orgResponse.data.matches.slice(0, 50), scanId, companyName, `org:"${companyName}"`);
-  } catch (orgError) {
-    log('[shodan] Organization search failed:', (orgError as Error).message);
-    return 0;
+  if (finding === 'Expired SSL certificate') {
+    return 'Renew the TLS certificate and configure automated renewal.';
+  }
+  switch (port) {
+    case 3389:
+      return 'Secure RDP with VPN or gateway and enforce MFA.';
+    case 445:
+    case 139:
+      return 'Block SMB/NetBIOS from the Internet; use VPN.';
+    case 23:
+      return 'Disable Telnet; migrate to SSH.';
+    case 5900:
+      return 'Avoid exposing VNC publicly; tunnel through SSH or VPN.';
+    default:
+      return 'Restrict public access and apply latest security hardening guides.';
   }
 }
 
-export async function runShodanScan(job: { domain: string, scanId: string, companyName: string }): Promise<number> {
-    const { domain, scanId, companyName } = job;
-    const apiKey = process.env.SHODAN_API_KEY;
-    if (!apiKey) {
-        log('[shodan] [CRITICAL] SHODAN_API_KEY not found. Scan skipped.');
-        await insertArtifact({
-            type: 'scan_error',
-            val_text: 'Shodan scan skipped - API key not configured',
-            severity: 'HIGH',
-            meta: { scan_id: scanId, scan_module: 'shodan' }
-        });
-        return 0;
+/* -------------------------------------------------------------------------- */
+/*  Persist a single Shodan match                                              */
+/* -------------------------------------------------------------------------- */
+
+async function persistMatch(
+  m: ShodanMatch,
+  scanId: string,
+  searchTarget: string,
+): Promise<number> {
+  let inserted = 0;
+
+  /* --- baseline severity ------------------------------------------------- */
+  let sev: Sev = (PORT_RISK[m.port] ?? 'INFO') as Sev;
+  const findings: string[] = [];
+
+  if (m.ssl?.cert?.expired) {
+    findings.push('Expired SSL certificate');
+    if (sev === 'INFO') sev = 'LOW';
+  }
+
+  if (m.vulns) {
+    for (const [cve, info] of Object.entries(m.vulns)) {
+      findings.push(cve);
+      const derived = cvssToSeverity(info.cvss);
+      const rank = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 } as const;
+      if (rank[derived] > rank[sev]) sev = derived;
     }
+  }
 
-    log(`[shodan] Starting comprehensive scan for domain: ${domain}, company: ${companyName}`);
-    let totalFindings = 0;
-    const allTargets = new Set<string>([domain]);
+  const artId = await insertArtifact({
+    type: 'shodan_service',
+    val_text: `${m.ip_str}:${m.port} ${m.product ?? ''} ${m.version ?? ''}`.trim(),
+    severity: sev,
+    src_url: `https://www.shodan.io/host/${m.ip_str}`,
+    meta: {
+      scan_id: scanId,
+      search_term: searchTarget,
+      ip: m.ip_str,
+      port: m.port,
+      product: m.product,
+      version: m.version,
+      hostnames: m.hostnames ?? [],
+      location: m.location,
+      org: m.org,
+      isp: m.isp,
+    },
+  });
+  inserted += 1;
 
-    try {
-        const discoveredTargets = await getDiscoveredTargets(scanId);
-        discoveredTargets.forEach(t => allTargets.add(t));
-        
-        log(`[shodan] Scanning ${allTargets.size} unique targets.`);
+  if (findings.length === 0) findings.push(`Exposed service on port ${m.port}`);
 
-        for (const target of allTargets) {
-            const searchUrl = `https://api.shodan.io/shodan/host/search?key=${apiKey}&query=hostname:${target}`;
-            try {
-                log(`[shodan] Querying for: ${target}`);
-                const response = await axios.get<ShodanResponse>(searchUrl, { timeout: 30000 });
-                totalFindings += await processShodanResults(response.data.matches, scanId, companyName, target);
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            } catch (error) {
-                log(`[shodan] [ERROR] Search failed for ${target}:`, (error as Error).message);
-            }
+  for (const f of findings) {
+    await insertFinding(
+      artId,
+      'EXPOSED_SERVICE',
+      buildRecommendation(m.port, f, m.product ?? '', m.version ?? ''),
+      f,
+    );
+    inserted += 1;
+  }
+  return inserted;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Main exported function                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function runShodanScan(job: {
+  domain: string;
+  scanId: string;
+  companyName: string;
+}): Promise<number> {
+  const { domain, scanId } = job;
+  log(`[Shodan] Start scan for ${domain}`);
+
+  /* Build target set ------------------------------------------------------ */
+  const targets = new Set<string>([domain]);
+
+  const dbRes = await pool.query(
+    `SELECT DISTINCT val_text
+     FROM artifacts
+     WHERE meta->>'scan_id' = $1
+       AND type IN ('subdomain','hostname','ip')
+     LIMIT $2`,
+    [scanId, TARGET_LIMIT],
+  );
+  dbRes.rows.forEach((r) => targets.add(r.val_text.trim()));
+
+  log(`[Shodan] Querying ${targets.size} targets (PAGE_LIMIT=${PAGE_LIMIT})`);
+
+  let totalItems = 0;
+
+  for (const tgt of targets) {
+    let fetched = 0;
+    for (let page = 1; page <= PAGE_LIMIT; page += 1) {
+      const q = encodeURIComponent(`hostname:${tgt}`);
+      const url = `${SEARCH_BASE}?key=${API_KEY}&query=${q}&page=${page}`;
+
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const data = await rlFetch<ShodanResponse>(url);
+        if (data.matches.length === 0) break;
+
+        for (const m of data.matches) {
+          // eslint-disable-next-line no-await-in-loop
+          totalItems += await persistMatch(m, scanId, tgt);
         }
 
-        if (companyName && companyName !== domain) {
-            totalFindings += await searchByOrganization(companyName, scanId, apiKey);
-        }
-
-        log(`[shodan] Scan completed. Total findings: ${totalFindings}`);
-        await insertArtifact({
-            type: 'scan_summary',
-            val_text: `Shodan scan completed: ${totalFindings} findings`,
-            severity: 'INFO',
-            meta: {
-                scan_id: scanId,
-                scan_module: 'shodan',
-                total_findings: totalFindings,
-                targets_scanned: allTargets.size,
-                timestamp: new Date().toISOString()
-            }
-        });
-        return totalFindings;
-    } catch (error) {
-        log('[shodan] [CRITICAL] Scan failed with unexpected error:', (error as Error).message);
-        await insertArtifact({
-            type: 'scan_error',
-            val_text: `Shodan scan failed: ${(error as Error).message}`,
-            severity: 'HIGH',
-            meta: { scan_id: scanId, scan_module: 'shodan' }
-        });
-        return 0;
+        fetched += data.matches.length;
+        if (fetched >= data.total) break;
+      } catch (err) {
+        log(`[Shodan] ERROR for ${tgt} (page ${page}): ${(err as Error).message}`);
+        break; // next target
+      }
     }
+  }
+
+  await insertArtifact({
+    type: 'scan_summary',
+    val_text: `Shodan scan: ${totalItems} items`,
+    severity: 'INFO',
+    meta: { scan_id: scanId, total_items: totalItems, timestamp: new Date().toISOString() },
+  });
+
+  log(`[Shodan] Done — ${totalItems} rows persisted`);
+  return totalItems;
 }
+
+export default runShodanScan;
