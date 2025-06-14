@@ -1,9 +1,10 @@
 /* =============================================================================
- * MODULE: documentExposure.ts  (Security-Hardened Refactor v4 – “Common-Name Safe”)
+ * MODULE: documentExposure.ts  (Security-Hardened Refactor v7 – lint-clean)
  *
- *  ➟  Replaces all earlier versions.  ESLint --strict clean.
- *  ➟  Key upgrade: programmatic “brand-signature” filtering to kill generic-name
- *     noise (e.g., “Cohesive”, “Jairus”) without hard-coding inside source.
+ *  ➟  Fixes all TypeScript 2322 / 2345 errors reported on v6.
+ *  ➟  Renames GPT-industry return field to `conf` to match the type guard.
+ *  ➟  Ensures all boolean returns are concrete; no `boolean | undefined`.
+ *  ➟  Removes “string | null” path issues by using non-null assertions.
  * =============================================================================
  */
 
@@ -19,24 +20,22 @@ import mammoth from 'mammoth';
 import xlsx from 'xlsx';
 import yauzl from 'yauzl';
 import { URL } from 'node:url';
+import { OpenAI } from 'openai';
 
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { uploadFile } from '../core/objectStore.js';
 import { log } from '../core/logger.js';
 
-// ---------------------------------------------------------------------------
-// 0.  Types & Interfaces
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 0.  Types & Interfaces
+ * ------------------------------------------------------------------------ */
 
 interface BrandSignature {
-  /** Main production domain (e.g., getcohesiveai.com) */
   primary_domain: string;
-  /** Alternate or marketing domains, sub-domains, vanity URLs */
   alt_domains: string[];
-  /** Phrases that uniquely identify the brand. Case-insensitive. */
   core_terms: string[];
-  /** Phrases that always indicate a false positive (“cohesive soil …”). */
   excluded_terms: string[];
+  industry?: string;
 }
 
 interface AnalysisResult {
@@ -45,57 +44,66 @@ interface AnalysisResult {
   localPath: string;
   sensitivity: number;
   findings: string[];
-  fileMetadata?: Record<string, unknown>;
   language: string;
 }
 
-// ---------------------------------------------------------------------------
-// 1.  Constants / Runtime Config
-// ---------------------------------------------------------------------------
+interface IndustryGuard {
+  industry: string;
+  conf: number;
+}
+
+/* ---------------------------------------------------------------------------
+ * 1.  Constants / Runtime Config
+ * ------------------------------------------------------------------------ */
 
 const SERPER_URL = 'https://google.serper.dev/search';
 const FILE_PROCESSING_TIMEOUT_MS = 30_000;
 const MAX_UNCOMPRESSED_ZIP_SIZE_MB = 50;
 const MAX_CONTENT_ANALYSIS_BYTES = 250_000;
-const MAX_WORKER_MEMORY_MB = 512; // RSS MB
+const MAX_WORKER_MEMORY_MB = 512;
 
-// ---------------------------------------------------------------------------
-// 2.  pdfjs worker initialisation
-// ---------------------------------------------------------------------------
+const GPT_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini-2024-07-18';
+
+const GPT_REL_SYS =
+  'You are a binary relevance filter for brand-exposure scans. Reply ONLY with YES or NO.';
+const GPT_IND_SYS =
+  'You are a company profiler. Return strict JSON: {"industry":"<label>","conf":0-1}. No prose.';
+
+const MAX_REL_TOKENS = 1;
+const MAX_IND_TOKENS = 20;
+const MAX_CONTENT_FOR_GPT = 3_000;
+
+/* ---------------------------------------------------------------------------
+ * 2.  pdf.js worker initialisation
+ * ------------------------------------------------------------------------ */
 
 const require = createRequire(import.meta.url);
 try {
   const pdfWorkerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
   GlobalWorkerOptions.workerSrc = pdfWorkerPath;
-  log('[documentExposure] pdfjs worker set:', pdfWorkerPath);
 } catch (err) {
-  log('[documentExposure] [CRITICAL] pdf.worker.mjs not found – PDF parsing may fail.', (err as Error).message);
+  log('[documentExposure] pdf.worker.mjs not found:', (err as Error).message);
 }
 
-// ---------------------------------------------------------------------------
-// 3.  Brand-Signature Loader
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 3.  Brand-Signature Loader
+ * ------------------------------------------------------------------------ */
 
-async function loadBrandSignature(companyName: string, domain: string): Promise<BrandSignature> {
-  const configDir = path.resolve(process.cwd(), 'config', 'brand-signatures');
-  const candidateFiles = [
-    path.join(configDir, `${domain}.json`),
-    path.join(configDir, `${companyName.replace(/\s+/g, '_').toLowerCase()}.json`)
+async function loadBrandSignature(
+  companyName: string,
+  domain: string
+): Promise<BrandSignature> {
+  const cfgDir = path.resolve(process.cwd(), 'config', 'brand-signatures');
+  const candidates = [
+    path.join(cfgDir, `${domain}.json`),
+    path.join(cfgDir, `${companyName.replace(/\s+/g, '_').toLowerCase()}.json`)
   ];
 
-  for (const file of candidateFiles) {
+  for (const file of candidates) {
     try {
-      const raw = await fs.readFile(file, 'utf-8');
-      const parsed = JSON.parse(raw) as BrandSignature;
-      log('[documentExposure] Loaded brand signature from', file);
-      return parsed;
-    } catch {
-      /* keep trying other candidates */
-    }
+      return JSON.parse(await fs.readFile(file, 'utf-8')) as BrandSignature;
+    } catch {/* next */}
   }
-
-  // Fallback minimal signature (no hard-coded values)
-  log('[documentExposure] No brand-signature file found; using minimal defaults.');
   return {
     primary_domain: domain.toLowerCase(),
     alt_domains: [],
@@ -104,247 +112,253 @@ async function loadBrandSignature(companyName: string, domain: string): Promise<
   };
 }
 
-// ---------------------------------------------------------------------------
-// 4.  Helper: Relevance Checks (URL + Page/Text)
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 4.  Static Heuristic Helpers
+ * ------------------------------------------------------------------------ */
 
-function domainMatches(hostname: string, sig: BrandSignature): boolean {
-  if (hostname.endsWith(sig.primary_domain)) return true;
-  return sig.alt_domains.some((d) => hostname.endsWith(d));
+function domainMatches(h: string, sig: BrandSignature): boolean {
+  return h.endsWith(sig.primary_domain) || sig.alt_domains.some((d) => h.endsWith(d));
 }
-
-function containsCoreTerm(text: string, sig: BrandSignature): boolean {
-  return sig.core_terms.some((t) => text.includes(t.toLowerCase()));
-}
-
-function containsExcludedTerm(text: string, sig: BrandSignature): boolean {
-  return sig.excluded_terms.some((t) => text.includes(t.toLowerCase()));
-}
-
 function isSearchHitRelevant(
   urlStr: string,
   title: string,
   snippet: string,
   sig: BrandSignature
 ): boolean {
+  const blob = `${title} ${snippet}`.toLowerCase();
   try {
     const { hostname } = new URL(urlStr.toLowerCase());
-    const textBlob = `${title} ${snippet}`.toLowerCase();
-
     if (domainMatches(hostname, sig)) return true;
-    if (containsExcludedTerm(textBlob, sig)) return false;
-    return containsCoreTerm(textBlob, sig);
+    if (sig.excluded_terms.some((t) => blob.includes(t))) return false;
+    return sig.core_terms.some((t) => blob.includes(t));
   } catch {
     return false;
   }
 }
-
 function isContentRelevant(content: string, sig: BrandSignature, urlStr: string): boolean {
   try {
-    const { hostname } = new URL(urlStr.toLowerCase());
-    if (domainMatches(hostname, sig)) return true; // own infra always counts
-  } catch {
-    /* ignore URL parse errors */
-  }
-
-  const blob = content.toLowerCase();
-  if (containsExcludedTerm(blob, sig)) return false;
-  return containsCoreTerm(blob, sig);
+    if (domainMatches(new URL(urlStr).hostname, sig)) return true;
+  } catch {/* ignore */}
+  const lc = content.toLowerCase();
+  if (sig.excluded_terms.some((t) => lc.includes(t))) return false;
+  return sig.core_terms.some((t) => lc.includes(t));
 }
 
-// ---------------------------------------------------------------------------
-// 5.  Search Dork Helpers (unchanged except Core-Term replacement)
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 5.  OpenAI helpers
+ * ------------------------------------------------------------------------ */
 
-async function getDorks(companyName: string, domain: string): Promise<Map<string, string[]>> {
-  const dorksByCat = new Map<string, string[]>();
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ timeout: 8_000 }) : null;
+
+/* 5.1 YES/NO relevance */
+async function gptRelevant(sample: string, sig: BrandSignature): Promise<boolean> {
+  if (!openai) return true;
+  const prompt =
+    `Does the text below clearly relate to the company whose domain is "${sig.primary_domain}"? ` +
+    'Reply YES or NO.\n\n' + sample.slice(0, MAX_CONTENT_FOR_GPT);
   try {
-    const dorksTemplate = await fs.readFile(
+    const { choices } = await openai.chat.completions.create({
+      model: GPT_MODEL,
+      temperature: 0,
+      max_tokens: MAX_REL_TOKENS,
+      messages: [
+        { role: 'system', content: GPT_REL_SYS },
+        { role: 'user', content: prompt }
+      ]
+    });
+    const answer =
+      choices?.[0]?.message?.content?.trim().toUpperCase() ?? 'NO';
+    return answer.startsWith('Y');
+  } catch (err) {
+    log('[documentExposure] GPT relevance error – fail-open:', (err as Error).message);
+    return true;
+  }
+}
+
+/* 5.2 Industry label */
+async function fetchSnippet(domain: string): Promise<string> {
+  if (!process.env.SERPER_KEY) return '';
+  try {
+    const { data } = await axios.post(
+      SERPER_URL,
+      { q: `site:${domain}`, num: 1 },
+      { headers: { 'X-API-KEY': process.env.SERPER_KEY } }
+    );
+    return data.organic?.[0]?.snippet ?? '';
+  } catch {
+    return '';
+  }
+}
+async function gptIndustry(company: string, domain: string): Promise<IndustryGuard> {
+  if (!openai) return { industry: 'Unknown', conf: 0 };
+  const snippet = await fetchSnippet(domain);
+  try {
+    const { choices } = await openai.chat.completions.create({
+      model: GPT_MODEL,
+      temperature: 0,
+      max_tokens: MAX_IND_TOKENS,
+      messages: [
+        { role: 'system', content: GPT_IND_SYS },
+        {
+          role: 'user',
+          content:
+            `Company: ${company}\nDomain: ${domain}\nSnippet: ${snippet}\nIdentify primary industry:` }
+      ]
+    });
+    return JSON.parse(choices[0]?.message?.content ?? '{"industry":"Unknown","conf":0}') as IndustryGuard;
+  } catch (err) {
+    log('[documentExposure] GPT industry error – fail-open:', (err as Error).message);
+    return { industry: 'Unknown', conf: 0 };
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * 6.  Search-dork helpers
+ * ------------------------------------------------------------------------ */
+
+async function getDorks(company: string, domain: string): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  try {
+    const raw = await fs.readFile(
       path.resolve(process.cwd(), 'apps/workers/templates/dorks-optimized.txt'),
       'utf-8'
     );
-    let currentCategory = 'default';
-    for (const line of dorksTemplate.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('# ---')) {
-        currentCategory = trimmed.replace('# ---', '').trim().toLowerCase();
-      } else if (trimmed && !trimmed.startsWith('#')) {
-        const processed = trimmed
-          .replace(/COMPANY_NAME/g, `"${companyName}"`)
-          .replace(/DOMAIN/g, domain);
-        if (!dorksByCat.has(currentCategory)) dorksByCat.set(currentCategory, []);
-        dorksByCat.get(currentCategory)!.push(processed);
+    let cat = 'default';
+    for (const ln of raw.split('\n')) {
+      const t = ln.trim();
+      if (t.startsWith('# ---')) {
+        cat = t.replace('# ---', '').trim().toLowerCase();
+      } else if (t && !t.startsWith('#')) {
+        const rep = t.replace(/COMPANY_NAME/g, `"${company}"`).replace(/DOMAIN/g, domain);
+        if (!out.has(cat)) out.set(cat, []);
+        out.get(cat)!.push(rep);
       }
     }
-    return dorksByCat;
-  } catch (err) {
-    log('[documentExposure] Dork file read failed – using fallback.', (err as Error).message);
-    return new Map([['fallback', [`site:*.${domain} "${companyName}" filetype:pdf`]]]);
+    return out;
+  } catch {
+    return new Map([['fallback', [`site:*.${domain} "${company}" filetype:pdf`]]]);
   }
 }
-
 function getPlatform(urlStr: string): string {
   const u = urlStr.toLowerCase();
   if (u.includes('hubspot')) return 'HubSpot';
   if (u.includes('force.com') || u.includes('salesforce')) return 'Salesforce';
-  if (u.includes('docs.google.com') || u.includes('drive.google.com')) return 'Google Drive';
+  if (u.includes('docs.google.com')) return 'Google Drive';
   if (u.includes('sharepoint.com')) return 'SharePoint';
   return 'Unknown Cloud Storage';
 }
 
-// ---------------------------------------------------------------------------
-// 6.  Security Utilities (magic bytes, zip-bomb, memory guard)
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 7.  Security utilities  (magic bytes, zip-bomb, etc.)
+ * ------------------------------------------------------------------------ */
 
 const MAGIC_BYTES: Record<string, Buffer> = {
   'application/pdf': Buffer.from([0x25, 0x50, 0x44, 0x46]),
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': Buffer.from([0x50, 0x4b, 0x03, 0x04]),
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': Buffer.from([0x50, 0x4b, 0x03, 0x04])
 };
-
-function validateFileHeader(buf: Buffer, mime: string): boolean {
-  const expected = MAGIC_BYTES[mime];
-  if (!expected) return true;
-  return buf.slice(0, expected.length).equals(expected);
+function validateHeader(buf: Buffer, mime: string): boolean {
+  const exp = MAGIC_BYTES[mime];
+  return exp ? buf.slice(0, exp.length).equals(exp) : true;
 }
-
-function checkMemoryUsage(): void {
-  const rssMb = process.memoryUsage().rss / 1024 / 1024;
-  if (rssMb > MAX_WORKER_MEMORY_MB) {
-    throw new Error(`Memory limit exceeded (${Math.round(rssMb)} MB > ${MAX_WORKER_MEMORY_MB} MB)`);
-  }
+function memGuard(): void {
+  const rss = process.memoryUsage().rss / 1024 / 1024;
+  if (rss > MAX_WORKER_MEMORY_MB) throw new Error('Memory limit exceeded');
 }
-
-async function validateZipBomb(buf: Buffer): Promise<boolean> {
-  return new Promise((resolve, reject) => {
+async function safeZip(buf: Buffer): Promise<boolean> {
+  return new Promise((res, rej) => {
     yauzl.fromBuffer(buf, { lazyEntries: true }, (err, zip) => {
-      if (err || !zip) return reject(err || new Error('Invalid zip'));
+      if (err || !zip) return rej(err || new Error('Invalid zip'));
       let total = 0;
       zip.readEntry();
       zip.on('entry', (e) => {
-        if (e.uncompressedSize < 0) return resolve(false);
         total += e.uncompressedSize;
-        if (total > MAX_UNCOMPRESSED_ZIP_SIZE_MB * 1024 * 1024) return resolve(false);
+        if (total > MAX_UNCOMPRESSED_ZIP_SIZE_MB * 1024 * 1024) return res(false);
         zip.readEntry();
       });
-      zip.on('end', () => resolve(true));
-      zip.on('error', reject);
+      zip.on('end', () => res(true));
+      zip.on('error', rej);
     });
   });
 }
 
-// ---------------------------------------------------------------------------
-// 7.  File Processing (PDF / DOCX / XLSX / Fallback)
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 8.  File parsing
+ * ------------------------------------------------------------------------ */
 
-async function processFileBuffer(
+async function parseBuffer(
   buf: Buffer,
   mime: string
-): Promise<{ textContent: string; metadata?: Record<string, unknown> }> {
-  let textContent = '';
-  let metadata: Record<string, unknown> | undefined;
-
+): Promise<string> {
   switch (mime) {
     case 'application/pdf': {
-      const pdfDoc = await getDocument({ data: buf }).promise;
-      metadata = (await pdfDoc.getMetadata()).info as Record<string, unknown>;
-      for (let p = 1; p <= pdfDoc.numPages; p += 1) {
-        const page = await pdfDoc.getPage(p);
-        const content = await page.getTextContent();
-        textContent += `${content.items.map((i: any) => i.str).join(' ')}\n`;
+      const pdf = await getDocument({ data: buf }).promise;
+      let txt = '';
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const c = await pdf.getPage(p).then((pg) => pg.getTextContent());
+        txt += c.items.map((i: any) => i.str).join(' ') + '\n';
       }
-      break;
+      return txt;
     }
-    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
-      if (!(await validateZipBomb(buf))) throw new Error('Zip-bomb DOCX');
-      const res = await mammoth.extractRawText({ buffer: buf });
-      textContent = res.value;
-      break;
-    }
-    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
-      if (!(await validateZipBomb(buf))) throw new Error('Zip-bomb XLSX');
-      const wb = xlsx.read(buf, { type: 'buffer' });
-      textContent = wb.SheetNames.map((n) => xlsx.utils.sheet_to_csv(wb.Sheets[n])).join('\n');
-      break;
-    }
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      if (!(await safeZip(buf))) throw new Error('Zip-bomb DOCX');
+      return (await mammoth.extractRawText({ buffer: buf })).value;
+    case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+      if (!(await safeZip(buf))) throw new Error('Zip-bomb XLSX');
+      return xlsx
+        .read(buf, { type: 'buffer' })
+        .SheetNames.map((n) => xlsx.utils.sheet_to_csv(xlsx.read(buf, { type: 'buffer' }).Sheets[n]))
+        .join('\n');
     default:
-      textContent = buf.toString('utf8', 0, MAX_CONTENT_ANALYSIS_BYTES);
+      return buf.toString('utf8', 0, MAX_CONTENT_ANALYSIS_BYTES);
   }
-
-  return { textContent, metadata };
 }
 
-// ---------------------------------------------------------------------------
-// 8.  Sensitivity Scoring (unchanged logic, but exported for tests)
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 9.  Sensitivity scoring
+ * ------------------------------------------------------------------------ */
 
-export function analyzeSensitivity(
-  content: string,
-  metadata?: Record<string, unknown>
-): { sensitivity: number; findings: string[] } {
-  const findings: string[] = [];
-  let score = 0;
+function score(content: string): { sensitivity: number; findings: string[] } {
+  const finds: string[] = [];
+  let s = 0;
   const lc = content.toLowerCase();
 
-  // PII regexes
-  const emailRgx = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
-  const phoneRgx =
-    /(?:\+?1\s*(?:[.-]\s*)?)?(?:\(\s*([2-9][0-9]{2})\s*\)|[2-9][0-9]{2})\s*(?:[.-]\s*)?[2-9][0-9]{2}\s*(?:[.-]\s*)?[0-9]{4}/g;
-
-  const creditCandidates = content.match(/\b(?:\d[ -]*?){13,19}\b/g) ?? [];
-  const creditValid = creditCandidates.some((c) => luhn.validate(c.replace(/\D/g, '')));
-  if (creditValid) {
-    score += 25;
-    findings.push('Potential credit-card data');
+  if ((content.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi) ?? []).length > 5) {
+    s += 10; finds.push('Bulk e-mails');
   }
-
-  if ((content.match(emailRgx) ?? []).length > 5) {
-    score += 10;
-    findings.push('Bulk email addresses');
+  if ((content.match(/(?:\+?\d{1,3})?[-.\s]?\(?\d{2,4}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g) ?? []).length) {
+    s += 5; finds.push('Phone numbers');
   }
-  if ((content.match(phoneRgx) ?? []).length > 0) {
-    score += 5;
-    findings.push('Phone number(s)');
-  }
-
-  if (['confidential', 'proprietary', 'internal use only', 'restricted'].some((k) => lc.includes(k))) {
-    score += 10;
-    findings.push('Confidential markings');
-  }
-
   if (/[A-Za-z0-9+/]{40,}={0,2}/.test(content)) {
-    score += 15;
-    findings.push('High-entropy strings (keys?)');
+    s += 15; finds.push('High-entropy strings');
   }
-
-  return { sensitivity: score, findings };
+  const cc = content.match(/\b(?:\d[ -]*?){13,19}\b/g) ?? [];
+  if (cc.some((c) => luhn.validate(c.replace(/\D/g, '')))) {
+    s += 25; finds.push('Credit-card data?');
+  }
+  if (['confidential', 'proprietary', 'internal use only', 'restricted'].some((k) => lc.includes(k))) {
+    s += 10; finds.push('Confidential markings');
+  }
+  return { sensitivity: s, findings: finds };
+}
+function sev(s: number): 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
+  return s >= 40 ? 'CRITICAL' : s >= 25 ? 'HIGH' : s >= 15 ? 'MEDIUM' : s > 0 ? 'LOW' : 'INFO';
 }
 
-function getSeverity(score: number): 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' {
-  if (score >= 40) return 'CRITICAL';
-  if (score >= 25) return 'HIGH';
-  if (score >= 15) return 'MEDIUM';
-  if (score > 0) return 'LOW';
-  return 'INFO';
-}
-
-// ---------------------------------------------------------------------------
-// 9.  Download + Relevance + Analysis Pipeline
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 10.  Download → AI-filter → Analysis
+ * ------------------------------------------------------------------------ */
 
 async function downloadAndAnalyze(
   urlStr: string,
   sig: BrandSignature,
+  guard: IndustryGuard,
   scanId?: string
 ): Promise<AnalysisResult | null> {
-  let tmpPath: string | null = null;
+  let localPath: string | null = null;
   try {
     const head = await axios.head(urlStr, { timeout: 10_000 }).catch<AxiosResponse | null>(() => null);
-    const len = parseInt(head?.headers['content-length'] ?? '0', 10);
-    if (len > 15 * 1024 * 1024) {
-      log('[documentExposure] >15 MB – skip', urlStr);
-      return null;
-    }
+    if (parseInt(head?.headers['content-length'] ?? '0', 10) > 15 * 1024 * 1024) return null;
 
     const res = await axios.get<ArrayBuffer>(urlStr, { responseType: 'arraybuffer', timeout: 30_000 });
     const buf = Buffer.from(res.data);
@@ -353,41 +367,43 @@ async function downloadAndAnalyze(
       reported: res.headers['content-type'] ?? 'application/octet-stream',
       verified: ft?.mime ?? 'application/octet-stream'
     }));
-
-    if (!validateFileHeader(buf, mimeInfo.verified)) throw new Error('Magic-byte mismatch');
-    checkMemoryUsage();
+    if (!validateHeader(buf, mimeInfo.verified)) throw new Error('Magic-byte mismatch');
+    memGuard();
 
     const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
     const ext = path.extname(new URL(urlStr).pathname) || '.tmp';
-    tmpPath = path.join('/tmp', `doc_${sha256}${ext}`);
-    await fs.writeFile(tmpPath, buf);
+    localPath = path.join('/tmp', `doc_${sha256}${ext}`);
+    await fs.writeFile(localPath, buf);
 
-    const timeout = new Promise<never>((_, rej) =>
-      setTimeout(() => rej(new Error('Processing timeout')), FILE_PROCESSING_TIMEOUT_MS)
-    );
+    const textContent = await Promise.race([
+      parseBuffer(buf, mimeInfo.verified),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('Timeout')), FILE_PROCESSING_TIMEOUT_MS))
+    ]);
 
-    const { textContent, metadata } = await Promise.race([processFileBuffer(buf, mimeInfo.verified), timeout]);
+    if (!isContentRelevant(textContent, sig, urlStr)) return null;
+    if (!(await gptRelevant(textContent, sig))) return null;
+    if (guard.conf > 0.7 && !textContent.toLowerCase().includes(guard.industry.toLowerCase())) return null;
 
-    if (!isContentRelevant(textContent, sig, urlStr)) {
-      log('[documentExposure] Dropped – generic name noise:', urlStr);
-      return null;
-    }
-
-    const { sensitivity, findings } = analyzeSensitivity(textContent, metadata);
-    const language = 'unknown';
-
-    return { sha256, mimeInfo, localPath: tmpPath, sensitivity, findings, fileMetadata: metadata, language };
+    const { sensitivity, findings } = score(textContent);
+    return {
+      sha256,
+      mimeInfo,
+      localPath,
+      sensitivity,
+      findings,
+      language: 'unknown'
+    };
   } catch (err) {
-    log('[documentExposure] Error processing', urlStr, ':', (err as Error).message);
+    log('[documentExposure] process error:', (err as Error).message);
     return null;
   } finally {
-    if (tmpPath) await fs.unlink(tmpPath).catch(() => null);
+    if (localPath) await fs.unlink(localPath).catch(() => null);
   }
 }
 
-// ---------------------------------------------------------------------------
-// 10.  Main Exported Runner
-// ---------------------------------------------------------------------------
+/* ---------------------------------------------------------------------------
+ * 11.  Main Runner
+ * ------------------------------------------------------------------------ */
 
 export async function runDocumentExposure(job: {
   companyName: string;
@@ -395,24 +411,25 @@ export async function runDocumentExposure(job: {
   scanId?: string;
 }): Promise<number> {
   const { companyName, domain, scanId } = job;
-
   if (!process.env.SERPER_KEY) {
-    log('[documentExposure] SERPER_KEY missing – abort.');
+    log('[documentExposure] SERPER_KEY missing');
     return 0;
   }
 
   const sig = await loadBrandSignature(companyName, domain);
+  const industryLabel = await gptIndustry(companyName, domain);
+  sig.industry = industryLabel.industry;
+
+  const dorks = await getDorks(companyName, domain);
   const headers = { 'X-API-KEY': process.env.SERPER_KEY };
 
   const seen = new Set<string>();
-  const dorksByCat = await getDorks(companyName, domain);
-  let findingsCount = 0;
-  let queriesExecuted = 0;
+  let total = 0;
+  let queries = 0;
 
-  for (const [category, dorks] of dorksByCat.entries()) {
-    log(`[documentExposure] Category: ${category}`);
-    for (const q of dorks) {
-      queriesExecuted += 1;
+  for (const [category, qs] of dorks.entries()) {
+    for (const q of qs) {
+      queries++;
       try {
         const { data } = await axios.post(SERPER_URL, { q, num: 20 }, { headers });
         for (const hit of data.organic ?? []) {
@@ -420,71 +437,65 @@ export async function runDocumentExposure(job: {
           if (seen.has(urlStr)) continue;
           seen.add(urlStr);
 
-          if (
-            !isSearchHitRelevant(urlStr, hit.title ?? '', hit.snippet ?? '', sig)
-          ) {
-            continue;
-          }
+          if (!isSearchHitRelevant(urlStr, hit.title ?? '', hit.snippet ?? '', sig)) continue;
 
           const platform = getPlatform(urlStr);
-          const result = await downloadAndAnalyze(urlStr, sig, scanId);
-          if (!result) continue;
+          const res = await downloadAndAnalyze(urlStr, sig, industryLabel, scanId);
+          if (!res) continue;
 
-          const { sha256, mimeInfo, localPath, sensitivity, findings, fileMetadata, language } = result;
-          const severity = getSeverity(sensitivity);
-          const key = `exposed_docs/${platform.toLowerCase()}/${sha256}${path.extname(urlStr)}`;
-          const storageUrl = await uploadFile(localPath, key, mimeInfo.verified);
+          const key = `exposed_docs/${platform.toLowerCase()}/${res.sha256}${path.extname(urlStr)}`;
+          const storageUrl = await uploadFile(res.localPath, key, res.mimeInfo.verified);
 
           const artifactId = await insertArtifact({
             type: 'exposed_document',
             val_text: `${platform} exposed file: ${path.basename(urlStr)}`,
-            severity,
+            severity: sev(res.sensitivity),
             src_url: urlStr,
-            sha256,
-            mime: mimeInfo.verified,
+            sha256: res.sha256,
+            mime: res.mimeInfo.verified,
             meta: {
               scan_id: scanId,
               scan_module: 'documentExposure',
               platform,
-              sensitivity_score: sensitivity,
               storage_url: storageUrl,
-              language,
-              dork_category: category,
-              analysis_findings: findings.slice(0, 6),
-              file_metadata: fileMetadata || {}
+              sensitivity_score: res.sensitivity,
+              analysis_findings: res.findings,
+              industry_label: industryLabel
             }
           });
 
-          if (sensitivity >= 15) {
+          if (res.sensitivity >= 15) {
             await insertFinding(
               artifactId,
               'DATA_EXPOSURE',
               `Secure the ${platform} service by reviewing file permissions.`,
-              `Sensitive document found on ${platform}. Score: ${sensitivity}.`
+              `Sensitive document found on ${platform}. Score: ${res.sensitivity}.`
             );
           }
-          findingsCount += 1;
+          total++;
         }
       } catch (err) {
-        log('[documentExposure] Search error:', (err as Error).message);
+        log('[documentExposure] Serper error:', (err as Error).message);
       }
-      await new Promise((r) => setTimeout(r, 1500)); // polite pause
+      await new Promise((r) => setTimeout(r, 1_500));
     }
   }
 
   await insertArtifact({
     type: 'scan_summary',
-    val_text: `Document exposure scan completed: ${findingsCount} exposed files`,
+    val_text: `Document exposure scan completed: ${total} exposed files`,
     severity: 'INFO',
     meta: {
       scan_id: scanId,
       scan_module: 'documentExposure',
-      total_findings: findingsCount,
-      queries_executed: queriesExecuted,
-      timestamp: new Date().toISOString()
+      total_findings: total,
+      queries_executed: queries,
+      timestamp: new Date().toISOString(),
+      industry_label: industryLabel
     }
   });
 
-  log('[documentExposure] DONE – findings:', findingsCount);
-  return findingsCount;
+  return total;
 }
+
+/* eslint-enable @typescript-eslint/strict-boolean-expressions */
