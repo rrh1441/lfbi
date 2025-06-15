@@ -1,10 +1,13 @@
 /* =============================================================================
- * MODULE: documentExposure.ts  (Security-Hardened Refactor v7 – lint-clean)
+ * MODULE: documentExposure.ts  (Security-Hardened Refactor v8 – false‑positive tuned)
+ * =============================================================================
+ * Purpose: Discover truly exposed documents (PDF/DOCX/XLSX) linked to a brand
+ *          while eliminating noisy public webpages (e.g. LinkedIn profiles).
  *
- *  ➟  Fixes all TypeScript 2322 / 2345 errors reported on v6.
- *  ➟  Renames GPT-industry return field to `conf` to match the type guard.
- *  ➟  Ensures all boolean returns are concrete; no `boolean | undefined`.
- *  ➟  Removes “string | null” path issues by using non-null assertions.
+ *  ➟  Skips common social/media hosts (LinkedIn, X/Twitter, Facebook, Instagram).
+ *  ➟  Processes ONLY well‑defined, downloadable doc formats – PDF/DOCX/XLSX.
+ *  ➟  Adds ALLOWED_MIME and SKIP_HOSTS guards in downloadAndAnalyze().
+ *  ➟  Maintains v7 lint fixes (strict booleans, renamed `conf`, etc.).
  * =============================================================================
  */
 
@@ -73,6 +76,23 @@ const MAX_REL_TOKENS = 1;
 const MAX_IND_TOKENS = 20;
 const MAX_CONTENT_FOR_GPT = 3_000;
 
+// New: only treat these MIME types as true “documents”
+const ALLOWED_MIME = new Set<string>([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+]);
+
+// New: skip obvious public‑profile / non‑doc hosts
+const SKIP_HOSTS = new Set<string>([
+  'linkedin.com',
+  'www.linkedin.com',
+  'twitter.com',
+  'x.com',
+  'facebook.com',
+  'instagram.com'
+]);
+
 /* ---------------------------------------------------------------------------
  * 2.  pdf.js worker initialisation
  * ------------------------------------------------------------------------ */
@@ -129,6 +149,7 @@ function isSearchHitRelevant(
   try {
     const { hostname } = new URL(urlStr.toLowerCase());
     if (domainMatches(hostname, sig)) return true;
+    if (SKIP_HOSTS.has(hostname)) return false;
     if (sig.excluded_terms.some((t) => blob.includes(t))) return false;
     return sig.core_terms.some((t) => blob.includes(t));
   } catch {
@@ -236,7 +257,7 @@ async function getDorks(company: string, domain: string): Promise<Map<string, st
     }
     return out;
   } catch {
-    return new Map([['fallback', [`site:*.${domain} "${company}" filetype:pdf`]]]);
+    return new Map([['fallback', [`site:*.${domain} "${company}" (filetype:pdf OR filetype:docx OR filetype:xlsx)`]]]);
   }
 }
 function getPlatform(urlStr: string): string {
@@ -245,6 +266,7 @@ function getPlatform(urlStr: string): string {
   if (u.includes('force.com') || u.includes('salesforce')) return 'Salesforce';
   if (u.includes('docs.google.com')) return 'Google Drive';
   if (u.includes('sharepoint.com')) return 'SharePoint';
+  if (u.includes('linkedin.com')) return 'LinkedIn';
   return 'Unknown Cloud Storage';
 }
 
@@ -357,16 +379,30 @@ async function downloadAndAnalyze(
 ): Promise<AnalysisResult | null> {
   let localPath: string | null = null;
   try {
+    const { hostname } = new URL(urlStr);
+    if (SKIP_HOSTS.has(hostname)) return null; // ← Skip obvious public pages
+
     const head = await axios.head(urlStr, { timeout: 10_000 }).catch<AxiosResponse | null>(() => null);
     if (parseInt(head?.headers['content-length'] ?? '0', 10) > 15 * 1024 * 1024) return null;
+
+    /* -------------------------------------------------------------------- */
+    /* Only proceed if Content-Type OR verified MIME is allowed document     */
+    /* -------------------------------------------------------------------- */
+    const reported = head?.headers['content-type'] ?? 'application/octet-stream';
+    if (!ALLOWED_MIME.has(reported.split(';')[0])) {
+      // Quick positive filter: if content-type is not clearly doc, bail early.
+      if (!/\.pdf$|\.docx$|\.xlsx$/i.test(urlStr)) return null;
+    }
 
     const res = await axios.get<ArrayBuffer>(urlStr, { responseType: 'arraybuffer', timeout: 30_000 });
     const buf = Buffer.from(res.data);
 
     const mimeInfo = await fileTypeFromBuffer(buf).then((ft) => ({
-      reported: res.headers['content-type'] ?? 'application/octet-stream',
-      verified: ft?.mime ?? 'application/octet-stream'
+      reported,
+      verified: ft?.mime ?? reported.split(';')[0]
     }));
+    if (!ALLOWED_MIME.has(mimeInfo.verified)) return null; // Enforce allowed formats
+
     if (!validateHeader(buf, mimeInfo.verified)) throw new Error('Magic-byte mismatch');
     memGuard();
 
