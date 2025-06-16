@@ -64,6 +64,9 @@ RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.
 # ------------------------------------------------------------------------
 RUN npm install -g pnpm tsx
 
+# Wappalyzer CLI
+RUN npm install -g wappalyzer
+
 # ------------------------------------------------------------------------
 # Project dependencies
 # ------------------------------------------------------------------------
