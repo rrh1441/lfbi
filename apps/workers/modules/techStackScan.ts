@@ -890,7 +890,7 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
     // Nuclei tags for downstream scanning
     if (techMap.size > 0) {
       const ecosystemStats = new Map<string, number>();
-      techMap.forEach(tech => {
+      techMap.forEach((tech: WappTech) => {
         const ecosystem = detectEcosystem(tech);
         if (ecosystem) {
           ecosystemStats.set(ecosystem, (ecosystemStats.get(ecosystem) || 0) + 1);
