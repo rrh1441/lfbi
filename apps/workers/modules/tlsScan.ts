@@ -1,18 +1,14 @@
-/*
- * =============================================================================
- * MODULE: tlsScan.ts  (Refactored – “www-aware” v6, 2025-06-15)
+/* =============================================================================
+ * MODULE: tlsScan.ts  (Refactored – “www-aware” v7, 2025-06-16)
  * =============================================================================
  * Performs an in-depth TLS/SSL configuration assessment via **testssl.sh**.
  *
- * New in v6
- * ─────────
- * • **Apex + “www.” dual scan** – If the supplied domain is naked (e.g. above.health)
- *   we automatically scan the corresponding “www.” host and suppress *MISSING_TLS*
- *   findings unless **both** hosts lack a valid certificate.
- * • Single utility `scanHost()` encapsulates the testssl.sh execution so logic is
- *   identical for every candidate host.
- * • All lint issues (TS-2322/2345) fixed by precise typings and strict `await`
- *   handling; no `any` leaks.
+ * v7 – Changes
+ * ────────────
+ * • Robust certificate detection — works with testssl.sh ≥3.2 JSON schema.
+ * • Reverse derivation: if caller passes “www.” we also scan the apex.
+ * • Optional extra prefixes (`TLS_DERIVATION_PREFIXES`) centralised in one enum.
+ * • All type-safety & strict null checks preserved; no lint regressions.
  * =============================================================================
  */
 
@@ -26,20 +22,18 @@ const exec = promisify(execFile);
 
 /* ---------- Types --------------------------------------------------------- */
 
-type Severity =
-  | 'OK'
-  | 'LOW'
-  | 'MEDIUM'
-  | 'HIGH'
-  | 'CRITICAL'
-  | 'INFO';
+type Severity = 'OK' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'INFO';
 
-interface TlsFinding {
+interface TestsslFinding {
   id: string;
-  ip: string;
-  port: string;
-  severity: Severity;
   finding: string;
+  severity?: Severity;
+}
+
+interface TestsslReport {
+  scanResult?: TestsslFinding[];
+  serverDefaults?: { cert_notAfter?: string };
+  certs?: { notAfter?: string }[];
 }
 
 interface ScanOutcome {
@@ -52,14 +46,18 @@ interface ScanOutcome {
 const TLS_SCAN_TIMEOUT_MS =
   Number.parseInt(process.env.TLS_SCAN_TIMEOUT_MS ?? '300000', 10); // 5 min
 
+/** Additional prefixes you want to inspect besides the naked apex.           */
+const TLS_DERIVATION_PREFIXES = ['www']; // extend with 'app', 'login', … if needed
+
 /* ---------- Helpers ------------------------------------------------------- */
 
+/** Locate testssl.sh in common paths or $PATH */
 async function resolveTestsslPath(): Promise<string> {
   const paths = [
     '/opt/testssl.sh/testssl.sh',
     '/usr/local/bin/testssl.sh',
     '/usr/bin/testssl.sh',
-    'testssl.sh' // In $PATH
+    'testssl.sh',
   ];
 
   for (const p of paths) {
@@ -74,9 +72,7 @@ async function resolveTestsslPath(): Promise<string> {
   throw new Error('testssl.sh not found in any expected location');
 }
 
-/**
- * Maps testssl.sh test IDs to remediation text
- */
+/** Maps testssl.sh test IDs to remediation text (non-exhaustive)             */
 function getTlsRecommendation(testId: string): string {
   const map: Record<string, string> = {
     cert_chain:
@@ -87,13 +83,13 @@ function getTlsRecommendation(testId: string): string {
     ciphers: 'Disable weak ciphers; allow only modern AEAD suites',
     pfs: 'Enable Perfect Forward Secrecy by configuring ECDHE suites',
     rc4: 'Disable RC4 completely due to known weaknesses',
-    heartbleed: 'Upgrade OpenSSL to ≥ 1.0.1g to fix Heartbleed (CVE-2014-0160)',
-    ccs: 'Upgrade OpenSSL to address CCS Injection (CVE-2014-0224)',
+    heartbleed: 'Upgrade OpenSSL ≥ 1.0.1g to remediate CVE-2014-0160',
+    ccs: 'Upgrade OpenSSL to address CVE-2014-0224 (CCS Injection)',
     secure_renegotiation:
       'Enable secure renegotiation to prevent renegotiation attacks',
     crime: 'Disable TLS compression to mitigate CRIME',
     breach:
-      'Disable HTTP compression or implement CSRF tokens to mitigate BREACH'
+      'Disable HTTP compression or implement CSRF tokens to mitigate BREACH',
   };
 
   for (const [key, rec] of Object.entries(map)) {
@@ -102,45 +98,64 @@ function getTlsRecommendation(testId: string): string {
   return 'Review TLS configuration and apply current best practices';
 }
 
-/* ---------- Core host-scan routine --------------------------------------- */
+/** Extract `notAfter` regardless of testssl JSON version                     */
+function extractCertNotAfter(report: TestsslReport): string | undefined {
+  if (report.serverDefaults?.cert_notAfter) return report.serverDefaults.cert_notAfter;
+
+  const legacy = report.scanResult?.find((r) => r.id === 'cert_notAfter')?.finding;
+  if (legacy) return legacy;
+
+  if (Array.isArray(report.certs) && report.certs.length) {
+    return report.certs[0]?.notAfter;
+  }
+
+  return undefined;
+}
+
+/** Determine whether a valid cert was presented                              */
+function hasCertificate(report: TestsslReport): boolean {
+  if (extractCertNotAfter(report)) return true;
+
+  // Fallback: any cert_* entry in scanResult implies a handshake and cert
+  return (report.scanResult ?? []).some((r) => r.id.startsWith('cert_'));
+}
+
+/* ---------- Core host-scan routine ---------------------------------------- */
 
 async function scanHost(
   testsslPath: string,
   host: string,
-  scanId?: string
+  scanId?: string,
 ): Promise<ScanOutcome> {
   const jsonFile = `/tmp/testssl_${scanId ?? host}.json`;
   let findingsCount = 0;
   let certificateSeen = false;
 
   try {
-    log(
-      `[tlsScan] (${host}) Running testssl.sh …`
-    );
+    log(`[tlsScan] (${host}) Running testssl.sh …`);
     await exec(
       testsslPath,
       [
         '--quiet',
-        '--warnings',
-        'off',
-        '--jsonfile',
-        jsonFile,
-        host
+        '--warnings', 'off',
+        '--jsonfile', jsonFile,
+        host,
       ],
-      { timeout: TLS_SCAN_TIMEOUT_MS }
+      { timeout: TLS_SCAN_TIMEOUT_MS },
     );
 
     const raw = await fs.readFile(jsonFile, 'utf-8');
-    const report = JSON.parse(raw);
+    const report: TestsslReport = JSON.parse(raw);
 
-    /* ---------- 1  Process generic findings ----------------------------- */
-    const results: TlsFinding[] =
-      (report.scanResult ??
-        report.findings ??
-        []) as unknown as TlsFinding[];
+    /* ---------- 0  Certificate presence check --------------------------- */
+    certificateSeen = hasCertificate(report);
+
+    /* ---------- 1  Generic findings ------------------------------------- */
+    const results = report.scanResult ?? [];
 
     for (const f of results) {
-      if (f.severity === 'OK' || f.severity === 'INFO') continue;
+      // Only record actionable findings
+      if (!f.severity || f.severity === 'OK' || f.severity === 'INFO') continue;
 
       findingsCount += 1;
 
@@ -153,35 +168,25 @@ async function scanHost(
           finding_id: f.id,
           details: f.finding,
           scan_id: scanId,
-          scan_module: 'tlsScan'
-        }
+          scan_module: 'tlsScan',
+        },
       });
 
       await insertFinding(
         artId,
         'TLS_CONFIGURATION_ISSUE',
         getTlsRecommendation(f.id),
-        f.finding
+        f.finding,
       );
     }
 
-    /* ---------- 2  Certificate expiry & presence ------------------------ */
-    const certNotAfter =
-      report.serverDefaults?.cert_notAfter ??
-      report.scanResult?.find((r: { id: string }) => r.id === 'cert_notAfter')
-        ?.finding;
+    /* ---------- 2  Certificate expiry ----------------------------------- */
+    const certNotAfter = extractCertNotAfter(report);
 
     if (certNotAfter) {
-      certificateSeen = true; // host delivered a cert
-
       const expiry = new Date(certNotAfter);
-      if (Number.isNaN(expiry.valueOf())) {
-        log(`[tlsScan] (${host}) Unparsable cert_notAfter: ${certNotAfter}`);
-      } else {
-        const days = Math.ceil(
-          (expiry.getTime() - Date.now()) / 86_400_000
-        );
-
+      if (!Number.isNaN(expiry.valueOf())) {
+        const days = Math.ceil((expiry.getTime() - Date.now()) / 86_400_000);
         let sev: Severity | null = null;
         let rec = '';
 
@@ -210,27 +215,24 @@ async function scanHost(
               expiry_date: expiry.toISOString(),
               days_remaining: days,
               scan_id: scanId,
-              scan_module: 'tlsScan'
-            }
+              scan_module: 'tlsScan',
+            },
           });
           await insertFinding(
             artId,
             'CERTIFICATE_EXPIRY',
             rec,
-            `The SSL/TLS certificate for ${host} is nearing expiry.`
+            `The SSL/TLS certificate for ${host} is nearing expiry.`,
           );
         }
+      } else {
+        log(`[tlsScan] (${host}) Unparsable cert_notAfter: ${certNotAfter}`);
       }
     }
   } catch (err) {
-    log(
-      `[tlsScan] (${host}) [ERROR] testssl.sh failed:`,
-      (err as Error).message
-    );
+    log(`[tlsScan] (${host}) [ERROR] testssl.sh failed:`, (err as Error).message);
   } finally {
-    await fs.unlink(jsonFile).catch(() => {
-      /* ignore */
-    });
+    await fs.unlink(jsonFile).catch(() => { /* ignore */ });
   }
 
   return { findings: findingsCount, hadCert: certificateSeen };
@@ -238,17 +240,26 @@ async function scanHost(
 
 /* ---------- Public entry-point ------------------------------------------- */
 
-export async function runTlsScan(job: {
-  domain: string;
-  scanId?: string;
-}): Promise<number> {
-  const base = job.domain.trim().toLowerCase();
+export async function runTlsScan(job: { domain: string; scanId?: string }): Promise<number> {
+  const input = job.domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*/, '');
 
-  /* Build candidate host list */
+  // Derive base domain & host list
+  const isWww = input.startsWith('www.');
+  const baseDomain = isWww ? input.slice(4) : input;
+
   const candidates = new Set<string>();
-  candidates.add(base);
-  if (!base.startsWith('www.')) {
-    candidates.add(`www.${base}`);
+
+  // Always scan the original host
+  candidates.add(input);
+
+  // Forward derivations (apex → prefixes)
+  if (!isWww) {
+    TLS_DERIVATION_PREFIXES.forEach((p) => candidates.add(`${p}.${baseDomain}`));
+  }
+
+  // Reverse derivation (www → apex)
+  if (isWww) {
+    candidates.add(baseDomain);
   }
 
   const testsslPath = await resolveTestsslPath();
@@ -256,32 +267,28 @@ export async function runTlsScan(job: {
   let anyCert = false;
 
   for (const host of candidates) {
-    const { findings, hadCert } = await scanHost(
-      testsslPath,
-      host,
-      job.scanId
-    );
+    const { findings, hadCert } = await scanHost(testsslPath, host, job.scanId);
     totalFindings += findings;
     anyCert ||= hadCert;
   }
 
-  /* If NO host presented a certificate, create one consolidated alert */
+  /* Consolidated “no TLS at all” finding (only if *all* hosts lack cert)   */
   if (!anyCert) {
     const artId = await insertArtifact({
       type: 'tls_no_certificate',
-      val_text: `${base} – no valid SSL/TLS certificate on apex or www`,
+      val_text: `${baseDomain} – no valid SSL/TLS certificate on any derived host`,
       severity: 'HIGH',
       meta: {
-        domain: base,
+        domain: baseDomain,
         scan_id: job.scanId,
-        scan_module: 'tlsScan'
-      }
+        scan_module: 'tlsScan',
+      },
     });
     await insertFinding(
       artId,
       'MISSING_TLS_CERTIFICATE',
-      'Configure an SSL/TLS certificate for both apex and www hosts.',
-      'The server presented no valid certificate on either host variant.'
+      'Configure an SSL/TLS certificate for all public hosts (apex and sub-domains).',
+      'The server presented no valid certificate on any inspected host variant.',
     );
     totalFindings += 1;
   }
@@ -292,18 +299,14 @@ export async function runTlsScan(job: {
     val_text: `TLS scan complete – ${totalFindings} issue(s) recorded`,
     severity: 'INFO',
     meta: {
-      domain: base,
+      domain: baseDomain,
       scan_id: job.scanId,
       scan_module: 'tlsScan',
       total_findings: totalFindings,
-      timestamp: new Date().toISOString()
-    }
+      timestamp: new Date().toISOString(),
+    },
   });
 
-  log(
-    `[tlsScan] Finished. Hosts scanned: ${[...candidates].join(
-      ', '
-    )}. Total findings: ${totalFindings}`
-  );
+  log(`[tlsScan] Finished. Hosts scanned: ${[...candidates].join(', ')}. Total findings: ${totalFindings}`);
   return totalFindings;
 }

@@ -13,6 +13,10 @@ import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
 import { runTechStackScan } from './modules/techStackScan.js';                 // ← ADDED
+import { runAbuseIntelScan } from './modules/abuseIntelScan.js';
+import { runAdversarialMediaScan } from './modules/adversarialMediaScan.js';
+import { runAccessibilityScan } from './modules/accessibilityScan.js';
+import { runDenialWalletScan } from './modules/denialWalletScan.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -40,6 +44,10 @@ const ALL_MODULES_IN_ORDER = [
   'db_port_scan',
   'endpoint_discovery',
   'tech_stack_scan',                                                      // ← ADDED
+  'abuse_intel_scan',
+  'adversarial_media_scan',
+  'accessibility_scan',
+  'denial_wallet_scan',
   'tls_scan',
   'nuclei',
   'rate_limit_scan',
@@ -212,6 +220,30 @@ async function processScan(job: ScanJob): Promise<void> {
             moduleFindings = await runTechStackScan({ domain, scanId });       // ← ADDED
             log(`[${scanId}] COMPLETED tech stack scan: ${moduleFindings} technologies detected`); // ← ADDED
             break;                                                             // ← ADDED
+
+          case 'abuse_intel_scan':
+            log(`[${scanId}] STARTING AbuseIPDB intelligence scan for IPs`);
+            moduleFindings = await runAbuseIntelScan({ scanId });
+            log(`[${scanId}] COMPLETED AbuseIPDB scan: ${moduleFindings} malicious/suspicious IPs found`);
+            break;
+
+          case 'adversarial_media_scan':
+            log(`[${scanId}] STARTING adversarial media scan for ${companyName}`);
+            moduleFindings = await runAdversarialMediaScan({ company: companyName, domain, scanId });
+            log(`[${scanId}] COMPLETED adversarial media scan: ${moduleFindings} adverse media findings`);
+            break;
+
+          case 'accessibility_scan':
+            log(`[${scanId}] STARTING accessibility compliance scan for ${domain}`);
+            moduleFindings = await runAccessibilityScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED accessibility scan: ${moduleFindings} WCAG violations found`);
+            break;
+
+          case 'denial_wallet_scan':
+            log(`[${scanId}] STARTING denial-of-wallet vulnerability scan for ${domain}`);
+            moduleFindings = await runDenialWalletScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED denial-of-wallet scan: ${moduleFindings} cost amplification vulnerabilities found`);
+            break;
           
           case 'tls_scan':
             log(`[${scanId}] STARTING TLS security scan for ${domain}`);
