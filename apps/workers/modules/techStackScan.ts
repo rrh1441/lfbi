@@ -231,6 +231,8 @@ function calculateVersionAccuracy(detections: WappTech[]): number {
 async function resolveWappalyzer(): Promise<string | null> {
   const candidates = [
     { bin: 'wappalyzer', args: ['--version'] },
+    { bin: 'npx', args: ['@wappalyzer/cli', '--version'] },
+    { bin: 'npx', args: ['-y', '@wappalyzer/cli', '--version'] },
     { bin: 'npx', args: ['-y', 'wappalyzer', '--version'] }
   ];
   
@@ -744,9 +746,13 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
         }
 
         try {
-          const args = wappBinary === 'npx' 
-            ? ['-y', 'wappalyzer', url, '--quiet', '--json']
-            : [url, '--quiet', '--json'];
+          let args: string[];
+          if (wappBinary === 'npx') {
+            // Try to determine which npx command worked during resolution
+            args = ['-y', '@wappalyzer/cli', url, '--json'];
+          } else {
+            args = [url, '--quiet', '--json'];
+          }
           
           const { stdout } = await exec(wappBinary, args, { timeout: CONFIG.WAPP_TIMEOUT_MS });
           const technologies = (JSON.parse(stdout).technologies || []) as WappTech[];
