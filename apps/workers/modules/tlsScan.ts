@@ -62,10 +62,11 @@ async function resolveTestsslPath(): Promise<string> {
 
   for (const p of paths) {
     try {
-      await exec(p, ['--version'], { timeout: 5_000 });
+      const result = await exec(p, ['--version'], { timeout: 10_000 });
       log(`[tlsScan] Found testssl.sh at: ${p}`);
       return p;
-    } catch {
+    } catch (error) {
+      log(`[tlsScan] Failed to execute ${p}: ${(error as Error).message}`);
       /* try next */
     }
   }

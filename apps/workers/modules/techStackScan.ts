@@ -777,12 +777,12 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
         }
 
         try {
-          // Use Nuclei with technology templates
+          // Use Nuclei with technology detection tags
           const args = [
             '-u', url,
             '-silent',
             '-json',
-            '-t', '/opt/nuclei-templates/http/technologies/',
+            '-tags', 'tech',
             '-no-color'
           ];
           
