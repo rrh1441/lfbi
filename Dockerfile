@@ -64,8 +64,7 @@ RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.
 # ------------------------------------------------------------------------
 RUN npm install -g pnpm tsx
 
-# Wappalyzer CLI - Use the correct CLI package
-RUN npm install -g @wappalyzer/cli
+# Technology fingerprinting now handled by Nuclei templates - no additional tools needed
 
 # ------------------------------------------------------------------------
 # Project dependencies

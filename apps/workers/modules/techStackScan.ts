@@ -19,10 +19,10 @@ const exec = promisify(execFile);
 // ───────────────── Enhanced Configuration ─────────────────────────────────
 const CONFIG = {
   MAX_CONCURRENCY: 6,              // Enhanced concurrency with p-limit
-  WAPP_TIMEOUT_MS: 10_000,
+  NUCLEI_TIMEOUT_MS: 10_000,
   API_TIMEOUT_MS: 15_000,
   MIN_VERSION_CONFIDENCE: 0.6,     // Dynamic threshold (60%)
-  WAPP_CIRCUIT_BREAKER: 20,        // Stop after 20 timeouts
+  TECH_CIRCUIT_BREAKER: 20,        // Stop after 20 timeouts
   THIRD_PARTY_TIMEOUT: 25_000,     // 25s crawl timeout
   MAX_THIRD_PARTY_REQUESTS: 200,   // Throttle sub-resource discovery
   CACHE_TTL_MS: 24 * 60 * 60 * 1000, // 24h cache TTL
@@ -149,14 +149,14 @@ const epssCache = new IntelligentCache();
 const cisaKevCache = new IntelligentCache();
 const depsDevCache = new IntelligentCache();
 
-// ───────────────── Circuit Breaker for Wappalyzer ────────────────────────
-class WappalyzerCircuitBreaker {
+// ───────────────── Circuit Breaker for Technology Detection ──────────────
+class TechnologyScanCircuitBreaker {
   private timeouts = 0;
   private tripped = false;
 
   recordTimeout(): void {
     this.timeouts++;
-    if (this.timeouts >= CONFIG.WAPP_CIRCUIT_BREAKER && !this.tripped) {
+    if (this.timeouts >= CONFIG.TECH_CIRCUIT_BREAKER && !this.tripped) {
       this.tripped = true;
       log(`circuitBreaker=tripped timeouts=${this.timeouts}`);
     }
@@ -173,6 +173,45 @@ class WappalyzerCircuitBreaker {
 
 // ───────────────── Utility Functions ──────────────────────────────────────
 const log = (...m: unknown[]) => rootLog('[techStackScan]', ...m);
+
+/* Convert Nuclei technology detection output to WappTech format */
+function convertNucleiToWappTech(nucleiLines: string[]): WappTech[] {
+  const technologies: WappTech[] = [];
+  
+  for (const line of nucleiLines) {
+    try {
+      const result = JSON.parse(line.trim());
+      
+      // Extract technology information from Nuclei result
+      const name = result.info?.name || result['template-id'] || 'Unknown';
+      const version = result['extracted-results']?.[0] || result.info?.version || undefined;
+      const tags = result.info?.tags || ['unknown'];
+      
+      // Convert to WappTech format
+      technologies.push({
+        name: name,
+        slug: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        version: version,
+        confidence: 100, // Nuclei matchers fire only on confirmed hits
+        categories: tags.map((tag: string) => ({
+          id: 0,
+          name: capitalizeFirst(tag),
+          slug: tag.toLowerCase()
+        }))
+      });
+    } catch (error) {
+      // Skip malformed JSON lines
+      continue;
+    }
+  }
+  
+  return technologies;
+}
+
+/* Utility function to capitalize first letter */
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 /* Enhanced ecosystem detection */
 function detectEcosystem(t: WappTech): string | null {
@@ -227,24 +266,16 @@ function calculateVersionAccuracy(detections: WappTech[]): number {
   return Math.max(0, 1 - (stddev / 10));
 }
 
-/* Resolve Wappalyzer binary */
-async function resolveWappalyzer(): Promise<string | null> {
-  const candidates = [
-    { bin: 'wappalyzer', args: ['--version'] },
-    { bin: 'npx', args: ['@wappalyzer/cli', '--version'] },
-    { bin: 'npx', args: ['-y', '@wappalyzer/cli', '--version'] },
-    { bin: 'npx', args: ['-y', 'wappalyzer', '--version'] }
-  ];
-  
-  for (const candidate of candidates) {
-    try {
-      await exec(candidate.bin, candidate.args, { timeout: 5_000 });
-      return candidate.bin;
-    } catch {
-      // Try next candidate
-    }
+/* Resolve Nuclei binary for technology detection */
+async function resolveNuclei(): Promise<string | null> {
+  try {
+    await exec('nuclei', ['--version'], { timeout: 5_000 });
+    log(`techstack=nuclei binary confirmed`);
+    return 'nuclei';
+  } catch {
+    log(`techstack=nuclei binary not found`);
+    return null;
   }
-  return null;
 }
 
 /* Build enhanced target list */
@@ -638,7 +669,7 @@ function generateSBOM(
 ): any {
   const components: CycloneDXComponent[] = [];
   
-  for (const [slug, tech] of technologies) {
+  for (const [slug, tech] of technologies.entries()) {
     const analysis = analyses.get(slug);
     const ecosystem = detectEcosystem(tech);
     
@@ -709,19 +740,19 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
   
   log(`techstack=start domain="${domain}"`);
 
-  // Check Wappalyzer binary
-  const wappBinary = await resolveWappalyzer();
-  if (!wappBinary) {
+  // Check Nuclei binary
+  const nucleiBinary = await resolveNuclei();
+  if (!nucleiBinary) {
     await insertArtifact({
       type: 'scan_error',
-      val_text: 'Wappalyzer binary not found',
+      val_text: 'Nuclei binary not found',
       severity: 'HIGH',
       meta: { scan_id: scanId, scan_module: 'techStackScan' }
     });
     return 0;
   }
 
-  const circuitBreaker = new WappalyzerCircuitBreaker();
+  const circuitBreaker = new TechnologyScanCircuitBreaker();
   const limit = pLimit(CONFIG.MAX_CONCURRENCY);
   
   try {
@@ -746,16 +777,20 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
         }
 
         try {
-          let args: string[];
-          if (wappBinary === 'npx') {
-            // Try to determine which npx command worked during resolution
-            args = ['-y', '@wappalyzer/cli', url, '--json'];
-          } else {
-            args = [url, '--quiet', '--json'];
-          }
+          // Use Nuclei with technology templates
+          const args = [
+            '-u', url,
+            '-silent',
+            '-json',
+            '-t', '/opt/nuclei-templates/http/technologies/',
+            '-no-color'
+          ];
           
-          const { stdout } = await exec(wappBinary, args, { timeout: CONFIG.WAPP_TIMEOUT_MS });
-          const technologies = (JSON.parse(stdout).technologies || []) as WappTech[];
+          const { stdout } = await exec(nucleiBinary, args, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          
+          // Parse Nuclei JSON output (one JSON object per line)
+          const nucleiLines = stdout.trim().split('\n').filter(line => line.length > 0);
+          const technologies = convertNucleiToWappTech(nucleiLines);
           
           log(`techstack=fingerprint url="${url}" technologies=${technologies.length}`);
           return technologies;
