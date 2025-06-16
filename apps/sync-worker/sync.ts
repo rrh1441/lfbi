@@ -13,10 +13,7 @@ if (!FLY_POSTGRES_CONNECTION_STRING || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_K
     process.exit(1);
 }
 
-console.log(`SyncWorker: Environment loaded successfully`);
-console.log(`SyncWorker: Fly Postgres URL: ${FLY_POSTGRES_CONNECTION_STRING?.substring(0, 30)}...`);
-console.log(`SyncWorker: Supabase URL: ${SUPABASE_URL}`);
-console.log(`SyncWorker: Supabase Key: ${SUPABASE_SERVICE_ROLE_KEY?.substring(0, 10)}...`);
+// Environment loaded - minimal logging
 
 const flyPostgresPool = new Pool({ connectionString: FLY_POSTGRES_CONNECTION_STRING });
 const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -26,8 +23,15 @@ let lastSuccessfulScanSync = new Date(0);
 let lastSuccessfulFindingSync = new Date(0);
 
 function logDebug(message: string, data?: any) {
+    // Reduced logging - only log meaningful progress updates
     const timestamp = new Date().toISOString();
     console.log(`[${timestamp}] [SyncWorker] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+}
+
+function logProgress(message: string, data?: any) {
+    // For important progress updates only
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [SyncWorker] ✅ ${message}`, data ? JSON.stringify(data, null, 2) : '');
 }
 
 function logError(message: string, error?: any) {
@@ -40,7 +44,6 @@ function logError(message: string, error?: any) {
 
 async function testSupabaseConnection(): Promise<boolean> {
     try {
-        logDebug('Testing Supabase connection...');
         const { data, error } = await supabase.from('scan_status').select('count').limit(1);
         
         if (error) {
@@ -48,7 +51,6 @@ async function testSupabaseConnection(): Promise<boolean> {
             return false;
         }
         
-        logDebug('Supabase connection test successful');
         return true;
     } catch (error) {
         logError('Supabase connection test exception', error);
@@ -58,9 +60,7 @@ async function testSupabaseConnection(): Promise<boolean> {
 
 async function testFlyPostgresConnection(): Promise<boolean> {
     try {
-        logDebug('Testing Fly Postgres connection...');
         await flyPostgresPool.query('SELECT 1');
-        logDebug('Fly Postgres connection test successful');
         return true;
     } catch (error) {
         logError('Fly Postgres connection test failed', error);
@@ -69,8 +69,6 @@ async function testFlyPostgresConnection(): Promise<boolean> {
 }
 
 async function syncScansMasterTable() {
-    logDebug(`Checking for updated scans since: ${lastSuccessfulScanSync.toISOString()}`);
-    
     try {
         const { rows } = await flyPostgresPool.query(
             `SELECT 
@@ -95,11 +93,7 @@ async function syncScansMasterTable() {
             [lastSuccessfulScanSync]
         );
 
-        logDebug(`Found ${rows.length} scans to sync from Fly Postgres`);
-
         if (rows.length > 0) {
-            logDebug('Sample scan data:', rows[0]);
-            
             const recordsToUpsert = rows.map(pgScan => ({
                 scan_id: pgScan.scan_id,
                 company_name: pgScan.company_name,
@@ -116,8 +110,6 @@ async function syncScansMasterTable() {
                 max_severity: pgScan.max_severity,
                 total_artifacts_count: pgScan.total_artifacts_count || 0,
             }));
-
-            logDebug(`Upserting ${recordsToUpsert.length} records to Supabase scan_status table`);
             
             const { data, error } = await supabase
                 .from('scan_status')
@@ -125,15 +117,22 @@ async function syncScansMasterTable() {
 
             if (error) {
                 logError('Error upserting scans to Supabase', error);
-                logDebug('Failed upsert data sample:', recordsToUpsert[0]);
                 return; // Don't update timestamp on error
             }
             
+            // Only log when there are meaningful progress updates (module completion)
+            const completedModules = recordsToUpsert.filter(scan => 
+                scan.status === 'completed' || 
+                (scan.current_module && scan.progress > 0)
+            );
+            
+            if (completedModules.length > 0) {
+                logProgress(`Module progress updated for ${completedModules.length} scans`, {
+                    completed: completedModules.map(s => `${s.company_name}: ${s.current_module} (${s.progress}/${s.total_modules})`)
+                });
+            }
+            
             lastSuccessfulScanSync = new Date(rows[rows.length - 1].updated_at);
-            logDebug(`✅ Successfully synced ${rows.length} scans to Supabase`);
-            logDebug(`Next sync will check for updates after: ${lastSuccessfulScanSync.toISOString()}`);
-        } else {
-            logDebug('No new/updated scans to sync');
         }
     } catch (error) {
         logError('Error in syncScansMasterTable', error);
@@ -141,19 +140,7 @@ async function syncScansMasterTable() {
 }
 
 async function syncFindingsTable() {
-    logDebug(`Checking for new findings since: ${lastSuccessfulFindingSync.toISOString()}`);
-    
     try {
-        // First, let's check what tables exist and their structure
-        const tablesQuery = await flyPostgresPool.query(`
-            SELECT table_name, column_name, data_type 
-            FROM information_schema.columns 
-            WHERE table_name IN ('findings', 'artifacts') 
-            ORDER BY table_name, ordinal_position
-        `);
-        
-        logDebug('Available table columns:', tablesQuery.rows);
-        
         // Check if findings table has scan_id column directly
         const findingsStructure = await flyPostgresPool.query(`
             SELECT column_name, data_type 
@@ -161,8 +148,6 @@ async function syncFindingsTable() {
             WHERE table_name = 'findings'
             ORDER BY ordinal_position
         `);
-        
-        logDebug('Findings table structure:', findingsStructure.rows);
         
         const hasScanIdColumn = findingsStructure.rows.some(row => row.column_name === 'scan_id');
         
@@ -200,15 +185,9 @@ async function syncFindingsTable() {
                 LIMIT 200`;
         }
         
-        logDebug('Executing findings query:', query);
-        
         const { rows } = await flyPostgresPool.query(query, [lastSuccessfulFindingSync]);
 
-        logDebug(`Found ${rows.length} findings to sync from Fly Postgres`);
-
         if (rows.length > 0) {
-            logDebug('Sample finding data:', rows[0]);
-            
             const recordsToUpsert = rows
                 .filter(f => f.scan_id) // Only sync findings with scan_id
                 .map(f => ({
@@ -220,8 +199,6 @@ async function syncFindingsTable() {
                     severity: f.severity,
                     created_at: f.created_at,
                 }));
-
-            logDebug(`Upserting ${recordsToUpsert.length} findings to Supabase (filtered from ${rows.length})`);
             
             if (recordsToUpsert.length > 0) {
                 const { data, error } = await supabase
@@ -230,17 +207,19 @@ async function syncFindingsTable() {
 
                 if (error) {
                     logError('Error upserting findings to Supabase', error);
-                    logDebug('Failed upsert data sample:', recordsToUpsert[0]);
                     return; // Don't update timestamp on error
                 }
                 
-                logDebug(`✅ Successfully synced ${recordsToUpsert.length} findings to Supabase`);
+                // Only log when findings are successfully inserted
+                const findingsByType = recordsToUpsert.reduce((acc, f) => {
+                    acc[f.type] = (acc[f.type] || 0) + 1;
+                    return acc;
+                }, {} as Record<string, number>);
+                
+                logProgress(`Findings inserted: ${recordsToUpsert.length} total`, findingsByType);
             }
             
             lastSuccessfulFindingSync = new Date(rows[rows.length - 1].created_at);
-            logDebug(`Next findings sync will check for updates after: ${lastSuccessfulFindingSync.toISOString()}`);
-        } else {
-            logDebug('No new findings to sync');
         }
     } catch (error) {
         logError('Error in syncFindingsTable', error);
@@ -248,8 +227,6 @@ async function syncFindingsTable() {
 }
 
 async function runSyncCycle() {
-    logDebug('=== Starting Sync Cycle ===');
-    
     // Test connections first
     const flyConnectionOk = await testFlyPostgresConnection();
     const supabaseConnectionOk = await testSupabaseConnection();
@@ -264,17 +241,11 @@ async function runSyncCycle() {
         return;
     }
     
-    logDebug('Both connections healthy, proceeding with sync');
-    
     await syncScansMasterTable();
     await syncFindingsTable();
-    
-    logDebug('=== Sync Cycle Finished ===');
 }
 
 async function startSyncWorker() {
-    logDebug('Initializing Sync Worker...');
-    
     // Test connections on startup
     const flyConnectionOk = await testFlyPostgresConnection();
     const supabaseConnectionOk = await testSupabaseConnection();
@@ -284,23 +255,22 @@ async function startSyncWorker() {
         process.exit(1);
     }
     
-    logDebug('All connections verified successfully');
+    logProgress('Sync Worker started - monitoring for module completions and findings');
     
     // Perform an initial check to catch up if worker was down
     await runSyncCycle(); 
 
     setInterval(runSyncCycle, SYNC_INTERVAL_MS);
-    logDebug(`Sync Worker started successfully. Will sync every ${SYNC_INTERVAL_MS / 1000} seconds.`);
 }
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-    logDebug('Received SIGTERM, shutting down...');
+    logProgress('Sync Worker shutting down');
     process.exit(0);
 });
 
 process.on('SIGINT', () => {
-    logDebug('Received SIGINT, shutting down...');
+    logProgress('Sync Worker shutting down');
     process.exit(0);
 });
 
