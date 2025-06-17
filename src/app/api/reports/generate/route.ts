@@ -72,7 +72,6 @@ CSV data with verified findings:
 ${csvData}`
         }
       ],
-      temperature: 0.3,
       max_completion_tokens: 50000
     })
 
