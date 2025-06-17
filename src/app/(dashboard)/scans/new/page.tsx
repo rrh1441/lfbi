@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { api } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,20 +42,8 @@ export default function NewScanPage() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/scans', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      })
-
-      if (response.ok) {
-        const { scanId } = await response.json()
-        router.push(`/scans/${scanId}`)
-      } else {
-        throw new Error('Failed to start scan')
-      }
+      const result = await api.startScan(formData.companyName, formData.domain)
+      router.push(`/scans/${result.scanId}`)
     } catch (error) {
       console.error('Error starting scan:', error)
       // Here you would typically show an error toast/notification
