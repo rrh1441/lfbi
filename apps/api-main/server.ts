@@ -317,6 +317,29 @@ fastify.post('/api/scans', async (request, reply) => {
   }
 });
 
+// API endpoint for getting scan status (/api/scans/{scanId})
+fastify.get('/api/scans/:scanId', async (request, reply) => {
+  const { scanId } = request.params as { scanId: string };
+  
+  try {
+    const status = await queue.getStatus(scanId);
+    
+    if (!status) {
+      reply.status(404);
+      return { error: 'Scan not found' };
+    }
+
+    return {
+      scanId,
+      ...status
+    };
+  } catch (error) {
+    log('[api] Error retrieving scan status via /api/scans:', (error as Error).message);
+    reply.status(500);
+    return { error: 'Failed to retrieve scan status', details: (error as Error).message };
+  }
+});
+
 // Webhook callback endpoint (for future use)
 fastify.post('/scan/:id/callback', async (request, reply) => {
   try {
