@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Trigger the actual scanner service
     try {
-      const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scans`, {
+      const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
