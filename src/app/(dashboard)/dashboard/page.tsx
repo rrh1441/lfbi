@@ -16,7 +16,7 @@ import {
   Loader2
 } from 'lucide-react'
 import Link from 'next/link'
-import { Scan, Finding } from '@/lib/types/database'
+import { Scan } from '@/lib/types/database'
 
 interface DashboardStats {
   totalScans: number
@@ -25,12 +25,6 @@ interface DashboardStats {
   activeScans: number
 }
 
-interface CriticalFindingWithScan extends Finding {
-  scan_status: {
-    company_name: string
-    domain: string
-  }
-}
 
 export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -51,14 +45,6 @@ export default function DashboardPage() {
     }
   })
 
-  const { data: criticalFindings, isLoading: criticalLoading } = useQuery<CriticalFindingWithScan[]>({
-    queryKey: ['critical-findings'],
-    queryFn: async () => {
-      const response = await fetch('/api/dashboard/critical-findings')
-      if (!response.ok) throw new Error('Failed to fetch critical findings')
-      return response.json()
-    }
-  })
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -231,47 +217,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Critical Findings Alert */}
-      {(criticalFindings && criticalFindings.length > 0) && (
-        <Card className="border-destructive">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              Critical Findings Require Attention
-            </CardTitle>
-            <CardDescription>
-              High-priority security issues that need immediate review
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {criticalLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : (
-                criticalFindings.slice(0, 3).map((finding) => (
-                  <div key={finding.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{finding.type}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {finding.scan_status.company_name} - {finding.description.slice(0, 50)}...
-                      </p>
-                    </div>
-                    <Badge variant="destructive">Critical</Badge>
-                  </div>
-                ))
-              )}
-              
-              <Button className="w-full" asChild>
-                <Link href="/findings?severity=CRITICAL">
-                  Review All Critical Findings
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

@@ -40,9 +40,6 @@ import {
 } from 'lucide-react'
 import { Finding, Scan } from '@/lib/types/database'
 
-interface ScanWithFindings extends Scan {
-  findings_count: number
-}
 
 interface FindingWithScan extends Finding {
   scan_status: {
@@ -62,19 +59,23 @@ function FindingsContent() {
     state: 'ALL'
   })
 
-  // Get scans with findings count
-  const { data: scans, isLoading: scansLoading } = useQuery<ScanWithFindings[]>({
-    queryKey: ['scans-with-findings', search],
+  // Get all scans
+  const { data: allScans, isLoading: scansLoading } = useQuery<Scan[]>({
+    queryKey: ['scans'],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        ...(search && { search })
-      })
-      
-      const response = await fetch(`/api/scans-with-findings?${params}`)
+      const response = await fetch('/api/scans')
       if (!response.ok) throw new Error('Failed to fetch scans')
       return response.json()
     }
   })
+
+  // Filter scans based on search
+  const scans = allScans?.filter(scan => {
+    if (!search) return true
+    return scan.company_name.toLowerCase().includes(search.toLowerCase()) ||
+           scan.domain.toLowerCase().includes(search.toLowerCase()) ||
+           scan.scan_id.toLowerCase().includes(search.toLowerCase())
+  }) || []
 
   // Load findings for a specific scan
   const loadScanFindings = async (scanId: string) => {
@@ -306,7 +307,7 @@ function FindingsContent() {
                           {scan.status}
                         </Badge>
                         <Badge variant="outline">
-                          {scan.findings_count} findings
+                          {scanFindings[scan.scan_id]?.length || 0} findings
                         </Badge>
                         <span className="text-sm text-muted-foreground">
                           {new Date(scan.created_at).toLocaleDateString()}
