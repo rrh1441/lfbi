@@ -65,8 +65,8 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('scan_status')
-      .select('scan_id, company_name, domain, status, progress, total_modules, created_at, completed_at')
-      .order('created_at', { ascending: false })
+      .select('scan_id, company_name, domain, status, progress, total_modules, started_at, completed_at, total_findings_count, max_severity')
+      .order('started_at', { ascending: false })
 
     if (error) {
       console.error('Database error:', error)
