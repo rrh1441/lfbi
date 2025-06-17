@@ -89,6 +89,7 @@ ${csvData}`
       .from('reports')
       .insert({
         id: scanId, // Use scan_id as the primary key
+        user_id: '00000000-0000-0000-0000-000000000000', // Placeholder user ID
         scan_id: scanId,
         company_name: companyName,
         domain,
