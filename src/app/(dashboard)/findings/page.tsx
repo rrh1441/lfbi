@@ -390,7 +390,7 @@ function FindingsContent() {
                                     <SelectContent className="bg-white border shadow-md z-50">
                                       <SelectItem value="AUTOMATED" className="cursor-pointer">Automated</SelectItem>
                                       <SelectItem value="VERIFIED" className="cursor-pointer">Verified</SelectItem>
-                                      <SelectItem value="falsepositive" className="cursor-pointer">False Positive</SelectItem>
+                                      <SelectItem value="FALSE_POSITIVE" className="cursor-pointer">False Positive</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>

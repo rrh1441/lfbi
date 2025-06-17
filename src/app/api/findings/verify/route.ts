@@ -12,14 +12,32 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Allow more flexible state values in case database uses different format
-    const allowedStates = ['AUTOMATED', 'VERIFIED', 'falsepositive']
-    if (!allowedStates.includes(state)) {
-      console.log('Invalid state received:', state, 'Allowed:', allowedStates)
-      return NextResponse.json(
-        { error: 'Invalid state value', received: state, allowed: allowedStates },
-        { status: 400 }
-      )
+    // First, let's see what enum values actually exist in the database
+    if (state === 'FALSE_POSITIVE') {
+      const { data: allFindings } = await supabase
+        .from('findings')
+        .select('state')
+        .limit(100)
+      
+      if (allFindings) {
+        const uniqueStates = [...new Set(allFindings.map(f => f.state))]
+        console.log('Existing state values in database:', uniqueStates)
+        
+        // Try to find a "false positive" equivalent
+        const falsePositiveVariations = uniqueStates.filter(s => 
+          s.toLowerCase().includes('false') || 
+          s.toLowerCase().includes('positive') ||
+          s.toLowerCase().includes('reject') ||
+          s.toLowerCase().includes('invalid')
+        )
+        
+        console.log('Possible false positive states:', falsePositiveVariations)
+        
+        if (falsePositiveVariations.length > 0) {
+          state = falsePositiveVariations[0]
+          console.log('Using state:', state)
+        }
+      }
     }
 
     console.log('Attempting to update findings:', { findingIds, state })
