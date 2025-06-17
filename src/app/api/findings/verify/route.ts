@@ -3,7 +3,8 @@ import { supabase } from '@/lib/supabase'
 
 export async function PATCH(request: NextRequest) {
   try {
-    const { findingIds, state } = await request.json()
+    const { findingIds, state: requestedState } = await request.json()
+    let state = requestedState
 
     if (!findingIds || !Array.isArray(findingIds) || !state) {
       return NextResponse.json(
