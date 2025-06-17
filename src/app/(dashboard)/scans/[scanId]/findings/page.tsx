@@ -41,8 +41,8 @@ export default function FindingsPage() {
   const [selectedFindings, setSelectedFindings] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [filters, setFilters] = useState({
-    severity: '',
-    state: '',
+    severity: 'ALL',
+    state: 'ALL',
     search: ''
   })
 
@@ -51,8 +51,8 @@ export default function FindingsPage() {
       try {
         const params = new URLSearchParams({
           scanId,
-          ...(filters.severity && { severity: filters.severity }),
-          ...(filters.state && { state: filters.state }),
+          ...(filters.severity !== 'ALL' && { severity: filters.severity }),
+          ...(filters.state !== 'ALL' && { state: filters.state }),
           ...(filters.search && { search: filters.search })
         })
         
@@ -74,8 +74,8 @@ export default function FindingsPage() {
     try {
       const params = new URLSearchParams({
         scanId,
-        ...(filters.severity && { severity: filters.severity }),
-        ...(filters.state && { state: filters.state }),
+        ...(filters.severity !== 'ALL' && { severity: filters.severity }),
+        ...(filters.state !== 'ALL' && { state: filters.state }),
         ...(filters.search && { search: filters.search })
       })
       
@@ -233,7 +233,7 @@ export default function FindingsPage() {
                   <SelectValue placeholder="All severities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All severities</SelectItem>
+                  <SelectItem value="ALL">All severities</SelectItem>
                   <SelectItem value="CRITICAL">Critical</SelectItem>
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
@@ -252,7 +252,7 @@ export default function FindingsPage() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="ALL">All statuses</SelectItem>
                   <SelectItem value="AUTOMATED">Automated</SelectItem>
                   <SelectItem value="VERIFIED">Verified</SelectItem>
                   <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>

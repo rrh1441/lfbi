@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase.from('findings').select(`
       *,
-      scan_status!inner(company_name, domain)
+      scan_status(company_name, domain)
     `)
 
     if (scanId) {

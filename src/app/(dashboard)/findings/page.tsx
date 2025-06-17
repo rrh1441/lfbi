@@ -44,8 +44,8 @@ function FindingsContent() {
   const searchParams = useSearchParams()
   const [selectedFindings, setSelectedFindings] = useState<string[]>([])
   const [filters, setFilters] = useState({
-    severity: searchParams.get('severity') || '',
-    state: '',
+    severity: searchParams.get('severity') || 'ALL',
+    state: 'ALL',
     search: ''
   })
 
@@ -53,8 +53,8 @@ function FindingsContent() {
     queryKey: ['all-findings', filters],
     queryFn: async () => {
       const params = new URLSearchParams({
-        ...(filters.severity && { severity: filters.severity }),
-        ...(filters.state && { state: filters.state }),
+        ...(filters.severity !== 'ALL' && { severity: filters.severity }),
+        ...(filters.state !== 'ALL' && { state: filters.state }),
         ...(filters.search && { search: filters.search })
       })
       
@@ -207,7 +207,7 @@ function FindingsContent() {
                   <SelectValue placeholder="All severities" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All severities</SelectItem>
+                  <SelectItem value="ALL">All severities</SelectItem>
                   <SelectItem value="CRITICAL">Critical</SelectItem>
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="MEDIUM">Medium</SelectItem>
@@ -226,7 +226,7 @@ function FindingsContent() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="ALL">All statuses</SelectItem>
                   <SelectItem value="AUTOMATED">Automated</SelectItem>
                   <SelectItem value="VERIFIED">Verified</SelectItem>
                   <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
