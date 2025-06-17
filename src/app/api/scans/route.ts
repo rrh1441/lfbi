@@ -40,16 +40,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: Trigger the actual scanner service
-    // This would be a call to your backend scanner API
-    // await fetch(`${process.env.SCANNER_API_URL}/api/scan`, {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.SCANNER_API_KEY}`,
-    //     'Content-Type': 'application/json'
-    //   },
-    //   body: JSON.stringify({ scanId, companyName, domain, tags })
-    // })
+    // Trigger the actual scanner service
+    try {
+      const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          scanId, 
+          companyName, 
+          domain 
+        })
+      })
+
+      if (!scannerResponse.ok) {
+        console.error('Failed to trigger scanner:', await scannerResponse.text())
+        // Update scan status to failed in database
+        await supabase
+          .from('scan_status')
+          .update({ status: 'failed', error_message: 'Failed to trigger scanner' })
+          .eq('scan_id', scanId)
+      }
+    } catch (scannerError) {
+      console.error('Scanner API error:', scannerError)
+      // Update scan status to failed in database
+      await supabase
+        .from('scan_status')
+        .update({ status: 'failed', error_message: 'Scanner API unreachable' })
+        .eq('scan_id', scanId)
+    }
 
     return NextResponse.json({ scanId })
   } catch (error) {
