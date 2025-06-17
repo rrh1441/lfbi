@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid'
 
 export async function POST(request: NextRequest) {
   try {
-    const { companyName, domain, tags } = await request.json()
+    const { companyName, domain } = await request.json()
 
     if (!companyName || !domain) {
       return NextResponse.json(
