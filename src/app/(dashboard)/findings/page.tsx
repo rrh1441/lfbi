@@ -41,17 +41,11 @@ import {
 import { Finding, Scan } from '@/lib/types/database'
 
 
-interface FindingWithScan extends Finding {
-  scan_status: {
-    company_name: string
-    domain: string
-  }
-}
 
 function FindingsContent() {
   const [selectedFindings, setSelectedFindings] = useState<string[]>([])
   const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set())
-  const [scanFindings, setScanFindings] = useState<Record<string, FindingWithScan[]>>({})
+  const [scanFindings, setScanFindings] = useState<Record<string, Finding[]>>({})
   const [loadingFindings, setLoadingFindings] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [findingFilters, setFindingFilters] = useState({

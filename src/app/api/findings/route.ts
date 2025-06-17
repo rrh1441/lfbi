@@ -10,10 +10,7 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type')
     const search = searchParams.get('search')
 
-    let query = supabase.from('findings').select(`
-      *,
-      scan_status(company_name, domain)
-    `)
+    let query = supabase.from('findings').select('*')
 
     if (scanId) {
       query = query.eq('scan_id', scanId)
