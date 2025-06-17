@@ -379,13 +379,13 @@ function FindingsContent() {
                                     value={finding.state}
                                     onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
                                   >
-                                    <SelectTrigger className="w-32">
+                                    <SelectTrigger className="w-36 bg-white">
                                       <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="AUTOMATED">Automated</SelectItem>
-                                      <SelectItem value="VERIFIED">Verified</SelectItem>
-                                      <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+                                    <SelectContent className="bg-white border shadow-md z-50">
+                                      <SelectItem value="AUTOMATED" className="cursor-pointer">Automated</SelectItem>
+                                      <SelectItem value="VERIFIED" className="cursor-pointer">Verified</SelectItem>
+                                      <SelectItem value="FALSE_POSITIVE" className="cursor-pointer">False Positive</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
