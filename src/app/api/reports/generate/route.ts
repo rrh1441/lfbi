@@ -88,6 +88,7 @@ ${csvData}`
     const { data, error } = await supabase
       .from('reports')
       .insert({
+        id: scanId, // Use scan_id as the primary key
         scan_id: scanId,
         company_name: companyName,
         domain,
