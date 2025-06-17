@@ -26,7 +26,7 @@ class ApiClient {
   }
 
   async startScan(companyName: string, domain: string): Promise<{ scanId: string }> {
-    const response = await fetch(`${this.baseUrl}/`, {
+    const response = await fetch(`${this.baseUrl}/api/scans`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
