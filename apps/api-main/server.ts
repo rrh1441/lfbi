@@ -45,7 +45,7 @@ fastify.get('/health', async (request, reply) => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
 
-// Create a new scan
+// Create a new scan (main endpoint)
 fastify.post('/scan', async (request, reply) => {
   try {
     const { companyName, domain } = request.body as { companyName: string; domain: string };
@@ -97,6 +97,68 @@ fastify.post('/scan', async (request, reply) => {
 
   } catch (error) {
     log('[api] CRITICAL: Unexpected error in POST /scan:', (error as Error).message);
+    log('[api] Error stack:', (error as Error).stack);
+    reply.status(500);
+    return { 
+      error: 'Internal server error during scan creation', 
+      details: (error as Error).message,
+      scanId: null
+    };
+  }
+});
+
+// Create a new scan (alias for frontend compatibility)
+fastify.post('/scans', async (request, reply) => {
+  try {
+    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    
+    if (!companyName || !domain) {
+      log('[api] Scan creation failed: Missing required fields - companyName or domain');
+      reply.status(400);
+      return { error: 'Company name and domain are required' };
+    }
+
+    const scanId = nanoid(11);
+    
+    // Validate scanId is a non-empty string
+    if (!scanId || typeof scanId !== 'string' || scanId.trim().length === 0) {
+      log('[api] CRITICAL: Failed to generate valid scanId');
+      reply.status(500);
+      return { error: 'Failed to generate scan ID', details: 'Internal server error during scan ID generation' };
+    }
+    
+    const job = {
+      id: scanId,
+      companyName,
+      domain,
+      createdAt: new Date().toISOString()
+    };
+
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain})`);
+    
+    try {
+      await queue.addJob(scanId, job);
+      log(`[api] ✅ Successfully created scan job ${scanId} for ${companyName}`);
+    } catch (queueError) {
+      log('[api] CRITICAL: Failed to add job to queue:', (queueError as Error).message);
+      reply.status(500);
+      return { 
+        error: 'Failed to queue scan job', 
+        details: `Queue operation failed: ${(queueError as Error).message}`,
+        scanId: null
+      };
+    }
+
+    return {
+      scanId,
+      status: 'queued',
+      companyName,
+      domain,
+      message: 'Scan started successfully'
+    };
+
+  } catch (error) {
+    log('[api] CRITICAL: Unexpected error in POST /scans:', (error as Error).message);
     log('[api] Error stack:', (error as Error).stack);
     reply.status(500);
     return { 
