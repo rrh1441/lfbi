@@ -202,7 +202,7 @@ function FindingsContent() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => handleVerifyFindings(selectedFindings, 'FALSE_POSITIVE')}
+                onClick={() => handleVerifyFindings(selectedFindings, 'falsepositive')}
               >
                 Mark False Positive
               </Button>
@@ -258,7 +258,7 @@ function FindingsContent() {
               <SelectItem value="ALL">All statuses</SelectItem>
               <SelectItem value="AUTOMATED">Automated</SelectItem>
               <SelectItem value="VERIFIED">Verified</SelectItem>
-              <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+              <SelectItem value="falsepositive">False Positive</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -390,7 +390,7 @@ function FindingsContent() {
                                     <SelectContent className="bg-white border shadow-md z-50">
                                       <SelectItem value="AUTOMATED" className="cursor-pointer">Automated</SelectItem>
                                       <SelectItem value="VERIFIED" className="cursor-pointer">Verified</SelectItem>
-                                      <SelectItem value="FALSE_POSITIVE" className="cursor-pointer">False Positive</SelectItem>
+                                      <SelectItem value="falsepositive" className="cursor-pointer">False Positive</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>

@@ -13,7 +13,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Allow more flexible state values in case database uses different format
-    const allowedStates = ['AUTOMATED', 'VERIFIED', 'FALSE_POSITIVE', 'false_positive', 'False Positive']
+    const allowedStates = ['AUTOMATED', 'VERIFIED', 'falsepositive']
     if (!allowedStates.includes(state)) {
       console.log('Invalid state received:', state, 'Allowed:', allowedStates)
       return NextResponse.json(
