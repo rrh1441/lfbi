@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
         domain,
         status: 'pending',
         progress: 0,
-        total_modules: 16
+        total_modules: 15
       })
       .select()
       .single()
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     // Trigger the actual scanner service
     try {
-      const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scan`, {
+      const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scans`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
