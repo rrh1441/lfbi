@@ -115,6 +115,7 @@ function FindingsContent() {
   }
 
   const handleVerifyFindings = async (findingIds: string[], newState: string) => {
+    console.log('Updating findings:', findingIds, 'to state:', newState)
     try {
       const response = await fetch('/api/findings/verify', {
         method: 'PATCH',
@@ -126,6 +127,7 @@ function FindingsContent() {
 
       if (response.ok) {
         const { findings: updatedFindings } = await response.json()
+        console.log('Updated findings:', updatedFindings)
         
         // Update the local state immediately for better UX
         setScanFindings(prev => {
@@ -144,6 +146,9 @@ function FindingsContent() {
         })
         
         setSelectedFindings([])
+      } else {
+        const errorData = await response.json()
+        console.error('API error:', errorData)
       }
     } catch (error) {
       console.error('Failed to verify findings:', error)
