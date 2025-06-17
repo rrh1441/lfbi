@@ -1,12 +1,12 @@
 /* ============================================================================
- * MODULE: cveVerifier.ts  (v1.0 – Automated CVE applicability testing)
- * Requires: axios ^1.7, globby ^14, child_process, util
- * ========================================================================== */
+ * MODULE: cveVerifier.ts (v1.1 – fixes & batching)
+ * ============================================================================= */
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import axios from 'axios';
 import { glob } from 'glob';
+import semver from 'semver';
 import { log as rootLog } from '../core/logger.js';
 
 const exec = promisify(execFile);
@@ -215,110 +215,213 @@ function extractServiceInfo(banner: string): { service: string; version: string 
 /* 4.  Public API                                                           */
 /* ------------------------------------------------------------------------ */
 
-export async function verifyCVEs(
-  opts: CVECheckInput
-): Promise<CVECheckResult[]> {
-  const results: CVECheckResult[] = [];
-  
-  log(`Starting CVE verification for ${opts.host} with ${opts.cves.length} CVEs`);
-  
-  // Extract service and version information
-  const serviceInfo = extractServiceInfo(opts.serverBanner);
-  const bannerVersion = serviceInfo?.version;
-  
-  if (!bannerVersion) {
-    log(`Could not extract version from banner: ${opts.serverBanner}`);
-  }
+async function batchEPSS(ids: string[]): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  if (!ids.length) return out;
+  try {
+    const { data } = await axios.get(`https://api.first.org/data/v1/epss?cve=${ids.join(',')}`, { timeout: 10_000 });
+    (data.data as any[]).forEach((d: any) => { out[d.cve] = Number(d.epss) || 0; });
+  } catch { ids.forEach(id => (out[id] = 0)); }
+  return out;
+}
 
+export async function verifyCVEs(opts: CVECheckInput): Promise<CVECheckResult[]> {
+  const results: CVECheckResult[] = [];
+  const srvInfo = extractServiceInfo(opts.serverBanner);
+  const bannerVersion = srvInfo?.version;
+  const epssScores = await batchEPSS(opts.cves);
   for (const id of opts.cves) {
     const res: CVECheckResult = { id, verified: false, suppressed: false };
-
     try {
-      // ---- Layer 1: Version-fix mapping ---------------------------------
-      log(`Checking fix status for ${id}`);
-      
-      const [ubuntuFix, rhelFix] = await Promise.all([
-        getUbuntuFixedVersion(id),
-        getRHELFixedVersion(id)
-      ]);
-      
-      // Use the first available fix version
+      const [ubuntuFix, rhelFix] = await Promise.all([getUbuntuFixedVersion(id), getRHELFixedVersion(id)]);
       const fixed = ubuntuFix || rhelFix;
       res.fixedIn = fixed;
-      
-      if (fixed && bannerVersion) {
-        res.suppressed = await isVersionPatched(bannerVersion, fixed);
-        
-        if (res.suppressed) {
-          log(`CVE ${id} suppressed: version ${bannerVersion} >= fixed version ${fixed}`);
-          results.push(res);
-          continue;
-        }
-      }
-
-      // ---- Layer 2: Active exploit probe --------------------------------
-      log(`Checking for Nuclei template for ${id}`);
-      
-      const template = await nucleiSupports(id);
-      if (!template) {
-        log(`No Nuclei template available for ${id}, keeping in results`);
+      if (fixed && bannerVersion && (await isVersionPatched(bannerVersion, fixed))) {
+        res.suppressed = true;
         results.push(res);
         continue;
       }
-      
-      // Run the exploit probe
-      res.verified = await runNuclei(opts.host, template);
-      
-      if (res.verified) {
-        log(`CVE ${id} VERIFIED: exploit successful`);
-      } else {
-        log(`CVE ${id} not exploitable via Nuclei template`);
-      }
-      
-      results.push(res);
-      
-    } catch (error) {
-      res.error = (error as Error).message;
-      log(`Error processing CVE ${id}: ${res.error}`);
-      results.push(res);
-    }
+      const template = await nucleiSupports(id);
+      if (template) res.verified = await runNuclei(opts.host, template);
+      res.suppressed ||= epssScores[id] < 0.005 && !template; // informational only
+    } catch (e) { res.error = (e as Error).message; }
+    results.push(res);
   }
-  
-  const suppressed = results.filter(r => r.suppressed).length;
-  const verified = results.filter(r => r.verified).length;
-  const total = results.length;
-  
-  log(`CVE verification complete: ${total} total, ${suppressed} suppressed, ${verified} verified`);
-  
   return results;
 }
 
+// CVE database with version ranges and publication dates
+interface CVEInfo {
+  id: string;
+  description: string;
+  affectedVersions: string; // semver range
+  publishedYear: number;
+}
+
+const serviceCVEDatabase: Record<string, CVEInfo[]> = {
+  apache: [
+    {
+      id: 'CVE-2021-40438',
+      description: 'Apache HTTP Server 2.4.48 and earlier SSRF',
+      affectedVersions: '>=2.4.7 <=2.4.48',
+      publishedYear: 2021
+    },
+    {
+      id: 'CVE-2021-41773',
+      description: 'Apache HTTP Server 2.4.49 Path Traversal',
+      affectedVersions: '=2.4.49',
+      publishedYear: 2021
+    },
+    {
+      id: 'CVE-2021-42013',
+      description: 'Apache HTTP Server 2.4.50 Path Traversal',
+      affectedVersions: '<=2.4.50',
+      publishedYear: 2021
+    },
+    {
+      id: 'CVE-2020-11993',
+      description: 'Apache HTTP Server 2.4.43 and earlier',
+      affectedVersions: '<=2.4.43',
+      publishedYear: 2020
+    },
+    {
+      id: 'CVE-2019-0190',
+      description: 'Apache HTTP Server 2.4.17 to 2.4.38',
+      affectedVersions: '>=2.4.17 <=2.4.38',
+      publishedYear: 2019
+    },
+    {
+      id: 'CVE-2020-11023',
+      description: 'jQuery (if mod_proxy_html enabled)',
+      affectedVersions: '*', // Version-independent
+      publishedYear: 2020
+    }
+  ],
+  nginx: [
+    {
+      id: 'CVE-2021-23017',
+      description: 'Nginx resolver off-by-one',
+      affectedVersions: '>=0.6.18 <1.20.1',
+      publishedYear: 2021
+    },
+    {
+      id: 'CVE-2019-20372',
+      description: 'Nginx HTTP/2 implementation',
+      affectedVersions: '>=1.9.5 <=1.17.7',
+      publishedYear: 2019
+    },
+    {
+      id: 'CVE-2017-7529',
+      description: 'Nginx range filter integer overflow',
+      affectedVersions: '>=0.5.6 <=1.13.2',
+      publishedYear: 2017
+    }
+  ],
+  iis: [
+    {
+      id: 'CVE-2021-31207',
+      description: 'Microsoft IIS Server Elevation of Privilege',
+      affectedVersions: '*', // Version-independent for IIS
+      publishedYear: 2021
+    },
+    {
+      id: 'CVE-2020-0618',
+      description: 'Microsoft IIS Server Remote Code Execution',
+      affectedVersions: '*',
+      publishedYear: 2020
+    },
+    {
+      id: 'CVE-2017-7269',
+      description: 'Microsoft IIS 6.0 WebDAV ScStoragePathFromUrl',
+      affectedVersions: '=6.0',
+      publishedYear: 2017
+    }
+  ]
+};
+
+// Helper function to estimate software release year
+function estimateSoftwareReleaseYear(service: string, version: string): number | null {
+  const versionMatch = version.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+  if (!versionMatch) return null;
+  
+  const [, major, minor, patch] = versionMatch.map(Number);
+  
+  // Service-specific release year estimates
+  if (service === 'apache' && major === 2 && minor === 4) {
+    if (patch >= 60) return 2024;
+    if (patch >= 50) return 2021;
+    if (patch >= 40) return 2019;
+    if (patch >= 30) return 2017;
+    if (patch >= 20) return 2015;
+    if (patch >= 10) return 2013;
+    return 2012;
+  }
+  
+  if (service === 'nginx') {
+    if (major >= 2) return 2023;
+    if (major === 1 && minor >= 20) return 2021;
+    if (major === 1 && minor >= 15) return 2019;
+    if (major === 1 && minor >= 10) return 2016;
+    return 2012;
+  }
+  
+  return null; // Can't estimate
+}
+
 /**
- * Convenience function to get common CVE lists for services
+ * Enhanced function to get CVEs for services with proper version and timeline filtering
  */
 export function getCommonCVEsForService(service: string, version: string): string[] {
-  const serviceCVEs: Record<string, string[]> = {
-    apache: [
-      'CVE-2021-40438', // Apache HTTP Server 2.4.48 and earlier SSRF
-      'CVE-2021-41773', // Apache HTTP Server 2.4.49 Path Traversal  
-      'CVE-2021-42013', // Apache HTTP Server 2.4.50 Path Traversal
-      'CVE-2020-11993', // Apache HTTP Server 2.4.43 and earlier
-      'CVE-2019-0190',  // Apache HTTP Server 2.4.17 to 2.4.38
-      'CVE-2020-11023'  // jQuery (if mod_proxy_html enabled)
-    ],
-    nginx: [
-      'CVE-2021-23017', // Nginx resolver off-by-one
-      'CVE-2019-20372', // Nginx HTTP/2 implementation 
-      'CVE-2017-7529'   // Nginx range filter integer overflow
-    ],
-    iis: [
-      'CVE-2021-31207', // Microsoft IIS Server Elevation of Privilege
-      'CVE-2020-0618',  // Microsoft IIS Server Remote Code Execution
-      'CVE-2017-7269'   // Microsoft IIS 6.0 WebDAV ScStoragePathFromUrl
-    ]
-  };
+  const serviceLower = service.toLowerCase();
+  const cveList = serviceCVEDatabase[serviceLower];
   
-  return serviceCVEs[service.toLowerCase()] || [];
+  if (!cveList) {
+    log(`No CVE database found for service: ${service}`);
+    return [];
+  }
+
+  // Clean and normalize version
+  const cleanVersion = semver.coerce(version);
+  if (!cleanVersion) {
+    log(`Could not parse version: ${version}, returning all CVEs for ${service}`);
+    return cveList.map(cve => cve.id);
+  }
+
+  // Estimate release year of this software version
+  const releaseYear = estimateSoftwareReleaseYear(serviceLower, version);
+  
+  const applicableCVEs: string[] = [];
+  
+  for (const cve of cveList) {
+    // Timeline validation: CVE can't affect software released after CVE publication
+    if (releaseYear && releaseYear > cve.publishedYear + 1) { // +1 year buffer
+      log(`CVE ${cve.id} excluded: software version ${version} (${releaseYear}) released after CVE (${cve.publishedYear})`);
+      continue;
+    }
+    
+    // Version range validation
+    try {
+      if (cve.affectedVersions === '*') {
+        // Version-independent vulnerability
+        applicableCVEs.push(cve.id);
+        continue;
+      }
+      
+      if (semver.satisfies(cleanVersion, cve.affectedVersions)) {
+        applicableCVEs.push(cve.id);
+        log(`CVE ${cve.id} applicable to ${service} ${version}`);
+      } else {
+        log(`CVE ${cve.id} not applicable: version ${version} outside range ${cve.affectedVersions}`);
+      }
+    } catch (error) {
+      log(`Error checking version range for ${cve.id}: ${(error as Error).message}`);
+      // Include on error for safety, but log the issue
+      applicableCVEs.push(cve.id);
+    }
+  }
+  
+  log(`Service ${service} v${version}: ${applicableCVEs.length}/${cveList.length} CVEs applicable`);
+  return applicableCVEs;
 }
 
 /**
