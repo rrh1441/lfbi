@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     // Generate report using OpenAI with the prompt.md content
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'o3-2025-04-16',
       messages: [
         {
           role: 'system',
@@ -73,7 +73,7 @@ ${csvData}`
         }
       ],
       temperature: 0.3,
-      max_tokens: 4000
+      max_tokens: 50000
     })
 
     const reportContent = completion.choices[0].message.content
