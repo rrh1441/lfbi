@@ -256,6 +256,67 @@ fastify.get('/scan/:scanId/findings', async (request, reply) => {
   }
 });
 
+// API endpoint alias for frontend compatibility (/api/scans)
+fastify.post('/api/scans', async (request, reply) => {
+  try {
+    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    
+    if (!companyName || !domain) {
+      log('[api] Scan creation failed: Missing required fields - companyName or domain');
+      reply.status(400);
+      return { error: 'Company name and domain are required' };
+    }
+
+    const scanId = nanoid(11);
+    
+    if (!scanId || typeof scanId !== 'string' || scanId.trim().length === 0) {
+      log('[api] CRITICAL: Failed to generate valid scanId');
+      reply.status(500);
+      return { error: 'Failed to generate scan ID', details: 'Internal server error during scan ID generation' };
+    }
+    
+    const job = {
+      id: scanId,
+      companyName,
+      domain,
+      createdAt: new Date().toISOString()
+    };
+
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain}) via /api/scans`);
+    
+    try {
+      await queue.addJob(scanId, job);
+      log(`[api] ✅ Successfully created scan job ${scanId} for ${companyName} via /api/scans`);
+    } catch (queueError) {
+      log('[api] CRITICAL: Failed to add job to queue:', (queueError as Error).message);
+      reply.status(500);
+      return { 
+        error: 'Failed to queue scan job', 
+        details: `Queue operation failed: ${(queueError as Error).message}`,
+        scanId: null
+      };
+    }
+
+    return {
+      scanId,
+      status: 'queued',
+      companyName,
+      domain,
+      message: 'Scan started successfully'
+    };
+
+  } catch (error) {
+    log('[api] CRITICAL: Unexpected error in POST /api/scans:', (error as Error).message);
+    log('[api] Error stack:', (error as Error).stack);
+    reply.status(500);
+    return { 
+      error: 'Internal server error during scan creation', 
+      details: (error as Error).message,
+      scanId: null
+    };
+  }
+});
+
 // Webhook callback endpoint (for future use)
 fastify.post('/scan/:id/callback', async (request, reply) => {
   try {
