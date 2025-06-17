@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -23,15 +22,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { 
   AlertTriangle, 
   CheckCircle, 
   Search, 
-  Filter,
   Shield,
-  Loader2
+  Loader2,
+  ChevronDown,
+  ChevronRight,
+  Building,
+  Globe
 } from 'lucide-react'
-import { Finding } from '@/lib/types/database'
+import { Finding, Scan } from '@/lib/types/database'
+
+interface ScanWithFindings extends Scan {
+  findings_count: number
+}
 
 interface FindingWithScan extends Finding {
   scan_status: {
@@ -41,28 +52,72 @@ interface FindingWithScan extends Finding {
 }
 
 function FindingsContent() {
-  const searchParams = useSearchParams()
   const [selectedFindings, setSelectedFindings] = useState<string[]>([])
-  const [filters, setFilters] = useState({
-    severity: searchParams.get('severity') || 'ALL',
-    state: 'ALL',
-    search: ''
+  const [expandedScans, setExpandedScans] = useState<Set<string>>(new Set())
+  const [scanFindings, setScanFindings] = useState<Record<string, FindingWithScan[]>>({})
+  const [loadingFindings, setLoadingFindings] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [findingFilters, setFindingFilters] = useState({
+    severity: 'ALL',
+    state: 'ALL'
   })
 
-  const { data: findings, isLoading, refetch } = useQuery<FindingWithScan[]>({
-    queryKey: ['all-findings', filters],
+  // Get scans with findings count
+  const { data: scans, isLoading: scansLoading } = useQuery<ScanWithFindings[]>({
+    queryKey: ['scans-with-findings', search],
     queryFn: async () => {
       const params = new URLSearchParams({
-        ...(filters.severity !== 'ALL' && { severity: filters.severity }),
-        ...(filters.state !== 'ALL' && { state: filters.state }),
-        ...(filters.search && { search: filters.search })
+        ...(search && { search })
       })
       
-      const response = await fetch(`/api/findings?${params}`)
-      if (!response.ok) throw new Error('Failed to fetch findings')
+      const response = await fetch(`/api/scans-with-findings?${params}`)
+      if (!response.ok) throw new Error('Failed to fetch scans')
       return response.json()
     }
   })
+
+  // Load findings for a specific scan
+  const loadScanFindings = async (scanId: string) => {
+    if (scanFindings[scanId]) return // Already loaded
+    
+    setLoadingFindings(prev => new Set([...prev, scanId]))
+    
+    try {
+      const params = new URLSearchParams({
+        scanId,
+        ...(findingFilters.severity !== 'ALL' && { severity: findingFilters.severity }),
+        ...(findingFilters.state !== 'ALL' && { state: findingFilters.state })
+      })
+      
+      const response = await fetch(`/api/findings?${params}`)
+      if (response.ok) {
+        const findings = await response.json()
+        setScanFindings(prev => ({ ...prev, [scanId]: findings }))
+      }
+    } catch (error) {
+      console.error('Failed to fetch findings:', error)
+    } finally {
+      setLoadingFindings(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(scanId)
+        return newSet
+      })
+    }
+  }
+
+  // Toggle scan expansion
+  const toggleScan = async (scanId: string) => {
+    const newExpanded = new Set(expandedScans)
+    
+    if (expandedScans.has(scanId)) {
+      newExpanded.delete(scanId)
+    } else {
+      newExpanded.add(scanId)
+      await loadScanFindings(scanId)
+    }
+    
+    setExpandedScans(newExpanded)
+  }
 
   const handleVerifyFindings = async (findingIds: string[], newState: string) => {
     try {
@@ -75,7 +130,18 @@ function FindingsContent() {
       })
 
       if (response.ok) {
-        await refetch()
+        // Refresh findings for affected scans
+        const affectedScans = new Set<string>()
+        Object.entries(scanFindings).forEach(([scanId, findings]) => {
+          if (findings.some(f => findingIds.includes(f.id))) {
+            affectedScans.add(scanId)
+          }
+        })
+        
+        for (const scanId of affectedScans) {
+          await loadScanFindings(scanId)
+        }
+        
         setSelectedFindings([])
       }
     } catch (error) {
@@ -93,16 +159,28 @@ function FindingsContent() {
     }
   }
 
-  const verifiedCount = findings?.filter(f => f.state === 'VERIFIED').length || 0
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'completed': return 'default'
+      case 'processing': return 'secondary'
+      case 'failed': return 'destructive'
+      default: return 'outline'
+    }
+  }
+
+  // Calculate totals across all loaded findings
+  const allFindings = Object.values(scanFindings).flat()
+  const verifiedCount = allFindings.filter(f => f.state === 'VERIFIED').length
+  const totalFindings = allFindings.length
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">All Security Findings</h1>
+          <h1 className="text-3xl font-bold">Security Findings by Scan</h1>
           <p className="text-muted-foreground">
-            {verifiedCount} verified of {findings?.length || 0} total findings across all scans
+            {verifiedCount} verified of {totalFindings} loaded findings across {scans?.length || 0} scans
           </p>
         </div>
         
@@ -127,213 +205,217 @@ function FindingsContent() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Search and Filters */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Findings</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{findings?.length || 0}</div>
-          </CardContent>
-        </Card>
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-sm font-medium">Search Scans</label>
+          <div className="relative">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by company, domain, or scan ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Critical</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {findings?.filter(f => f.severity === 'CRITICAL').length || 0}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Finding Severity</label>
+          <Select 
+            value={findingFilters.severity} 
+            onValueChange={(value) => setFindingFilters(prev => ({ ...prev, severity: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All severities</SelectItem>
+              <SelectItem value="CRITICAL">Critical</SelectItem>
+              <SelectItem value="HIGH">High</SelectItem>
+              <SelectItem value="MEDIUM">Medium</SelectItem>
+              <SelectItem value="LOW">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Verified</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{verifiedCount}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Needs Review</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {findings?.filter(f => f.state === 'AUTOMATED').length || 0}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Finding Status</label>
+          <Select 
+            value={findingFilters.state} 
+            onValueChange={(value) => setFindingFilters(prev => ({ ...prev, state: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              <SelectItem value="AUTOMATED">Automated</SelectItem>
+              <SelectItem value="VERIFIED">Verified</SelectItem>
+              <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Scans List */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
-          </CardTitle>
+          <CardTitle>Scans with Findings</CardTitle>
+          <CardDescription>
+            Click on any scan to expand and view its security findings
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Search</label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search findings..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Severity</label>
-              <Select 
-                value={filters.severity} 
-                onValueChange={(value) => setFilters(prev => ({ ...prev, severity: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All severities" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All severities</SelectItem>
-                  <SelectItem value="CRITICAL">Critical</SelectItem>
-                  <SelectItem value="HIGH">High</SelectItem>
-                  <SelectItem value="MEDIUM">Medium</SelectItem>
-                  <SelectItem value="LOW">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select 
-                value={filters.state} 
-                onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All statuses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All statuses</SelectItem>
-                  <SelectItem value="AUTOMATED">Automated</SelectItem>
-                  <SelectItem value="VERIFIED">Verified</SelectItem>
-                  <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Findings Table */}
-      <Card>
         <CardContent className="p-0">
-          {isLoading ? (
+          {scansLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedFindings.length === findings?.length && findings.length > 0}
-                      onCheckedChange={(checked) => {
-                        if (checked && findings) {
-                          setSelectedFindings(findings.map(f => f.id))
-                        } else {
-                          setSelectedFindings([])
-                        }
-                      }}
-                    />
-                  </TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Recommendation</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {findings?.map((finding) => (
-                  <TableRow key={finding.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedFindings.includes(finding.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedFindings(prev => [...prev, finding.id])
-                          } else {
-                            setSelectedFindings(prev => prev.filter(id => id !== finding.id))
-                          }
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{finding.scan_status.company_name}</p>
-                        <p className="text-xs text-muted-foreground">{finding.scan_status.domain}</p>
+          ) : scans && scans.length > 0 ? (
+            <div className="space-y-2">
+              {scans.map((scan) => (
+                <Collapsible
+                  key={scan.scan_id}
+                  open={expandedScans.has(scan.scan_id)}
+                  onOpenChange={() => toggleScan(scan.scan_id)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer border-b">
+                      <div className="flex items-center gap-3">
+                        {expandedScans.has(scan.scan_id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <div className="flex items-center gap-2">
+                          <Building className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">{scan.company_name}</p>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Globe className="h-3 w-3" />
+                              <span>{scan.domain}</span>
+                              <span>•</span>
+                              <span>{scan.scan_id}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {finding.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getSeverityVariant(finding.severity)}>
-                        {finding.severity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-md">
-                      <p className="truncate">{finding.description}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={finding.state}
-                        onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
-                      >
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="AUTOMATED">Automated</SelectItem>
-                          <SelectItem value="VERIFIED">Verified</SelectItem>
-                          <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="max-w-md">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {finding.recommendation}
-                      </p>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          
-          {!isLoading && (!findings || findings.length === 0) && (
+                      
+                      <div className="flex items-center gap-3">
+                        <Badge variant={getStatusVariant(scan.status)}>
+                          {scan.status}
+                        </Badge>
+                        <Badge variant="outline">
+                          {scan.findings_count} findings
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {new Date(scan.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="border-t bg-muted/20">
+                      {loadingFindings.has(scan.scan_id) ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin" />
+                        </div>
+                      ) : scanFindings[scan.scan_id] && scanFindings[scan.scan_id].length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  checked={scanFindings[scan.scan_id]?.every(f => selectedFindings.includes(f.id)) || false}
+                                  onCheckedChange={(checked) => {
+                                    const scanFindingIds = scanFindings[scan.scan_id]?.map(f => f.id) || []
+                                    if (checked) {
+                                      setSelectedFindings(prev => [...new Set([...prev, ...scanFindingIds])])
+                                    } else {
+                                      setSelectedFindings(prev => prev.filter(id => !scanFindingIds.includes(id)))
+                                    }
+                                  }}
+                                />
+                              </TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Severity</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Recommendation</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {scanFindings[scan.scan_id]?.map((finding) => (
+                              <TableRow key={finding.id}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedFindings.includes(finding.id)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedFindings(prev => [...prev, finding.id])
+                                      } else {
+                                        setSelectedFindings(prev => prev.filter(id => id !== finding.id))
+                                      }
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">
+                                    {finding.type}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={getSeverityVariant(finding.severity)}>
+                                    {finding.severity}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="max-w-md">
+                                  <p className="truncate">{finding.description}</p>
+                                </TableCell>
+                                <TableCell>
+                                  <Select
+                                    value={finding.state}
+                                    onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
+                                  >
+                                    <SelectTrigger className="w-32">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="AUTOMATED">Automated</SelectItem>
+                                      <SelectItem value="VERIFIED">Verified</SelectItem>
+                                      <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                <TableCell className="max-w-md">
+                                  <p className="text-sm text-muted-foreground truncate">
+                                    {finding.recommendation}
+                                  </p>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="text-center py-8">
+                          <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">
+                            No findings found for this scan with current filters
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
+          ) : (
             <div className="text-center py-12">
-              <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No findings found</h3>
+              <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No scans found</h3>
               <p className="text-muted-foreground">
-                No security findings match your current filters.
+                No scans match your search criteria.
               </p>
             </div>
           )}
