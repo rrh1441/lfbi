@@ -379,28 +379,13 @@ function FindingsContent() {
                                     value={finding.state}
                                     onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
                                   >
-                                    <SelectTrigger className="w-36 bg-white border border-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-blue-500">
-                                      <SelectValue placeholder="Select status" />
+                                    <SelectTrigger className="w-32">
+                                      <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
-                                      <SelectItem 
-                                        value="AUTOMATED" 
-                                        className="hover:bg-gray-100 focus:bg-gray-100 cursor-pointer px-3 py-2"
-                                      >
-                                        Automated
-                                      </SelectItem>
-                                      <SelectItem 
-                                        value="VERIFIED" 
-                                        className="hover:bg-green-100 focus:bg-green-100 cursor-pointer px-3 py-2"
-                                      >
-                                        Verified
-                                      </SelectItem>
-                                      <SelectItem 
-                                        value="FALSE_POSITIVE" 
-                                        className="hover:bg-red-100 focus:bg-red-100 cursor-pointer px-3 py-2"
-                                      >
-                                        False Positive
-                                      </SelectItem>
+                                    <SelectContent>
+                                      <SelectItem value="AUTOMATED">Automated</SelectItem>
+                                      <SelectItem value="VERIFIED">Verified</SelectItem>
+                                      <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
