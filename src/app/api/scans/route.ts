@@ -13,34 +13,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate unique scan ID
-    const scanId = `scan_${nanoid()}`
-
-    // TODO: Call external scanner API here
-    // For now, we'll simulate starting a scan by inserting into the database
-    
-    const { error } = await supabase
-      .from('scan_status')
-      .insert({
-        scan_id: scanId,
-        company_name: companyName,
-        domain,
-        status: 'pending',
-        progress: 0,
-        total_modules: 15
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Database error:', error)
-      return NextResponse.json(
-        { error: 'Failed to create scan record' },
-        { status: 500 }
-      )
-    }
-
-    // Trigger the actual scanner service using the working API client
+    // Just call the scanner backend - it handles everything including database records
     try {
       const scannerResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/scans`, {
         method: 'POST',
@@ -56,22 +29,21 @@ export async function POST(request: NextRequest) {
       if (!scannerResponse.ok) {
         const errorText = await scannerResponse.text()
         console.error('Failed to trigger scanner:', errorText)
-        // Update scan status to failed in database
-        await supabase
-          .from('scan_status')
-          .update({ status: 'failed', error_message: `Scanner error: ${errorText}` })
-          .eq('scan_id', scanId)
+        return NextResponse.json(
+          { error: `Scanner error: ${errorText}` },
+          { status: 500 }
+        )
       }
+
+      const result = await scannerResponse.json()
+      return NextResponse.json(result)
     } catch (scannerError) {
       console.error('Scanner API error:', scannerError)
-      // Update scan status to failed in database
-      await supabase
-        .from('scan_status')
-        .update({ status: 'failed', error_message: 'Scanner API unreachable' })
-        .eq('scan_id', scanId)
+      return NextResponse.json(
+        { error: 'Scanner API unreachable' },
+        { status: 500 }
+      )
     }
-
-    return NextResponse.json({ scanId })
   } catch (error) {
     console.error('Failed to start scan:', error)
     return NextResponse.json(
