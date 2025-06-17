@@ -1,0 +1,133 @@
+export interface Database {
+  public: {
+    Tables: {
+      scan_status: {
+        Row: {
+          scan_id: string
+          company_name: string
+          domain: string
+          status: 'pending' | 'processing' | 'completed' | 'failed'
+          progress: number
+          total_modules: number
+          created_at: string
+          completed_at: string | null
+          tags: string[] | null
+        }
+        Insert: {
+          scan_id: string
+          company_name: string
+          domain: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          progress?: number
+          total_modules?: number
+          created_at?: string
+          completed_at?: string | null
+          tags?: string[] | null
+        }
+        Update: {
+          scan_id?: string
+          company_name?: string
+          domain?: string
+          status?: 'pending' | 'processing' | 'completed' | 'failed'
+          progress?: number
+          total_modules?: number
+          created_at?: string
+          completed_at?: string | null
+          tags?: string[] | null
+        }
+      }
+      findings: {
+        Row: {
+          id: string
+          created_at: string
+          description: string
+          scan_id: string
+          type: string
+          recommendation: string
+          severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+          attack_type_code: string
+          state: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          eal_low: number
+          eal_ml: number
+          eal_high: number
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          description: string
+          scan_id: string
+          type: string
+          recommendation: string
+          severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+          attack_type_code: string
+          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          eal_low: number
+          eal_ml: number
+          eal_high: number
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          description?: string
+          scan_id?: string
+          type?: string
+          recommendation?: string
+          severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+          attack_type_code?: string
+          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          eal_low?: number
+          eal_ml?: number
+          eal_high?: number
+        }
+      }
+      reports: {
+        Row: {
+          id: string
+          scan_id: string
+          company_name: string
+          domain: string
+          content: string
+          findings_count: number
+          status: 'pending' | 'completed'
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          scan_id: string
+          company_name: string
+          domain: string
+          content: string
+          findings_count: number
+          status?: 'pending' | 'completed'
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          scan_id?: string
+          company_name?: string
+          domain?: string
+          content?: string
+          findings_count?: number
+          status?: 'pending' | 'completed'
+          created_at?: string
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+export type Scan = Database['public']['Tables']['scan_status']['Row']
+export type Finding = Database['public']['Tables']['findings']['Row']
+export type Report = Database['public']['Tables']['reports']['Row']
