@@ -45,7 +45,7 @@ const ALL_MODULES_IN_ORDER = [
   'endpoint_discovery',
   'tech_stack_scan',                                                      // ← ADDED
   'abuse_intel_scan',
-  'adversarial_media_scan',
+  // 'adversarial_media_scan',  // COMMENTED OUT - too noisy
   'accessibility_scan',
   'denial_wallet_scan',
   'tls_scan',
@@ -227,11 +227,11 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] COMPLETED AbuseIPDB scan: ${moduleFindings} malicious/suspicious IPs found`);
             break;
 
-          case 'adversarial_media_scan':
-            log(`[${scanId}] STARTING adversarial media scan for ${companyName}`);
-            moduleFindings = await runAdversarialMediaScan({ company: companyName, domain, scanId });
-            log(`[${scanId}] COMPLETED adversarial media scan: ${moduleFindings} adverse media findings`);
-            break;
+          // case 'adversarial_media_scan':  // COMMENTED OUT - too noisy
+          //   log(`[${scanId}] STARTING adversarial media scan for ${companyName}`);
+          //   moduleFindings = await runAdversarialMediaScan({ company: companyName, domain, scanId });
+          //   log(`[${scanId}] COMPLETED adversarial media scan: ${moduleFindings} adverse media findings`);
+          //   break;
 
           case 'accessibility_scan':
             log(`[${scanId}] STARTING accessibility compliance scan for ${domain}`);

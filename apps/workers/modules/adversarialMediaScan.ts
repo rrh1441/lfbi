@@ -254,13 +254,13 @@ export async function runAdversarialMediaScan(job: {
   }
   
   // Check API key
-  const apiKey = process.env.SERPER_API_KEY;
+  const apiKey = process.env.SERPER_KEY;
   if (!apiKey) {
-    log('SERPER_API_KEY not configured, emitting error and exiting');
+    log('SERPER_KEY not configured, emitting error and exiting');
     
     await insertArtifact({
       type: 'scan_error',
-      val_text: 'Adversarial media scan failed: SERPER_API_KEY not configured',
+      val_text: 'Adversarial media scan failed: SERPER_KEY not configured',
       severity: 'MEDIUM',
       meta: {
         scan_id: scanId,
