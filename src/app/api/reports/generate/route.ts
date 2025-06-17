@@ -73,7 +73,7 @@ ${csvData}`
         }
       ],
       temperature: 0.3,
-      max_tokens: 50000
+      max_completion_tokens: 50000
     })
 
     const reportContent = completion.choices[0].message.content
