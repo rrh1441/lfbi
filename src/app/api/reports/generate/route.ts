@@ -25,7 +25,19 @@ export async function POST(request: NextRequest) {
 
     // Prepare findings data in CSV format as specified in prompt.md
     const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high'
-    const csvRows = findings.map((f: any) => {
+    const csvRows = findings.map((f: {
+      id: string;
+      created_at?: string;
+      description: string;
+      type: string;
+      recommendation: string;
+      severity: string;
+      attack_type_code?: string;
+      state: string;
+      eal_low?: number;
+      eal_ml?: number;
+      eal_high?: number;
+    }) => {
       const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
       return [
         f.id,

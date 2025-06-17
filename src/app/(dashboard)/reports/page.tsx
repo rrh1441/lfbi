@@ -17,7 +17,6 @@ import {
   FileText,
   Download,
   Eye,
-  Calendar,
   Loader2,
   Building,
   Globe,
@@ -60,7 +59,7 @@ export default function ReportsPage() {
       // Count verified findings per scan
       return scans.map((scan: Scan) => ({
         ...scan,
-        verified_findings_count: allFindings.filter((f: any) => 
+        verified_findings_count: allFindings.filter((f: { scan_id: string; state: string }) => 
           f.scan_id === scan.scan_id && f.state === 'VERIFIED'
         ).length
       }))
@@ -85,7 +84,7 @@ export default function ReportsPage() {
       // Get verified findings for this scan
       const findingsResponse = await fetch(`/api/findings?scanId=${scan.scan_id}`)
       const allFindings = await findingsResponse.json()
-      const verifiedFindings = allFindings.filter((f: any) => f.state === 'VERIFIED')
+      const verifiedFindings = allFindings.filter((f: { state: string }) => f.state === 'VERIFIED')
       
       const response = await fetch('/api/reports/generate', {
         method: 'POST',
