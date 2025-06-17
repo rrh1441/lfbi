@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import OpenAI from 'openai'
+import * as fs from 'fs'
+import * as path from 'path'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || 'dummy-key',
@@ -17,57 +19,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Prepare findings data for AI
-    const findingsSummary = findings.map((f: {
-      type: string;
-      severity: string;
-      description: string;
-      recommendation: string;
-      attack_type_code: string;
-      eal_low: number;
-      eal_ml: number;
-      eal_high: number;
-    }) => ({
-      type: f.type,
-      severity: f.severity,
-      description: f.description,
-      recommendation: f.recommendation,
-      attack_type: f.attack_type_code,
-      estimated_loss: {
-        low: f.eal_low,
-        medium: f.eal_ml,
-        high: f.eal_high
-      }
-    }))
+    // Read the prompt from prompt.md
+    const promptPath = path.join(process.cwd(), 'prompt.md')
+    const promptContent = fs.readFileSync(promptPath, 'utf-8')
 
-    // Generate report using OpenAI
+    // Prepare findings data in CSV format as specified in prompt.md
+    const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high'
+    const csvRows = findings.map((f: any) => {
+      const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
+      return [
+        f.id,
+        f.created_at || new Date().toISOString(),
+        escapeCsv(f.description),
+        scanId,
+        f.type,
+        escapeCsv(f.recommendation),
+        f.severity,
+        f.attack_type_code || 'UNKNOWN',
+        f.state,
+        f.eal_low || 0,
+        f.eal_ml || 0,
+        f.eal_high || 0
+      ].join(',')
+    })
+    const csvData = [csvHeader, ...csvRows].join('\n')
+
+    // Generate report using OpenAI with the prompt.md content
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       messages: [
         {
           role: 'system',
-          content: `You are a cybersecurity expert generating executive security reports. 
-                   Create a comprehensive, professional security assessment report based on the verified findings.
-                   Include executive summary, risk analysis, prioritized recommendations, and financial impact estimates.
-                   Format the response in markdown for easy rendering.`
+          content: promptContent
         },
         {
           role: 'user',
-          content: `Generate a security assessment report for ${companyName} (${domain}).
+          content: `Generate a due diligence report for ${companyName} (${domain}, scan_id: ${scanId}).
 
-Verified Security Findings:
-${JSON.stringify(findingsSummary, null, 2)}
-
-Please structure the report with:
-1. Executive Summary
-2. Risk Assessment Matrix
-3. Critical Findings Analysis
-4. Financial Impact Estimates
-5. Prioritized Remediation Roadmap
-6. Compliance & Regulatory Considerations
-7. Appendix: Technical Details
-
-Keep the report professional, actionable, and focused on business impact.`
+CSV data with verified findings:
+${csvData}`
         }
       ],
       temperature: 0.3,

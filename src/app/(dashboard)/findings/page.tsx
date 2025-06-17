@@ -125,17 +125,23 @@ function FindingsContent() {
       })
 
       if (response.ok) {
-        // Refresh findings for affected scans
-        const affectedScans = new Set<string>()
-        Object.entries(scanFindings).forEach(([scanId, findings]) => {
-          if (findings.some(f => findingIds.includes(f.id))) {
-            affectedScans.add(scanId)
-          }
-        })
+        const { findings: updatedFindings } = await response.json()
         
-        for (const scanId of affectedScans) {
-          await loadScanFindings(scanId)
-        }
+        // Update the local state immediately for better UX
+        setScanFindings(prev => {
+          const newState = { ...prev }
+          
+          // Update each affected finding
+          updatedFindings.forEach((updatedFinding: Finding) => {
+            Object.keys(newState).forEach(scanId => {
+              newState[scanId] = newState[scanId].map(finding => 
+                finding.id === updatedFinding.id ? updatedFinding : finding
+              )
+            })
+          })
+          
+          return newState
+        })
         
         setSelectedFindings([])
       }
@@ -365,8 +371,8 @@ function FindingsContent() {
                                     {finding.severity}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="max-w-md">
-                                  <p className="truncate">{finding.description}</p>
+                                <TableCell className="max-w-lg">
+                                  <p className="whitespace-normal break-words">{finding.description}</p>
                                 </TableCell>
                                 <TableCell>
                                   <Select
@@ -383,8 +389,8 @@ function FindingsContent() {
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
-                                <TableCell className="max-w-md">
-                                  <p className="text-sm text-muted-foreground truncate">
+                                <TableCell className="max-w-lg">
+                                  <p className="text-sm text-muted-foreground whitespace-normal break-words">
                                     {finding.recommendation}
                                   </p>
                                 </TableCell>
