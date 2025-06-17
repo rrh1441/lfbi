@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const { data: recentScans, error } = await supabase
       .from('scan_status')
-      .select('*')
+      .select('scan_id, company_name, domain, status, progress, total_modules, created_at, completed_at')
       .order('created_at', { ascending: false })
       .limit(5)
 

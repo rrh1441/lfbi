@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
         domain,
         status: 'pending',
         progress: 0,
-        total_modules: 16,
-        tags: tags || []
+        total_modules: 16
       })
       .select()
       .single()
@@ -66,7 +65,7 @@ export async function GET() {
   try {
     const { data, error } = await supabase
       .from('scan_status')
-      .select('*')
+      .select('scan_id, company_name, domain, status, progress, total_modules, created_at, completed_at')
       .order('created_at', { ascending: false })
 
     if (error) {
