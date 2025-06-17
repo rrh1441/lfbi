@@ -115,6 +115,38 @@ export default function ReportsPage() {
     }
   }
 
+  const exportReport = async (report: Report) => {
+    try {
+      // Create a downloadable file from the report content
+      const fileName = `${report.company_name.replace(/[^a-z0-9]/gi, '_')}_Security_Report_${new Date(report.created_at).toISOString().split('T')[0]}.md`
+      
+      // Add a title and metadata to the report content
+      const exportContent = `# Security Assessment Report
+**Company:** ${report.company_name}  
+**Domain:** ${report.domain}  
+**Generated:** ${new Date(report.created_at).toLocaleDateString()}  
+**Findings Count:** ${report.findings_count}  
+
+---
+
+${report.content}`
+
+      // Create blob and download
+      const blob = new Blob([exportContent], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to export report:', error)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -276,7 +308,11 @@ export default function ReportsPage() {
                             View
                           </Link>
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => exportReport(report)}
+                        >
                           <Download className="mr-1 h-3 w-3" />
                           Export
                         </Button>
