@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
+import fastifyCors from '@fastify/cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { UpstashQueue } from '../workers/core/queue.js';
@@ -19,6 +20,19 @@ function log(...args: any[]) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}]`, ...args);
 }
+
+// Register CORS for frontend access
+fastify.register(fastifyCors, {
+  origin: [
+    'https://dealbriefadmin.vercel.app',
+    'https://lfbi.vercel.app',
+    /^https:\/\/.*\.lfbi\.vercel\.app$/, // Allow all subdomains of lfbi.vercel.app
+    /^https:\/\/.*\.vercel\.app$/, // Allow preview deployments
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+});
 
 // Register static file serving for the public directory
 fastify.register(fastifyStatic, {
