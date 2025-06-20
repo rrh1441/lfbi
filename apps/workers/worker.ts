@@ -17,6 +17,7 @@ import { runAbuseIntelScan } from './modules/abuseIntelScan.js';
 import { runAdversarialMediaScan } from './modules/adversarialMediaScan.js';
 import { runAccessibilityScan } from './modules/accessibilityScan.js';
 import { runDenialWalletScan } from './modules/denialWalletScan.js';
+import { runHibpScan } from './modules/hibpScan.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -45,6 +46,7 @@ const ALL_MODULES_IN_ORDER = [
   'endpoint_discovery',
   'tech_stack_scan',                                                      // ← ADDED
   'abuse_intel_scan',
+  'hibp_scan',
   // 'adversarial_media_scan',  // COMMENTED OUT - too noisy
   'accessibility_scan',
   'denial_wallet_scan',
@@ -225,6 +227,12 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] STARTING AbuseIPDB intelligence scan for IPs`);
             moduleFindings = await runAbuseIntelScan({ scanId });
             log(`[${scanId}] COMPLETED AbuseIPDB scan: ${moduleFindings} malicious/suspicious IPs found`);
+            break;
+
+          case 'hibp_scan':
+            log(`[${scanId}] STARTING Have I Been Pwned breach detection for ${domain}`);
+            moduleFindings = await runHibpScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED HIBP scan: ${moduleFindings} breach exposures found`);
             break;
 
           // case 'adversarial_media_scan':  // COMMENTED OUT - too noisy
