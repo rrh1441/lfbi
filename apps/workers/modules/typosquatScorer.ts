@@ -201,7 +201,7 @@ async function getWhoisData(domain: string, apiKey: string): Promise<WhoisData |
       status: whoisRecord.status || []
     };
     
-  } catch (error) {
+  } catch (error: any) {
     if (error.response?.status === 429) {
       throw new Error('WhoisXML API rate limit exceeded');
     }
@@ -276,7 +276,7 @@ async function analyzeTyposquat(
     const isRecentlyCreated = (analysis.days_since_creation || Infinity) <= ACTIVE_SQUAT_DAYS_THRESHOLD;
     const isDifferentASN = !analysis.asn_match && analysis.target_asn && analysis.domain_asn;
     
-    analysis.is_active_squat = isRecentlyCreated && isDifferentASN;
+    analysis.is_active_squat = isRecentlyCreated && !!isDifferentASN;
     
     // Calculate risk score (0-100)
     let riskScore = 0;

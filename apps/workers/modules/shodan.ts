@@ -57,7 +57,7 @@ interface ShodanResponse {
 /*  Severity helpers                                                           */
 /* -------------------------------------------------------------------------- */
 
-const PORT_RISK: Record<number, 'LOW' | 'MEDIUM' | 'HIGH'> = {
+const PORT_RISK: Record<number, 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'> = {
   21:  'MEDIUM',
   22:  'MEDIUM',
   23:  'HIGH',
