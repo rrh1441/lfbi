@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query
 
+    console.log('Findings query result:', { data: data?.length, error, scanId })
+
     if (error) {
       console.error('Database error:', error)
       return NextResponse.json(
