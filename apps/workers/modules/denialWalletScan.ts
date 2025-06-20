@@ -75,7 +75,7 @@ interface CostEstimate {
   confidence: 'high' | 'medium' | 'low';  // Based on detection strength
   cost_range_24h: {
     min: number;    // Conservative estimate
-    ml: number; // Most probable cost
+    eal_daily: number; // Most probable daily cost
     max: number;    // Worst-case scenario
   };
   risk_factors: string[];  // What makes this expensive
@@ -330,7 +330,7 @@ function detectServiceAndCalculateCost(endpoint: EndpointReport, indicators: Bac
   // Calculate cost ranges with uncertainty
   const cost_range_24h = {
     min: baseCost * 86400 * 0.1,      // Conservative (low usage)
-    ml: baseCost * 86400 * 1.0,   // Normal usage
+    eal_daily: baseCost * 86400 * 1.0,   // Normal daily usage
     max: baseCost * 86400 * 10.0      // Aggressive attack
   };
   
@@ -493,13 +493,13 @@ function calculateRiskAssessment(
     sustained_rps: sustainedRPS,
     auth_bypass_probability: authBypass.bypassProbability,
     
-    cost_1_hour: costEstimate.cost_range_24h.ml / 24,
-    cost_24_hour: costEstimate.cost_range_24h.ml,
-    cost_monthly: costEstimate.cost_range_24h.ml * 30,
+    cost_1_hour: costEstimate.cost_range_24h.eal_daily / 24,
+    cost_24_hour: costEstimate.cost_range_24h.eal_daily,
+    cost_monthly: costEstimate.cost_range_24h.eal_daily * 30,
     
     expected_annual_loss: {
       p10: costEstimate.cost_range_24h.min * 30,      // Low estimate
-      p50: costEstimate.cost_range_24h.ml * 90,   // Medium estimate  
+      p50: costEstimate.cost_range_24h.eal_daily * 90,   // Medium estimate  
       p90: costEstimate.cost_range_24h.max * 180      // High estimate
     },
     
@@ -509,11 +509,11 @@ function calculateRiskAssessment(
     
     discovery_likelihood: endpoint.includes('/api/') ? 0.8 : 0.4,
     
-    business_disruption: costEstimate.cost_range_24h.ml > 1000 ? 'severe' :
-                        costEstimate.cost_range_24h.ml > 100 ? 'moderate' : 'minor',
+    business_disruption: costEstimate.cost_range_24h.eal_daily > 1000 ? 'severe' :
+                        costEstimate.cost_range_24h.eal_daily > 100 ? 'moderate' : 'minor',
     
-    reputation_impact: costEstimate.cost_range_24h.ml > 5000 ? 'significant' :
-                      costEstimate.cost_range_24h.ml > 500 ? 'moderate' : 'minimal'
+    reputation_impact: costEstimate.cost_range_24h.eal_daily > 5000 ? 'significant' :
+                      costEstimate.cost_range_24h.eal_daily > 500 ? 'moderate' : 'minimal'
   };
 }
 
