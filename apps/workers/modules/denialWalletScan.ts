@@ -71,41 +71,19 @@ interface AuthBypassAnalysis {
 }
 
 interface CostEstimate {
-  unit_cost_usd: number;
-  confidence: 'high' | 'medium' | 'low';  // Based on detection strength
-  cost_range_24h: {
-    min: number;    // Conservative estimate
-    eal_daily: number; // Most probable daily cost
-    max: number;    // Worst-case scenario
-  };
-  risk_factors: string[];  // What makes this expensive
+  service_detected: string;
+  confidence: 'high' | 'medium' | 'low';
+  base_unit_cost: number;   // $ per billing unit
+  multiplier: string;       // requests | tokens | memory_mb | …
+  risk_factors: string[];
 }
 
 interface DoWRiskAssessment {
-  // Core metrics
-  unit_cost_usd: number;
-  sustained_rps: number;
+  service_detected: string;
+  estimated_daily_cost: number;
   auth_bypass_probability: number;
-  
-  // Time-based projections
-  cost_1_hour: number;
-  cost_24_hour: number;
-  cost_monthly: number;
-  
-  // Risk-adjusted values
-  expected_annual_loss: {
-    p10: number;  // 10th percentile
-    p50: number;  // Median
-    p90: number;  // 90th percentile
-  };
-  
-  // Attack feasibility
+  sustained_rps: number;
   attack_complexity: 'trivial' | 'low' | 'medium' | 'high';
-  discovery_likelihood: number;
-  
-  // Business impact
-  business_disruption: 'none' | 'minor' | 'moderate' | 'severe';
-  reputation_impact: 'minimal' | 'moderate' | 'significant';
 }
 
 interface DoWEvidence {
@@ -175,6 +153,41 @@ const SERVICE_COSTS = {
   // Default for unknown state-changing endpoints
   'unknown_stateful': { pattern: /.*/, cost: 0.0005, multiplier: 'requests' }
 };
+
+/* ──────────────────────────────────────────────────────────────
+ *  Dynamic volume estimation
+ *  ────────────────────────────────────────────────────────────── */
+const DEFAULT_TOKENS_PER_REQUEST = 750; // empirical median
+const DEFAULT_MEMORY_MB         = 128; // AWS/Lambda billing quantum
+
+function estimateDailyUnits(
+  multiplier: string,
+  sustainedRps: number,
+  authBypassProb: number
+): number {
+  // Shorter exploitation window if bypass is harder
+  const windowSeconds =
+    authBypassProb >= 0.9 ? 86_400 :   // 24 h
+    authBypassProb >= 0.5 ? 21_600 :   // 6 h
+    authBypassProb >= 0.2 ?  7_200 :   // 2 h
+                              1_800;   // 30 min
+
+  switch (multiplier) {
+    case 'requests':
+    case 'searches':
+    case 'emails':
+    case 'transformations':
+      return sustainedRps * windowSeconds;
+    case 'tokens':
+      // cost tables are per-1 000 tokens
+      return (sustainedRps * windowSeconds * DEFAULT_TOKENS_PER_REQUEST) / 1_000;
+    case 'memory_mb':
+      // AWS bills per 128 MB-second; normalise to 128 MB baseline
+      return sustainedRps * windowSeconds * (DEFAULT_MEMORY_MB / 128);
+    default:
+      return sustainedRps * windowSeconds;
+  }
+}
 
 class DoWSafetyController {
   private requestCount = 0;
@@ -317,22 +330,15 @@ function detectServiceAndCalculateCost(endpoint: EndpointReport, indicators: Bac
   // If no direct match, use response analysis
   if (confidence === 'low' && indicators.serverHeaders.length > 0) {
     confidence = 'medium';
-    
-    // Adjust cost based on response time (complexity indicator)
     if (indicators.responseTimeMs > 1000) {
       detectedService = 'complex_processing';
     }
   }
   
-  const serviceConfig = SERVICE_COSTS[detectedService as keyof typeof SERVICE_COSTS] || SERVICE_COSTS.unknown_stateful;
+  const serviceConfig =
+    SERVICE_COSTS[detectedService as keyof typeof SERVICE_COSTS] ??
+    SERVICE_COSTS.unknown_stateful;
   const baseCost = serviceConfig.cost;
-  
-  // Calculate cost ranges with uncertainty
-  const cost_range_24h = {
-    min: baseCost * 86400 * 0.1,      // Conservative (low usage)
-    eal_daily: baseCost * 86400 * 1.0,   // Normal daily usage
-    max: baseCost * 86400 * 10.0      // Aggressive attack
-  };
   
   const risk_factors = [];
   if (indicators.responseTimeMs > 500) risk_factors.push('High response time suggests complex processing');
@@ -340,9 +346,10 @@ function detectServiceAndCalculateCost(endpoint: EndpointReport, indicators: Bac
   if (indicators.costIndicators.length > 0) risk_factors.push('Billing/quota headers present');
   
   return {
-    unit_cost_usd: baseCost,
+    service_detected: detectedService,
     confidence,
-    cost_range_24h,
+    base_unit_cost: baseCost,
+    multiplier: serviceConfig.multiplier,
     risk_factors
   };
 }
@@ -477,43 +484,30 @@ async function measureSustainedRPS(endpoint: string, safetyController: DoWSafety
 }
 
 /**
- * Calculate comprehensive risk assessment
+ * Calculate simplified risk assessment
  */
 function calculateRiskAssessment(
   costEstimate: CostEstimate,
   sustainedRPS: number,
-  authBypass: AuthBypassAnalysis,
-  endpoint: string
+  authBypass: AuthBypassAnalysis
 ): DoWRiskAssessment {
-  
-  const baselineRPS = sustainedRPS * authBypass.bypassProbability;
-  
+
+  const dailyUnits = estimateDailyUnits(
+    costEstimate.multiplier,
+    sustainedRPS,
+    authBypass.bypassProbability
+  );
+
+  const estimated_daily_cost = dailyUnits * costEstimate.base_unit_cost;
+
   return {
-    unit_cost_usd: costEstimate.unit_cost_usd,
-    sustained_rps: sustainedRPS,
+    service_detected: costEstimate.service_detected,
+    estimated_daily_cost,
     auth_bypass_probability: authBypass.bypassProbability,
-    
-    cost_1_hour: costEstimate.cost_range_24h.eal_daily / 24,
-    cost_24_hour: costEstimate.cost_range_24h.eal_daily,
-    cost_monthly: costEstimate.cost_range_24h.eal_daily * 30,
-    
-    expected_annual_loss: {
-      p10: costEstimate.cost_range_24h.min * 30,      // Low estimate
-      p50: costEstimate.cost_range_24h.eal_daily * 90,   // Medium estimate  
-      p90: costEstimate.cost_range_24h.max * 180      // High estimate
-    },
-    
+    sustained_rps: sustainedRPS,
     attack_complexity: authBypass.bypassProbability > 0.8 ? 'trivial' :
                       authBypass.bypassProbability > 0.5 ? 'low' :
-                      authBypass.bypassProbability > 0.2 ? 'medium' : 'high',
-    
-    discovery_likelihood: endpoint.includes('/api/') ? 0.8 : 0.4,
-    
-    business_disruption: costEstimate.cost_range_24h.eal_daily > 1000 ? 'severe' :
-                        costEstimate.cost_range_24h.eal_daily > 100 ? 'moderate' : 'minor',
-    
-    reputation_impact: costEstimate.cost_range_24h.eal_daily > 5000 ? 'significant' :
-                      costEstimate.cost_range_24h.eal_daily > 500 ? 'moderate' : 'minimal'
+                      authBypass.bypassProbability > 0.2 ? 'medium' : 'high'
   };
 }
 
@@ -560,7 +554,7 @@ export async function runDenialWalletScan(job: { domain: string; scanId: string 
         // Analyze endpoint for backend indicators
         const indicators = await analyzeEndpointResponse(endpoint.url);
         
-        // Detect service and calculate costs
+        // Detect service and obtain base-unit costs
         const costEstimate = detectServiceAndCalculateCost(endpoint, indicators);
         
         // Test authentication bypass
@@ -572,65 +566,40 @@ export async function runDenialWalletScan(job: { domain: string; scanId: string 
           sustainedRPS = await measureSustainedRPS(endpoint.url, safetyController);
         }
         
-        // Calculate overall risk
-        const riskAssessment = calculateRiskAssessment(costEstimate, sustainedRPS, authBypass, endpoint.url);
+        // Calculate overall risk (daily burn)
+        const riskAssessment = calculateRiskAssessment(
+          costEstimate,
+          sustainedRPS,
+          authBypass
+        );
         
         // Only create findings for significant risks
-        if (riskAssessment.cost_24_hour > 10) { // $10+ per day threshold
-          const evidence: DoWEvidence = {
-            endpoint_analysis: {
-              url: endpoint.url,
-              methods_tested: [endpoint.method],
-              response_patterns: indicators.errorPatterns,
-              auth_attempts: authBypass.bypassMethods
-            },
-            cost_calculation: {
-              service_detected: 'detected_service', // Would be populated from detection
-              detection_method: 'response_analysis',
-              cost_basis: costEstimate.confidence,
-              confidence_level: costEstimate.confidence
-            },
-            rate_limit_testing: {
-              max_rps_achieved: sustainedRPS,
-              test_duration_seconds: TESTING_CONFIG.TEST_DURATION_SECONDS,
-              failure_threshold_hit: sustainedRPS < TESTING_CONFIG.MAX_RPS,
-              protective_responses: indicators.costIndicators
-            },
-            remediation_guidance: {
-              immediate_actions: [
-                'Implement rate limiting on this endpoint',
-                'Add authentication if missing',
-                'Monitor for unusual usage patterns'
-              ],
-              long_term_fixes: [
-                'Implement cost-aware rate limiting',
-                'Add request queuing and throttling',
-                'Set up billing alerts'
-              ],
-              cost_cap_recommendations: [
-                `Set daily spending limit of $${Math.ceil(riskAssessment.cost_24_hour * 0.1)}`,
-                'Implement circuit breakers for expensive operations'
-              ]
-            }
-          };
-          
-          await insertArtifact({
-            type: 'denial_wallet_risk',
-            val_text: `${endpoint.url} - DoW risk: $${riskAssessment.cost_24_hour.toFixed(2)}/day (${riskAssessment.attack_complexity} complexity)`,
-            severity: riskAssessment.cost_24_hour > 1000 ? 'CRITICAL' : 
-                      riskAssessment.cost_24_hour > 100 ? 'HIGH' : 'MEDIUM',
+        if (riskAssessment.estimated_daily_cost > 10) { // $10+ per day threshold
+          // Create a simple artifact first for the finding to reference
+          const artifactId = await insertArtifact({
+            type: 'denial_wallet_endpoint',
+            val_text: `${riskAssessment.service_detected} service detected at ${endpoint.url}`,
+            severity: riskAssessment.estimated_daily_cost > 1000 ? 'CRITICAL' : 
+                      riskAssessment.estimated_daily_cost > 100 ? 'HIGH' : 'MEDIUM',
             meta: {
               scan_id: scanId,
               scan_module: 'denialWalletScan',
-              risk_assessment: riskAssessment,
-              evidence: evidence,
-              testing_metadata: {
-                total_requests_sent: safetyController['requestCount'],
-                testing_duration_ms: Date.now() - startTime,
-                safety_stops_triggered: 0 // Would track emergency stops
-              }
+              endpoint_url: endpoint.url,
+              service_detected: riskAssessment.service_detected,
+              estimated_daily_cost: riskAssessment.estimated_daily_cost,
+              auth_bypass_probability: riskAssessment.auth_bypass_probability,
+              sustained_rps: riskAssessment.sustained_rps,
+              attack_complexity: riskAssessment.attack_complexity
             }
           });
+          
+          // Insert finding - let database calculate EAL values
+          await insertFinding(
+            artifactId,
+            'DENIAL_OF_WALLET',
+            `${endpoint.url} vulnerable to cost amplification attacks via ${riskAssessment.service_detected}`,
+            `Implement rate limiting and authentication. Estimated daily cost: $${riskAssessment.estimated_daily_cost.toFixed(2)}`
+          );
           
           findingsCount++;
         }
