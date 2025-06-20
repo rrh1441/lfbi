@@ -47,9 +47,10 @@ export interface Database {
           severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code: string
           state: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
-          eal_low: number
-          eal_ml: number
-          eal_high: number
+          eal_low: number | null
+          eal_ml: number | null
+          eal_high: number | null
+          eal_daily: number | null
         }
         Insert: {
           id?: string
@@ -61,9 +62,10 @@ export interface Database {
           severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code: string
           state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
-          eal_low: number
-          eal_ml: number
-          eal_high: number
+          eal_low?: number | null
+          eal_ml?: number | null
+          eal_high?: number | null
+          eal_daily?: number | null
         }
         Update: {
           id?: string
@@ -75,9 +77,10 @@ export interface Database {
           severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code?: string
           state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
-          eal_low?: number
-          eal_ml?: number
-          eal_high?: number
+          eal_low?: number | null
+          eal_ml?: number | null
+          eal_high?: number | null
+          eal_daily?: number | null
         }
       }
       reports: {
