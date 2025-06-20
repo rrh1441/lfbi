@@ -32,7 +32,11 @@ const CONFIG = {
   GITHUB_BATCH_SIZE: 25,
   GITHUB_BATCH_DELAY: 1_000,
   SUPPLY_CHAIN_THRESHOLD: 7.0,
-  EPSS_BATCH: 100
+  EPSS_BATCH: 100,
+  /** CVE older than this many years cannot bump risk unless KEV or high-EPSS */
+  MAX_RISK_VULN_AGE_YEARS: 5,
+  /** Max CVE IDs to list verbosely inside one finding */
+  MAX_VULN_IDS_PER_FINDING: 12
 } as const;
 
 type Severity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -168,6 +172,17 @@ class TechnologyScanCircuitBreaker {
 }
 
 const log = (...m: unknown[]) => rootLog('[techStackScan]', ...m);
+
+// ─────────────── Dedup + helper ─────────────────
+function dedupeVulns(v: VulnRecord[]): VulnRecord[] {
+  const seen = new Set<string>();
+  return v.filter(x => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+}
+
+function summarizeVulnIds(v: VulnRecord[], max: number): string {
+  const ids = v.slice(0, max).map(r => r.id);
+  return v.length > max ? ids.join(', ') + ', …' : ids.join(', ');
+}
 
 // ───────────────── Utility helpers ─────────────────────────────────────────
 const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -719,7 +734,7 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
     limit(() => getOSVVulns(t)),
     limit(() => getGitHubVulns(t))
   ]);
-  const vulns = [...osv, ...gh];
+  const vulns = dedupeVulns([...osv, ...gh]);
   // Enrich with EPSS + KEV
   const cveIds = vulns.filter(v => v.id.startsWith('CVE-')).map(v => v.id);
   const epssMap = await getEPSSScores(cveIds);
@@ -731,8 +746,19 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
   const advice: string[] = [];
   if (eol) { risk = 'HIGH'; advice.push(`Upgrade – version ${t.version} is EOL.`); }
   if (enriched.length) {
-    const hasHigh = enriched.some(v => (v.cvss ?? 0) >= 9 || (v.epss ?? 0) >= 0.7 || v.cisaKev);
-    risk = hasHigh ? 'HIGH' : risk === 'LOW' ? 'MEDIUM' : risk;
+    const now = Date.now();
+    const ageCut  = CONFIG.MAX_RISK_VULN_AGE_YEARS * 31_557_600_000;
+
+    const hasHighRecent = enriched.some(v => {
+      // Always honour KEV or very-high EPSS
+      if (v.cisaKev || (v.epss ?? 0) >= 0.85) return true;
+      // Otherwise require "recent enough" and critical CVSS
+      const fresh = v.publishedDate ? (now - v.publishedDate.getTime()) <= ageCut : true;
+      return fresh && (v.cvss ?? 0) >= 9;
+    });
+
+    risk = hasHighRecent ? 'HIGH'
+                         : risk === 'LOW' ? 'MEDIUM' : risk;
     advice.push(`Patch – ${enriched.length} vulnerabilities found.`);
     if (enriched.some(v => v.cisaKev)) advice.push('CISA Known‑Exploited vuln present.');
   }
@@ -877,8 +903,21 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
         }
       });
       artCount++;
-      if (a.advice.length) {
-        await insertFinding(artId, 'TECHNOLOGY_RISK', a.advice.join(' '), `Analysis for ${tech.name}${tech.version ? ' v'+tech.version : ''}. Supply chain score: ${a.supplyChainScore.toFixed(1)}/10.`);
+      if (a.vulns.length) {
+        const list = summarizeVulnIds(a.vulns, CONFIG.MAX_VULN_IDS_PER_FINDING);
+        await insertFinding(
+          artId,
+          'EXPOSED_SERVICE',
+          `${a.vulns.length} vulnerabilities detected (${list}).`,
+          a.advice.join(' ')
+        );
+      } else if (a.advice.length) {
+        await insertFinding(
+          artId,
+          'TECHNOLOGY_RISK',
+          a.advice.join(' '),
+          `Analysis for ${tech.name}${tech.version ? ' v'+tech.version : ''}. Supply chain score: ${a.supplyChainScore.toFixed(1)}/10.`
+        );
       }
       if (a.supplyChainScore >= CONFIG.SUPPLY_CHAIN_THRESHOLD) supplyFindings++;
     }
