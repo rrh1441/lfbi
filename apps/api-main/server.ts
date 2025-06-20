@@ -340,6 +340,22 @@ fastify.get('/api/scans/:scanId', async (request, reply) => {
   }
 });
 
+// Manual sync trigger endpoint (for troubleshooting)
+fastify.post('/admin/sync', async (request, reply) => {
+  try {
+    // This endpoint can be used to manually trigger sync worker restart
+    return {
+      message: 'Sync trigger endpoint - restart sync worker manually via fly machine restart',
+      timestamp: new Date().toISOString(),
+      instructions: 'Use: fly machine restart 148e212fe19238'
+    };
+  } catch (error) {
+    log('[api] Error in /admin/sync:', (error as Error).message);
+    reply.status(500);
+    return { error: 'Failed to trigger sync', details: (error as Error).message };
+  }
+});
+
 // Webhook callback endpoint (for future use)
 fastify.post('/scan/:id/callback', async (request, reply) => {
   try {

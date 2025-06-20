@@ -68,12 +68,16 @@ const PORT_RISK: Record<number, 'LOW' | 'MEDIUM' | 'HIGH'> = {
   135: 'HIGH',
   139: 'HIGH',
   445: 'HIGH',
+  502: 'CRITICAL',  // Modbus TCP
+  1883:'CRITICAL',  // MQTT
   3306:'MEDIUM',
   3389:'HIGH',
   5432:'MEDIUM',
   5900:'HIGH',
   6379:'MEDIUM',
   9200:'MEDIUM',
+  20000:'CRITICAL', // DNP3
+  47808:'CRITICAL', // BACnet
 };
 
 type Sev = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -142,6 +146,14 @@ function buildRecommendation(
       return 'Disable Telnet; migrate to SSH.';
     case 5900:
       return 'Avoid exposing VNC publicly; tunnel through SSH or VPN.';
+    case 502:
+      return 'CRITICAL: Modbus TCP exposed to internet. Isolate OT networks behind firewall/VPN immediately.';
+    case 1883:
+      return 'CRITICAL: MQTT broker exposed to internet. Implement authentication and network isolation.';
+    case 20000:
+      return 'CRITICAL: DNP3 protocol exposed to internet. Air-gap industrial control systems immediately.';
+    case 47808:
+      return 'CRITICAL: BACnet exposed to internet. Isolate building automation systems behind firewall.';
     default:
       return 'Restrict public access and apply latest security hardening guides.';
   }
@@ -161,6 +173,23 @@ async function persistMatch(
   /* --- baseline severity ------------------------------------------------- */
   let sev: Sev = (PORT_RISK[m.port] ?? 'INFO') as Sev;
   const findings: string[] = [];
+
+  /* --- ICS/OT protocol detection ----------------------------------------- */
+  const ICS_PORTS = [502, 1883, 20000, 47808];
+  const ICS_PRODUCTS = ['modbus', 'mqtt', 'bacnet', 'dnp3', 'scada'];
+  
+  let isICSProtocol = false;
+  if (ICS_PORTS.includes(m.port)) {
+    isICSProtocol = true;
+    sev = 'CRITICAL';
+  }
+  
+  // Check product field for ICS indicators
+  const productLower = (m.product ?? '').toLowerCase();
+  if (ICS_PRODUCTS.some(ics => productLower.includes(ics))) {
+    isICSProtocol = true;
+    if (sev === 'INFO') sev = 'CRITICAL';
+  }
 
   if (m.ssl?.cert?.expired) {
     findings.push('Expired SSL certificate');
@@ -199,9 +228,12 @@ async function persistMatch(
   if (findings.length === 0) findings.push(`Exposed service on port ${m.port}`);
 
   for (const f of findings) {
+    // Use specific finding type for ICS/OT protocols
+    const findingType = isICSProtocol ? 'OT_PROTOCOL_EXPOSED' : 'EXPOSED_SERVICE';
+    
     await insertFinding(
       artId,
-      'EXPOSED_SERVICE',
+      findingType,
       buildRecommendation(m.port, f, m.product ?? '', m.version ?? ''),
       f,
     );

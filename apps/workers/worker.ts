@@ -17,7 +17,10 @@ import { runAbuseIntelScan } from './modules/abuseIntelScan.js';
 import { runAdversarialMediaScan } from './modules/adversarialMediaScan.js';
 import { runAccessibilityScan } from './modules/accessibilityScan.js';
 import { runDenialWalletScan } from './modules/denialWalletScan.js';
-import { runHibpScan } from './modules/hibpScan.js';
+import { runBreachDirectoryProbe } from './modules/breachDirectoryProbe.js';
+import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
+import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
+import { runTyposquatScorer } from './modules/typosquatScorer.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -42,11 +45,14 @@ const ALL_MODULES_IN_ORDER = [
   'dns_twist',
   'document_exposure',
   'shodan',
+  'breach_directory_probe',
+  'rdp_vpn_templates',
+  'email_bruteforce_surface',
+  'typosquat_scorer',
   'db_port_scan',
   'endpoint_discovery',
   'tech_stack_scan',                                                      // ← ADDED
   'abuse_intel_scan',
-  'hibp_scan',
   // 'adversarial_media_scan',  // COMMENTED OUT - too noisy
   'accessibility_scan',
   'denial_wallet_scan',
@@ -204,6 +210,30 @@ async function processScan(job: ScanJob): Promise<void> {
             console.log('[worker] Findings:', moduleFindings);
             log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${moduleFindings} services found`);
             break;
+
+          case 'breach_directory_probe':
+            log(`[${scanId}] STARTING Breach Directory intelligence probe for ${domain}`);
+            moduleFindings = await runBreachDirectoryProbe({ domain, scanId });
+            log(`[${scanId}] COMPLETED Breach Directory probe: ${moduleFindings} breach findings`);
+            break;
+
+          case 'rdp_vpn_templates':
+            log(`[${scanId}] STARTING RDP/VPN vulnerability templates for ${domain}`);
+            moduleFindings = await runRdpVpnTemplates({ domain, scanId });
+            log(`[${scanId}] COMPLETED RDP/VPN templates scan: ${moduleFindings} remote access vulnerabilities found`);
+            break;
+
+          case 'email_bruteforce_surface':
+            log(`[${scanId}] STARTING email bruteforce surface scan for ${domain}`);
+            moduleFindings = await runEmailBruteforceSurface({ domain, scanId });
+            log(`[${scanId}] COMPLETED email bruteforce surface scan: ${moduleFindings} email attack vectors found`);
+            break;
+
+          case 'typosquat_scorer':
+            log(`[${scanId}] STARTING typosquat analysis for ${domain}`);
+            moduleFindings = await runTyposquatScorer({ domain, scanId });
+            log(`[${scanId}] COMPLETED typosquat analysis: ${moduleFindings} active typosquats detected`);
+            break;
             
           case 'db_port_scan':
             log(`[${scanId}] STARTING database port scan for ${domain}`);
@@ -229,11 +259,6 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] COMPLETED AbuseIPDB scan: ${moduleFindings} malicious/suspicious IPs found`);
             break;
 
-          case 'hibp_scan':
-            log(`[${scanId}] STARTING Have I Been Pwned breach detection for ${domain}`);
-            moduleFindings = await runHibpScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED HIBP scan: ${moduleFindings} breach exposures found`);
-            break;
 
           // case 'adversarial_media_scan':  // COMMENTED OUT - too noisy
           //   log(`[${scanId}] STARTING adversarial media scan for ${companyName}`);
