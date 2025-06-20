@@ -3,15 +3,12 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('Findings API called with URL:', request.url)
     const { searchParams } = new URL(request.url)
     const scanId = searchParams.get('scanId')
     const severity = searchParams.get('severity')
     const state = searchParams.get('state')
     const type = searchParams.get('type')
     const search = searchParams.get('search')
-
-    console.log('Query params:', { scanId, severity, state, type, search })
 
     let query = supabase.from('findings').select('*')
 
@@ -41,8 +38,6 @@ export async function GET(request: NextRequest) {
     query = query.order('created_at', { ascending: false })
 
     const { data, error } = await query
-
-    console.log('Findings query result:', { data: data?.length, error, scanId })
 
     if (error) {
       console.error('Database error:', error)
