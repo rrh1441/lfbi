@@ -56,18 +56,55 @@ async function queryBreachDirectory(domain: string, apiKey: string): Promise<Bre
     } else if (response.status === 404) {
       log(`No breach data found for domain: ${domain}`);
       return { breached_total: 0, sample_usernames: [] };
+    } else if (response.status === 403) {
+      // Enhanced logging for 403 Forbidden responses
+      const responseData = response.data || {};
+      const errorMessage = responseData.error || responseData.message || 'Access forbidden';
+      log(`Breach Directory API returned 403 Forbidden for ${domain}: ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
+      log(`This may indicate an invalid API key, insufficient permissions, or rate limiting`);
+      return { error: `API access forbidden (403): ${errorMessage}` };
     } else {
-      log(`Breach Directory API returned status ${response.status} for ${domain}`);
-      return { error: `API returned status ${response.status}` };
+      // Enhanced generic error handling with response data
+      const responseData = response.data || {};
+      const errorMessage = responseData.error || responseData.message || `HTTP ${response.status}`;
+      log(`Breach Directory API returned status ${response.status} for ${domain}: ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
+      return { error: `API returned status ${response.status}: ${errorMessage}` };
     }
     
   } catch (error: any) {
     if (error.response?.status === 429) {
+      const responseData = error.response?.data || {};
+      const errorMessage = responseData.error || responseData.message || 'Rate limit exceeded';
+      log(`Rate limit exceeded on Breach Directory API: ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
       throw new Error('Rate limit exceeded on Breach Directory API');
     } else if (error.response?.status === 401) {
+      const responseData = error.response?.data || {};
+      const errorMessage = responseData.error || responseData.message || 'Unauthorized';
+      log(`Invalid API key for Breach Directory: ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
       throw new Error('Invalid API key for Breach Directory');
+    } else if (error.response?.status === 403) {
+      // Additional 403 handling in catch block for network-level errors
+      const responseData = error.response?.data || {};
+      const errorMessage = responseData.error || responseData.message || 'Access forbidden';
+      log(`Breach Directory API access forbidden (403): ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
+      log(`Check API key validity and permissions`);
+      throw new Error(`API access forbidden: ${errorMessage}`);
+    } else if (error.response) {
+      // Generic response error with enhanced logging
+      const responseData = error.response.data || {};
+      const errorMessage = responseData.error || responseData.message || error.message;
+      log(`Breach Directory API error (${error.response.status}): ${errorMessage}`);
+      log(`Response data: ${JSON.stringify(responseData)}`);
+      throw new Error(`Breach Directory API error: ${errorMessage}`);
     }
     
+    // Network or other non-response errors
+    log(`Breach Directory network/connection error: ${error.message}`);
     throw new Error(`Breach Directory API error: ${error.message}`);
   }
 }

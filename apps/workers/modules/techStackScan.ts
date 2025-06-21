@@ -36,7 +36,11 @@ const CONFIG = {
   /** CVE older than this many years cannot bump risk unless KEV or high-EPSS */
   MAX_RISK_VULN_AGE_YEARS: 5,
   /** Max CVE IDs to list verbosely inside one finding */
-  MAX_VULN_IDS_PER_FINDING: 12
+  MAX_VULN_IDS_PER_FINDING: 12,
+  /** Drop vulnerabilities older than this many years (unless KEV or high-EPSS) */
+  DROP_VULN_AGE_YEARS: 5,
+  /** Drop vulnerabilities with EPSS score below this threshold (unless KEV) */
+  DROP_VULN_EPSS_CUT: 0.05
 } as const;
 
 type Severity = 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -300,11 +304,23 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
     );
     
     // Add discovered endpoints (limit to 100 for performance)
+    const discoveredCount = rows[0]?.urls?.length || 0;
     rows[0]?.urls?.slice(0, 100).forEach((url: string) => {
       if (url.startsWith('http')) targets.add(url);
     });
+    log(`buildTargets discovered=${discoveredCount} total=${targets.size}`);
   } catch (error) {
     log(`buildTargets error: ${(error as Error).message}`);
+  }
+  
+  // If no endpoints discovered, add common paths for better coverage
+  if (targets.size <= 2) {
+    const commonPaths = ['/admin', '/api', '/app', '/login', '/dashboard', '/home', '/about'];
+    commonPaths.forEach(path => {
+      targets.add(`https://${domain}${path}`);
+      targets.add(`https://www.${domain}${path}`);
+    });
+    log(`buildTargets fallback added common paths, total=${targets.size}`);
   }
   
   return Array.from(targets);
@@ -315,9 +331,20 @@ async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
   let browser: Browser | undefined;
   
   try {
+    // Enhanced Puppeteer launch options for better stability
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',        // Enhanced: prevent /dev/shm memory issues
+        '--disable-accelerated-2d-canvas', // Enhanced: disable GPU acceleration for stability
+        '--disable-gpu',                   // Enhanced: disable GPU for headless reliability
+        '--window-size=1920x1080'         // Enhanced: set consistent window size
+      ],
+      protocolTimeout: 90000, // Enhanced: increased from 60000 to 90000 for better stability
+      timeout: 60000,         // Enhanced: increased browser launch timeout from 30000 to 60000
+      dumpio: process.env.NODE_ENV === 'development' || process.env.DEBUG_PUPPETEER === 'true' // Enhanced: conditional debug output
     });
     
     const page = await browser.newPage();
@@ -345,11 +372,20 @@ async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
       request.continue();
     });
     
-    // Navigate and wait for resources
-    await page.goto(`https://${domain}`, { 
-      timeout: CONFIG.PAGE_TIMEOUT_MS,
-      waitUntil: 'networkidle2' 
-    });
+    // Navigate and wait for resources with fallback
+    try {
+      await page.goto(`https://${domain}`, { 
+        timeout: CONFIG.PAGE_TIMEOUT_MS,
+        waitUntil: 'networkidle2' 
+      });
+    } catch (navError) {
+      // Fallback: try with less strict wait condition
+      log(`thirdParty=navigation_fallback domain=${domain} error="${(navError as Error).message}"`);
+      await page.goto(`https://${domain}`, { 
+        timeout: CONFIG.PAGE_TIMEOUT_MS,
+        waitUntil: 'domcontentloaded' 
+      });
+    }
     
     // Limit results to prevent excessive discovery
     const limitedOrigins = Array.from(origins).slice(0, CONFIG.MAX_THIRD_PARTY_REQUESTS);
@@ -699,31 +735,77 @@ function assessLicenseRisk(license?: string): 'LOW' | 'MEDIUM' | 'HIGH' {
   return 'LOW';
 }
 
-/* Package intelligence from deps.dev */
-async function getPackageIntelligence(ecosystem: string, name: string): Promise<PackageIntelligence | undefined> {
-  const key = `deps:${ecosystem}:${name}`;
-  const cached = depsDevCache.get(key);
-  if (cached !== null) return cached;
+/* Package intelligence from deps.dev - Removed unused function */
 
-  try {
-    const { data } = await axios.get(`https://api.deps.dev/v3alpha/systems/${ecosystem}/packages/${name}`, {
-      timeout: CONFIG.API_TIMEOUT_MS
-    });
+// ───────────────── Vulnerability Filtering ─────────────────────────────────
 
-    const intelligence: PackageIntelligence = {
-      popularity: data.scorecard?.popularity,
-      maintenance: data.scorecard?.maintenance,
-      license: data.defaultVersion?.licenses?.[0],
-      licenseRisk: assessLicenseRisk(data.defaultVersion?.licenses?.[0]),
-      dependents: data.scorecard?.dependents
-    };
+/**
+ * Filter out low-value vulnerabilities based on age and EPSS score
+ * Preserves KEV and high-EPSS vulnerabilities regardless of age
+ */
+function filterLowValue(vulns: VulnRecord[]): VulnRecord[] {
+  const now = Date.now();
+  const ageThreshold = CONFIG.DROP_VULN_AGE_YEARS * 365 * 24 * 60 * 60 * 1000; // Convert years to milliseconds
+  
+  return vulns.filter(vuln => {
+    // Always keep CISA KEV vulnerabilities
+    if (vuln.cisaKev) {
+      return true;
+    }
+    
+    // Always keep high EPSS vulnerabilities 
+    if (vuln.epss && vuln.epss >= 0.1) {
+      return true;
+    }
+    
+    // For other vulnerabilities, check age and EPSS threshold
+    const isRecent = !vuln.publishedDate || (now - vuln.publishedDate.getTime()) <= ageThreshold;
+    const meetsEpssThreshold = !vuln.epss || vuln.epss >= CONFIG.DROP_VULN_EPSS_CUT;
+    
+    return isRecent && meetsEpssThreshold;
+  });
+}
 
-    depsDevCache.set(key, intelligence);
-    return intelligence;
-  } catch {
-    depsDevCache.set(key, undefined);
-    return undefined;
+/**
+ * Merge GHSA and CVE records, removing duplicates
+ * Prefers CVE records when both exist for the same vulnerability
+ */
+function mergeGhsaWithCve(vulns: VulnRecord[]): VulnRecord[] {
+  const cveMap = new Map<string, VulnRecord>();
+  const ghsaMap = new Map<string, VulnRecord>();
+  const otherVulns: VulnRecord[] = [];
+  
+  // Separate vulnerabilities by type
+  for (const vuln of vulns) {
+    if (vuln.id.startsWith('CVE-')) {
+      cveMap.set(vuln.id, vuln);
+    } else if (vuln.id.startsWith('GHSA-')) {
+      ghsaMap.set(vuln.id, vuln);
+    } else {
+      otherVulns.push(vuln);
+    }
   }
+  
+  // Find GHSA records that don't have corresponding CVE records
+  const uniqueGhsa: VulnRecord[] = [];
+  ghsaMap.forEach((ghsaRecord) => {
+    // Simple heuristic: check if any CVE record has similar summary or affected version
+    const hasCveMatch = Array.from(cveMap.values()).some(cveRecord => {
+      return (
+        (ghsaRecord.summary && cveRecord.summary && 
+         ghsaRecord.summary.toLowerCase().includes(cveRecord.summary.toLowerCase().substring(0, 50))) ||
+        (ghsaRecord.affectedVersionRange && cveRecord.affectedVersionRange &&
+         ghsaRecord.affectedVersionRange === cveRecord.affectedVersionRange)
+      );
+    });
+    
+    if (!hasCveMatch) {
+      uniqueGhsa.push(ghsaRecord);
+    }
+  });
+  
+  // Return CVE records + unique GHSA records + other vulnerabilities
+  return [...Array.from(cveMap.values()), ...uniqueGhsa, ...otherVulns];
 }
 
 // ───────────────── Enhanced security analysis  ────────────────────────────
@@ -740,16 +822,20 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
   const epssMap = await getEPSSScores(cveIds);
   const kevSet = await getKEVList();
   const enriched = vulns.map(v => ({ ...v, epss: epssMap.get(v.id), cisaKev: kevSet.has(v.id) }));
-  const scScore = supplyChainScore(enriched);
+  
+  // Apply vulnerability filtering to reduce noise
+  const merged = mergeGhsaWithCve(enriched);
+  const filtered = filterLowValue(merged);
+  const scScore = supplyChainScore(filtered);
   // Risk decision
   let risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
   const advice: string[] = [];
   if (eol) { risk = 'HIGH'; advice.push(`Upgrade – version ${t.version} is EOL.`); }
-  if (enriched.length) {
+  if (filtered.length) {
     const now = Date.now();
     const ageCut  = CONFIG.MAX_RISK_VULN_AGE_YEARS * 31_557_600_000;
 
-    const hasHighRecent = enriched.some(v => {
+    const hasHighRecent = filtered.some(v => {
       // Always honour KEV or very-high EPSS
       if (v.cisaKev || (v.epss ?? 0) >= 0.85) return true;
       // Otherwise require "recent enough" and critical CVSS
@@ -759,8 +845,8 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
 
     risk = hasHighRecent ? 'HIGH'
                          : risk === 'LOW' ? 'MEDIUM' : risk;
-    advice.push(`Patch – ${enriched.length} vulnerabilities found.`);
-    if (enriched.some(v => v.cisaKev)) advice.push('CISA Known‑Exploited vuln present.');
+    advice.push(`Patch – ${filtered.length} vulnerabilities found.`);
+    if (filtered.some(v => v.cisaKev)) advice.push('CISA Known‑Exploited vuln present.');
   }
   if (scScore >= CONFIG.SUPPLY_CHAIN_THRESHOLD) {
     risk = risk === 'LOW' ? 'MEDIUM' : risk;
@@ -770,7 +856,7 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
   if (vAcc < CONFIG.MIN_VERSION_CONFIDENCE && t.version)
     advice.push(`Version detection confidence ${(vAcc * 100).toFixed(1)} %. Verify manually.`);
 
-  return { eol, vulns: enriched, risk, advice, versionAccuracy: vAcc, supplyChainScore: scScore, packageIntelligence: undefined };
+  return { eol, vulns: filtered, risk, advice, versionAccuracy: vAcc, supplyChainScore: scScore, packageIntelligence: undefined };
 }
 
 /* Generate CycloneDX 1.5 SBOM */
@@ -863,20 +949,28 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
       discoverThirdPartyOrigins(domain)
     ]);
     const allTargets = [...primary, ...thirdParty];
+    log(`techstack=targets primary=${primary.length} thirdParty=${thirdParty.length} total=${allTargets.length}`);
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
     // fingerprint
     await Promise.all(allTargets.map(url => limit(async () => {
       if (cb.isTripped()) return;
       try {
+        log(`techstack=nuclei url="${url}"`);
         const { stdout } = await exec(nucleiBinary, ['-u', url, '-silent', '-json', '-tags', 'tech', '-no-color'], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
-        const techs = convertNucleiToWappTech(stdout.trim().split('\n').filter(Boolean));
+        const lines = stdout.trim().split('\n').filter(Boolean);
+        log(`techstack=nuclei_output url="${url}" lines=${lines.length}`);
+        const techs = convertNucleiToWappTech(lines);
+        log(`techstack=converted url="${url}" techs=${techs.length}`);
         techs.forEach(t => {
           techMap.set(t.slug, t);
           if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
           detectMap.get(t.slug)!.push(t);
         });
-      } catch (e) { if ((e as Error).message.includes('timeout')) cb.recordTimeout(); }
+      } catch (e) { 
+        log(`techstack=nuclei_error url="${url}" error="${(e as Error).message}"`);
+        if ((e as Error).message.includes('timeout')) cb.recordTimeout(); 
+      }
     })));
     // analysis
     const analysisMap = new Map<string, EnhancedSecAnalysis>();

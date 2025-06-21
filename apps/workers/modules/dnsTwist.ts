@@ -20,7 +20,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import https from 'node:https';
+import * as https from 'node:https';
 import axios, { AxiosRequestConfig } from 'axios';
 import { parse } from 'node-html-parser';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';

@@ -17,7 +17,7 @@
 
 import { execFile, exec as execRaw } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import axios from 'axios';
 import { insertArtifact } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';

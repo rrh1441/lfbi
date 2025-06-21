@@ -7,7 +7,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 
@@ -178,14 +178,20 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
       '-disable-update-check'
     ];
     
+    // Add -insecure flag if TLS verification is disabled
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+      args.push('-insecure');
+    }
+    
     const { stdout, stderr } = await execFileAsync('nuclei', args, {
       timeout: NUCLEI_TIMEOUT_MS,
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer
       env: { ...process.env, NO_COLOR: '1' }
     });
     
+    // Enhanced stderr logging - capture full output for better debugging
     if (stderr) {
-      log(`Nuclei stderr: ${stderr.slice(0, 500)}`);
+      log(`Nuclei stderr: ${stderr}`);
     }
     
     // Parse JSON results

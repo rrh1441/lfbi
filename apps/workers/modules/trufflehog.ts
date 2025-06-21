@@ -19,8 +19,9 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import * as https from 'node:https';
 import axios from 'axios';
 import { parse } from 'node-html-parser';
 import { insertArtifact } from '../core/artifactStore.js';
@@ -116,11 +117,16 @@ async function scanWebsite(domain: string, scanId: string): Promise<number> {
             pagesVisited++;
 
             try {
+                log(`[trufflehog] [Website Scan] Attempting to fetch URL: ${url}`);
                 const response = await axios.get(url, {
                     timeout: 10000,
                     maxContentLength: MAX_FILE_SIZE_BYTES,
                     maxBodyLength: MAX_FILE_SIZE_BYTES,
+                    httpsAgent: new https.Agent({
+                        rejectUnauthorized: process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0"
+                    })
                 });
+                log(`[trufflehog] [Website Scan] Successfully fetched ${url}, content length: ${response.data.length}`);
                 
                 totalDownloadedSize += response.data.length;
                 filesWritten++;
@@ -184,11 +190,16 @@ async function scanLocalFiles(scanId: string): Promise<number> {
 
     for (const filePath of filePathsToScan) {
         try {
+            log(`[trufflehog] [File Scan] Checking file existence: ${filePath}`);
             await fs.access(filePath);
+            log(`[trufflehog] [File Scan] File exists, proceeding with scan: ${filePath}`);
             const { stdout } = await exec('trufflehog', ['filesystem', filePath, '--json', '--no-verification'], { maxBuffer: 10 * 1024 * 1024 });
-            findings += await processTrufflehogOutput(stdout, 'file', `local:${filePath}`);
+            const fileFindings = await processTrufflehogOutput(stdout, 'file', `local:${filePath}`);
+            findings += fileFindings;
+            log(`[trufflehog] [File Scan] Completed scan of ${filePath}, found ${fileFindings} findings`);
         } catch (error) {
-            // This is expected if a file doesn't exist, so no noisy log needed.
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            log(`[trufflehog] [File Scan] Unable to scan file ${filePath}: ${errorMessage}`);
         }
     }
     return findings;
@@ -207,16 +218,38 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
 
   try {
     const linksPath = `/tmp/spiderfoot-links-${job.scanId}.json`;
+    log(`[trufflehog] Checking for SpiderFoot links file at: ${linksPath}`);
+    
+    // Check if file exists before attempting to read
+    try {
+      await fs.access(linksPath);
+      log(`[trufflehog] SpiderFoot links file exists, attempting to read...`);
+    } catch (accessError) {
+      log(`[trufflehog] SpiderFoot links file does not exist: ${(accessError as Error).message}`);
+      throw new Error('File does not exist');
+    }
+    
     const linksFile = await fs.readFile(linksPath, 'utf8');
-    const links = JSON.parse(linksFile) as string[];
+    log(`[trufflehog] Successfully read SpiderFoot links file, content length: ${linksFile.length}`);
+    
+    let links: string[];
+    try {
+      links = JSON.parse(linksFile) as string[];
+      log(`[trufflehog] Successfully parsed JSON, found ${links.length} total links`);
+    } catch (parseError) {
+      log(`[trufflehog] [ERROR] Failed to parse SpiderFoot links JSON: ${(parseError as Error).message}`);
+      throw parseError;
+    }
+    
     const gitRepos = links.filter(l => GITHUB_RE.test(l)).slice(0, MAX_GIT_REPOS_TO_SCAN);
     
-    log(`[trufflehog] Found ${gitRepos.length} GitHub repositories to scan.`);
+    log(`[trufflehog] Found ${gitRepos.length} GitHub repositories to scan from ${links.length} total links.`);
     for (const repo of gitRepos) {
       totalFindings += await scanGit(repo);
     }
-  } catch {
-    log('[trufflehog] No SpiderFoot links file found, or unable to parse. Skipping Git repo scan.');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    log(`[trufflehog] Unable to process SpiderFoot links file: ${errorMessage}. Skipping Git repo scan.`);
   }
 
   totalFindings += await scanLocalFiles(job.scanId);

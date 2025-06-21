@@ -14,7 +14,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
@@ -51,26 +51,75 @@ const TLS_DERIVATION_PREFIXES = ['www']; // extend with 'app', 'login', … if n
 
 /* ---------- Helpers ------------------------------------------------------- */
 
-/** Locate testssl.sh in common paths or $PATH */
+/** Locate testssl.sh in common paths or $PATH with enhanced detection */
 async function resolveTestsslPath(): Promise<string> {
-  const paths = [
+  const candidatePaths: string[] = [];
+  
+  // 1. Check TESTSSL_PATH environment variable first
+  if (process.env.TESTSSL_PATH) {
+    candidatePaths.push(process.env.TESTSSL_PATH);
+    log(`[tlsScan] Using TESTSSL_PATH environment variable: ${process.env.TESTSSL_PATH}`);
+  }
+  
+  // 2. Add common installation paths
+  candidatePaths.push(
     '/opt/testssl.sh/testssl.sh',
     '/usr/local/bin/testssl.sh',
     '/usr/bin/testssl.sh',
-    'testssl.sh',
-  ];
+    'testssl.sh'
+  );
 
-  for (const p of paths) {
+  log(`[tlsScan] Searching for testssl.sh in ${candidatePaths.length} candidate paths...`);
+
+  for (const candidatePath of candidatePaths) {
     try {
-      const result = await exec(p, ['--version'], { timeout: 10_000 });
-      log(`[tlsScan] Found testssl.sh at: ${p}`);
-      return p;
+      log(`[tlsScan] Attempting to validate testssl.sh at: ${candidatePath}`);
+      
+      // Test the path by running --version
+      const result = await exec(candidatePath, ['--version'], { 
+        timeout: 10_000,
+        encoding: 'utf8'
+      });
+      
+      // Validate that we got a proper testssl.sh response
+      const output = result.stdout?.toString() || '';
+      if (output.toLowerCase().includes('testssl.sh')) {
+        log(`[tlsScan] Successfully validated testssl.sh at: ${candidatePath}`);
+        log(`[tlsScan] testssl.sh version info: ${output.trim().split('\n')[0]}`);
+        return candidatePath;
+      } else {
+        log(`[tlsScan] Path ${candidatePath} exists but doesn't appear to be testssl.sh (output: ${output.trim()})`);
+      }
     } catch (error) {
-      log(`[tlsScan] Failed to execute ${p}: ${(error as Error).message}`);
-      /* try next */
+      const errorMsg = (error as Error).message;
+      log(`[tlsScan] Failed to validate ${candidatePath}: ${errorMsg}`);
+      
+      // Provide more specific error context
+      if (errorMsg.includes('ENOENT')) {
+        log(`[tlsScan] File not found at ${candidatePath}`);
+      } else if (errorMsg.includes('EACCES')) {
+        log(`[tlsScan] Permission denied for ${candidatePath}`);
+      } else if (errorMsg.includes('timeout')) {
+        log(`[tlsScan] Timeout while testing ${candidatePath}`);
+      }
     }
   }
-  throw new Error('testssl.sh not found in any expected location');
+  
+  // If we get here, none of the paths worked
+  const errorMessage = [
+    'testssl.sh not found in any expected location.',
+    'Searched paths:',
+    ...candidatePaths.map(p => `  - ${p}`),
+    '',
+    'To resolve this issue:',
+    '1. Install testssl.sh from https://github.com/drwetter/testssl.sh',
+    '2. Set the TESTSSL_PATH environment variable to the full path of testssl.sh',
+    '3. Ensure testssl.sh is executable (chmod +x testssl.sh)',
+    '4. Verify testssl.sh works by running: testssl.sh --version'
+  ].join('\n');
+  
+  log(`[tlsScan] ERROR: ${errorMessage}`);
+  throw new Error(errorMessage);
 }
 
 /** Maps testssl.sh test IDs to remediation text (non-exhaustive)             */

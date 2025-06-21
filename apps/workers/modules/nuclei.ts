@@ -20,8 +20,9 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
-import path from 'node:path'; // REFACTOR: Added for path joining.
+import { promises as fs } from 'node:fs';
+import * as path from 'node:path'; // REFACTOR: Added for path joining.
+import * as https from 'node:https';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 import { verifyCVEs } from './cveVerifier.js';
@@ -160,6 +161,11 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         '-headless'
     ];
     
+    // Add -insecure flag if TLS bypass is enabled
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+        nucleiArgs.push('-insecure');
+    }
+    
     // Add verified CVE filtering if available
     if (verifiedCVEs && verifiedCVEs.length > 0) {
         nucleiArgs.push('-include-ids', verifiedCVEs.join(','));
@@ -178,6 +184,9 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         return await processNucleiOutput(stdout, scanId!, 'tags');
     } catch (error) {
         log(`[nuclei] [Tag Scan] Failed for ${target.url}:`, (error as Error).message);
+        if ((error as any).stderr) {
+            log(`[nuclei] [Tag Scan] Full stderr for ${target.url}:`, (error as any).stderr);
+        }
         return 0;
     }
 }
@@ -197,13 +206,20 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
     }
 
     try {
-        const { stdout, stderr } = await exec('nuclei', [
+        const nucleiWorkflowArgs = [
             '-u', target.url,
             '-w', workflowPath,
             '-json',
             '-silent',
             '-timeout', '15'
-        ], { timeout: 900000 });
+        ];
+        
+        // Add -insecure flag if TLS bypass is enabled
+        if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+            nucleiWorkflowArgs.push('-insecure');
+        }
+        
+        const { stdout, stderr } = await exec('nuclei', nucleiWorkflowArgs, { timeout: 900000 });
 
         if (stderr) {
             log(`[nuclei] [Workflow Scan] stderr for ${target.url}:`, stderr);
@@ -212,6 +228,9 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
     } catch (error) {
         log(`[nuclei] [Workflow Scan] Failed for ${target.url} with workflow ${workflowPath}:`, (error as Error).message);
+        if ((error as any).stderr) {
+            log(`[nuclei] [Workflow Scan] Full stderr for ${target.url}:`, (error as any).stderr);
+        }
         return 0;
     }
 }
@@ -233,12 +252,24 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
     const bannerMap = new Map<string, string>();   // host -> banner string
     await Promise.all(targets.map(async t => {
         try {
-            const response = await fetch(t.url, { 
+            const fetchOptions: RequestInit = { 
                 method: 'HEAD', 
                 redirect: 'manual', 
                 cache: 'no-store',
-                signal: AbortSignal.timeout(5000) // 5s timeout
-            });
+                signal: AbortSignal.timeout(5000), // 5s timeout
+                headers: {
+                    'User-Agent': 'DealBrief-Scanner/1.0'
+                }
+            };
+            
+            // Add TLS bypass if environment variable is set
+            if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+                (fetchOptions as any).agent = new https.Agent({
+                    rejectUnauthorized: false
+                });
+            }
+            
+            const response = await fetch(t.url, fetchOptions);
             const server = response.headers.get('server');          // e.g. "Apache/2.4.62 (Ubuntu)"
             if (server) {
                 bannerMap.set(t.url, server);

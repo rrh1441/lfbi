@@ -11,9 +11,9 @@
  * =============================================================================
  */
 
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import crypto from 'node:crypto';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import * as crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import axios, { AxiosResponse } from 'axios';
 import { fileTypeFromBuffer } from 'file-type';

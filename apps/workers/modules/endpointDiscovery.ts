@@ -15,7 +15,7 @@ import { parse } from 'node-html-parser';
 import { insertArtifact } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 import { URL } from 'node:url';
-import https from 'node:https';
+import * as https from 'node:https';
 
 // ---------- Configuration ----------------------------------------------------
 

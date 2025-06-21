@@ -346,10 +346,25 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
   const pageResults: AccessibilityPageResult[] = [];
   
   try {
-    // Launch browser
+    // Launch browser with enhanced stability options
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security']
+      // Enhanced args for better stability and performance
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--disable-web-security',
+        '--disable-dev-shm-usage',      // Overcome limited resource problems
+        '--disable-accelerated-2d-canvas',  // Disable hardware acceleration
+        '--disable-gpu',                // Disable GPU hardware acceleration
+        '--window-size=1920x1080'       // Set consistent window size
+      ],
+      // Increase protocol timeout for better stability
+      protocolTimeout: 90000,
+      // Browser launch timeout
+      timeout: 60000,
+      // Enable dumpio for debugging in development
+      dumpio: process.env.NODE_ENV === 'development' || process.env.DEBUG_PUPPETEER === 'true'
     });
     
     const page = await browser.newPage();

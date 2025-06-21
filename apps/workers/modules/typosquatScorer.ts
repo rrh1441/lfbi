@@ -7,7 +7,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import fs from 'node:fs/promises';
+import * as fs from 'node:fs/promises';
 import axios from 'axios';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';

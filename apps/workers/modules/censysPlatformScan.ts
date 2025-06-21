@@ -3,9 +3,9 @@
  * v2.3 – resolves TS-2769, 2345, 2352, 2322
  */
 
-import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import * as crypto from 'node:crypto';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 /* ─────────── Configuration ─────────── */
