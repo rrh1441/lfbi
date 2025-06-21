@@ -470,119 +470,114 @@ async function isEol(slug: string, version?: string): Promise<boolean> {
   }
 }
 
-// Version validation helpers
+// Stricter version range validation
 function isVersionInRange(version: string, range: string): boolean {
   try {
-    // Clean and normalize version strings
     const cleanVersion = semver.coerce(version);
     if (!cleanVersion) {
       log(`version=invalid version="${version}"`);
       return false;
     }
 
-    // Handle common range patterns
-    if (range.includes('*') || range === '*') {
-      return true; // Wildcard matches all
+    // Reject wildcard ranges for old CVEs
+    if (range === '*' || range.includes('*')) {
+      // Don't accept wildcard ranges - too broad
+      log(`version=rejected_wildcard range="${range}"`);
+      return false;
     }
 
-    // Convert common patterns to semver ranges
-    let semverRange = range;
+    // Handle specific version lists more strictly
+    if (!range.match(/[<>=~^]/) && !range.includes(' ')) {
+      // Exact version match only
+      const rangeVersion = semver.coerce(range);
+      return rangeVersion ? semver.eq(cleanVersion, rangeVersion) : false;
+    }
+
+    // For complex ranges, validate they make sense
+    if (range.includes('>=') && range.includes('<')) {
+      // This is a proper range, use semver
+      return semver.satisfies(cleanVersion, range);
+    }
+
+    // Default semver handling
+    return semver.satisfies(cleanVersion, range);
     
-    // Handle "< x.y.z" patterns
-    if (range.match(/^<\s*[0-9]/)) {
-      semverRange = range;
-    }
-    // Handle ">= x.y.z" patterns  
-    else if (range.match(/^>=\s*[0-9]/)) {
-      semverRange = range;
-    }
-    // Handle "x.y.z - a.b.c" range patterns
-    else if (range.includes(' - ')) {
-      semverRange = range;
-    }
-    // Handle comma-separated ranges like ">=2.4.0, <2.4.50"
-    else if (range.includes(',')) {
-      const parts = range.split(',').map(p => p.trim());
-      return parts.every(part => semver.satisfies(cleanVersion, part));
-    }
-    // Handle specific version lists
-    else if (range.includes(version)) {
-      return true;
-    }
-    // Default: try as semver range
-    else {
-      // If it doesn't look like a range, assume exact match
-      if (!range.match(/[<>=~^]/) && !range.includes(' ')) {
-        return semver.eq(cleanVersion, semver.coerce(range) || range);
-      }
-    }
-
-    return semver.satisfies(cleanVersion, semverRange);
   } catch (error) {
     log(`version=error version="${version}" range="${range}" error="${(error as Error).message}"`);
-    // Fallback to simple string matching for malformed ranges
-    return range.includes(version);
+    // On error, reject rather than accept
+    return false;
   }
 }
 
-// Add CVE timeline validation function
+// Enhanced CVE timeline validation - More aggressive filtering
 function validateCVETimeline(cveId: string, publishedDate?: Date, softwareVersion?: string): boolean {
-  if (!publishedDate || !softwareVersion) {
-    return true; // Can't validate without dates, allow through
-  }
+  if (!softwareVersion) return true;
 
-  // Extract year from CVE ID (format: CVE-YYYY-NNNNN)
+  // Extract year from CVE ID
   const cveMatch = cveId.match(/CVE-(\d{4})-/);
-  if (!cveMatch) {
-    return true; // Not a standard CVE format
-  }
+  if (!cveMatch) return true;
 
   const cveYear = parseInt(cveMatch[1]);
-  
-  // Get software release year from version (approximate)
   const versionReleaseYear = estimateVersionReleaseYear(softwareVersion);
   
-  // CVE can't affect software released after the CVE was published
-  if (versionReleaseYear && versionReleaseYear > cveYear + 1) { // +1 year buffer for late disclosures
-    log(`cve=timeline_invalid cve="${cveId}" cveYear=${cveYear} versionYear=${versionReleaseYear}`);
+  // If we can't determine the version year, be conservative and reject old CVEs
+  if (!versionReleaseYear) {
+    // Reject CVEs older than 5 years when version year unknown
+    return cveYear >= new Date().getFullYear() - 5;
+  }
+
+  // Strict check: CVE must be from the same year or later than the software version
+  // This is more aggressive than the previous +1 year buffer
+  if (cveYear < versionReleaseYear - 1) {
+    log(`cve=timeline_rejected cve="${cveId}" cveYear=${cveYear} versionYear=${versionReleaseYear}`);
     return false;
+  }
+
+  // Additional check: if published date exists, ensure it's before a reasonable date
+  if (publishedDate && versionReleaseYear) {
+    const versionReleaseDate = new Date(versionReleaseYear, 0, 1); // Jan 1st of release year
+    if (publishedDate > versionReleaseDate) {
+      // CVE published after version release might be valid
+      return true;
+    }
   }
 
   return true;
 }
 
-// Estimate release year of software version (basic heuristic)
+// More accurate version release year estimation
 function estimateVersionReleaseYear(version: string): number | null {
-  // For Apache versions, we know some patterns:
-  // 2.4.x series started in 2012
-  // 2.4.50+ are from 2021+
-  // 2.4.60+ are from 2024+
-  
   const versionMatch = version.match(/(\d+)\.(\d+)\.(\d+)/);
   if (!versionMatch) return null;
   
   const [, major, minor, patch] = versionMatch.map(Number);
   
-  // Apache-specific heuristics (can be expanded for other software)
+  // Apache httpd 2.4.x specific logic (based on actual release dates)
   if (major === 2 && minor === 4) {
-    if (patch >= 60) return 2024;
+    // More granular mapping based on actual Apache releases
+    if (patch >= 62) return 2024; // 2.4.62 was released in 2024
+    if (patch >= 58) return 2023;
+    if (patch >= 54) return 2022;
     if (patch >= 50) return 2021;
-    if (patch >= 40) return 2019;
-    if (patch >= 30) return 2017;
+    if (patch >= 46) return 2020;
+    if (patch >= 41) return 2019;
+    if (patch >= 35) return 2018;
+    if (patch >= 29) return 2017;
+    if (patch >= 25) return 2016;
     if (patch >= 20) return 2015;
-    if (patch >= 10) return 2013;
-    return 2012;
+    if (patch >= 12) return 2014;
+    if (patch >= 6) return 2013;
+    return 2012; // 2.4.x series started in 2012
   }
   
-  // Generic heuristic: newer versions are more recent
-  // This is rough but better than nothing
-  if (major >= 3) return 2020;
-  if (major === 2 && minor >= 5) return 2020;
+  // Add other software patterns as needed
+  // nginx, Node.js, PHP, etc.
   
-  return null; // Can't estimate
+  // Fallback: use current year minus a conservative estimate
+  return new Date().getFullYear() - 2;
 }
 
-/* OSV.dev vulnerability lookup */
+/* Enhanced OSV vulnerability lookup with better filtering */
 async function getOSVVulns(t: WappTech): Promise<VulnRecord[]> {
   if (!t.version) return [];
   
@@ -601,11 +596,36 @@ async function getOSVVulns(t: WappTech): Promise<VulnRecord[]> {
 
     const vulns: VulnRecord[] = (data.vulns || [])
       .filter((v: any) => {
-        // Validate CVE timeline for CVE-based vulnerabilities
+        // First check if it affects this version
+        const affects = v.affected?.some((a: any) => {
+          const pkg = a.package;
+          if (pkg?.ecosystem !== ecosystem || pkg?.name !== t.slug) return false;
+          
+          // Check version ranges
+          return a.ranges?.some((r: any) => {
+            if (r.type === 'SEMVER') {
+              return r.events?.some((e: any, i: number) => {
+                if (e.introduced === '0' && i + 1 < r.events.length) {
+                  const nextEvent = r.events[i + 1];
+                  if (nextEvent.fixed) {
+                    return semver.lt(t.version!, nextEvent.fixed);
+                  }
+                }
+                return false;
+              });
+            }
+            return false;
+          });
+        });
+
+        if (!affects) return false;
+
+        // Then validate CVE timeline
         if (v.id.startsWith('CVE-')) {
           const publishedDate = v.published ? new Date(v.published) : undefined;
           return validateCVETimeline(v.id, publishedDate, t.version);
         }
+        
         return true;
       })
       .map((v: any) => ({
@@ -613,12 +633,16 @@ async function getOSVVulns(t: WappTech): Promise<VulnRecord[]> {
         source: 'OSV' as const,
         cvss: v.database_specific?.cvss_score || extractCVSSFromSeverity(v.severity),
         summary: v.summary,
-        publishedDate: v.published ? new Date(v.published) : undefined
+        publishedDate: v.published ? new Date(v.published) : undefined,
+        affectedVersionRange: v.affected?.[0]?.ranges?.[0]?.events?.map((e: any) => 
+          e.introduced ? `>=${e.introduced}` : e.fixed ? `<${e.fixed}` : ''
+        ).filter(Boolean).join(', ')
       }));
 
     osvCache.set(key, vulns);
     return vulns;
-  } catch {
+  } catch (error) {
+    log(`osv=error tech="${t.slug}" error="${(error as Error).message}"`);
     osvCache.set(key, []);
     return [];
   }
@@ -743,24 +767,42 @@ function assessLicenseRisk(license?: string): 'LOW' | 'MEDIUM' | 'HIGH' {
  * Filter out low-value vulnerabilities based on age and EPSS score
  * Preserves KEV and high-EPSS vulnerabilities regardless of age
  */
+// More aggressive filtering
 function filterLowValue(vulns: VulnRecord[]): VulnRecord[] {
   const now = Date.now();
-  const ageThreshold = CONFIG.DROP_VULN_AGE_YEARS * 365 * 24 * 60 * 60 * 1000; // Convert years to milliseconds
+  const currentYear = new Date().getFullYear();
   
   return vulns.filter(vuln => {
+    // Extract CVE year if it's a CVE
+    if (vuln.id.startsWith('CVE-')) {
+      const cveMatch = vuln.id.match(/CVE-(\d{4})-/);
+      if (cveMatch) {
+        const cveYear = parseInt(cveMatch[1]);
+        
+        // Hard reject CVEs older than 5 years unless CISA KEV
+        if (currentYear - cveYear > 5 && !vuln.cisaKev) {
+          log(`filter=rejected_old_cve id="${vuln.id}" year=${cveYear}`);
+          return false;
+        }
+      }
+    }
+    
     // Always keep CISA KEV vulnerabilities
     if (vuln.cisaKev) {
       return true;
     }
     
-    // Always keep high EPSS vulnerabilities 
+    // Keep high EPSS vulnerabilities only if recent
     if (vuln.epss && vuln.epss >= 0.1) {
-      return true;
+      const ageYears = vuln.publishedDate ? 
+        (now - vuln.publishedDate.getTime()) / (365 * 24 * 60 * 60 * 1000) : 10;
+      return ageYears < 3; // Only keep high EPSS if less than 3 years old
     }
     
-    // For other vulnerabilities, check age and EPSS threshold
+    // For other vulnerabilities, be strict about age
+    const ageThreshold = 2 * 365 * 24 * 60 * 60 * 1000; // 2 years
     const isRecent = !vuln.publishedDate || (now - vuln.publishedDate.getTime()) <= ageThreshold;
-    const meetsEpssThreshold = !vuln.epss || vuln.epss >= CONFIG.DROP_VULN_EPSS_CUT;
+    const meetsEpssThreshold = !vuln.epss || vuln.epss >= 0.05;
     
     return isRecent && meetsEpssThreshold;
   });
@@ -808,6 +850,36 @@ function mergeGhsaWithCve(vulns: VulnRecord[]): VulnRecord[] {
   return [...Array.from(cveMap.values()), ...uniqueGhsa, ...otherVulns];
 }
 
+// Add a post-processing step to validate all vulnerabilities
+function postProcessVulnerabilities(
+  vulns: VulnRecord[], 
+  techName: string, 
+  version?: string
+): VulnRecord[] {
+  if (!version) return vulns;
+  
+  const versionYear = estimateVersionReleaseYear(version);
+  if (!versionYear) return vulns;
+  
+  return vulns.filter(vuln => {
+    // Additional sanity check for Apache httpd
+    if (techName.toLowerCase().includes('apache') && version.startsWith('2.4.')) {
+      const cveMatch = vuln.id.match(/CVE-(\d{4})-/);
+      if (cveMatch) {
+        const cveYear = parseInt(cveMatch[1]);
+        
+        // Apache 2.4.62 (2024) shouldn't have CVEs from before 2022
+        if (cveYear < versionYear - 2) {
+          log(`postprocess=rejected tech="${techName}" version="${version}" cve="${vuln.id}" cveYear=${cveYear}`);
+          return false;
+        }
+      }
+    }
+    
+    return true;
+  });
+}
+
 // ───────────────── Enhanced security analysis  ────────────────────────────
 async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Promise<EnhancedSecAnalysis> {
   const limit = pLimit(3);
@@ -816,16 +888,25 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
     limit(() => getOSVVulns(t)),
     limit(() => getGitHubVulns(t))
   ]);
-  const vulns = dedupeVulns([...osv, ...gh]);
+  
+  // Apply post-processing before deduplication
+  const osvProcessed = postProcessVulnerabilities(osv, t.name, t.version);
+  const ghProcessed = postProcessVulnerabilities(gh, t.name, t.version);
+  
+  const vulns = dedupeVulns([...osvProcessed, ...ghProcessed]);
+  
   // Enrich with EPSS + KEV
   const cveIds = vulns.filter(v => v.id.startsWith('CVE-')).map(v => v.id);
   const epssMap = await getEPSSScores(cveIds);
   const kevSet = await getKEVList();
   const enriched = vulns.map(v => ({ ...v, epss: epssMap.get(v.id), cisaKev: kevSet.has(v.id) }));
   
-  // Apply vulnerability filtering to reduce noise
   const merged = mergeGhsaWithCve(enriched);
   const filtered = filterLowValue(merged);
+  
+  // Log filtering stats for debugging
+  log(`analysis=stats tech="${t.name}" version="${t.version}" ` +
+      `raw=${vulns.length} enriched=${enriched.length} merged=${merged.length} filtered=${filtered.length}`);
   const scScore = supplyChainScore(filtered);
   // Risk decision
   let risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
