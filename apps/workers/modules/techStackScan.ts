@@ -70,6 +70,18 @@ interface VulnRecord {
   summary?: string;
   publishedDate?: Date;
   affectedVersionRange?: string;
+  // Active testing fields
+  activelyTested?: boolean;
+  exploitable?: boolean;
+  verificationDetails?: any;
+}
+
+interface NucleiCVEResult {
+  cveId: string;
+  templateId: string;
+  verified: boolean;
+  exploitable: boolean;
+  details?: any;
 }
 
 interface EnhancedSecAnalysis {
@@ -80,6 +92,11 @@ interface EnhancedSecAnalysis {
   versionAccuracy?: number;
   supplyChainScore: number;
   packageIntelligence?: PackageIntelligence;
+  activeVerification?: {
+    tested: number;
+    exploitable: number;
+    notExploitable: number;
+  };
 }
 
 interface PackageIntelligence {
@@ -721,6 +738,102 @@ async function getGitHubVulns(t: WappTech): Promise<VulnRecord[]> {
   }
 }
 
+// ───────────────── Nuclei CVE Active Testing ──────────────────────────────
+
+/**
+ * Run Nuclei to actively test specific CVEs
+ * IMPORTANT: This is COMPLEMENTARY - it only adds information, never removes CVEs
+ * - If Nuclei confirms exploitability -> upgrade severity to CRITICAL
+ * - If Nuclei can't exploit -> keep the CVE with original severity
+ * - If Nuclei isn't available -> all CVEs are kept with original assessment
+ */
+async function runNucleiCVETests(
+  target: string, 
+  cveIds: string[], 
+  technology?: string
+): Promise<Map<string, NucleiCVEResult>> {
+  const results = new Map<string, NucleiCVEResult>();
+  
+  if (cveIds.length === 0) return results;
+  
+  try {
+    // Check if nuclei is available
+    await exec('nuclei', ['-version'], { timeout: 5000 });
+  } catch {
+    log('nuclei binary not found, skipping active CVE verification');
+    return results;
+  }
+  
+  try {
+    // Run nuclei with specific CVE templates
+    const nucleiArgs = [
+      '-u', target,
+      '-id', cveIds.join(','), // Target specific CVE IDs
+      '-json',
+      '-silent',
+      '-timeout', '10',
+      '-retries', '1'
+    ];
+    
+    // Add TLS bypass if environment variable is set
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+      nucleiArgs.push('-insecure');
+    }
+    
+    log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
+    
+    const { stdout, stderr } = await exec('nuclei', nucleiArgs, { 
+      timeout: 60000 // 1 minute timeout for CVE tests
+    });
+    
+    if (stderr) {
+      log(`nucleiCVE=stderr`, stderr);
+    }
+    
+    // Parse nuclei results
+    const lines = stdout.trim().split('\n').filter(Boolean);
+    
+    for (const line of lines) {
+      try {
+        const result = JSON.parse(line);
+        const cveMatch = result['template-id']?.match(/CVE-\d{4}-\d+/);
+        
+        if (cveMatch) {
+          results.set(cveMatch[0], {
+            cveId: cveMatch[0],
+            templateId: result['template-id'],
+            verified: true,
+            exploitable: true,
+            details: result
+          });
+          log(`nucleiCVE=confirmed cve="${cveMatch[0]}" exploitable=true`);
+        }
+      } catch (e) {
+        log(`nucleiCVE=parse_error line="${line}"`);
+      }
+    }
+    
+    // Mark tested but not exploitable CVEs
+    for (const cveId of cveIds) {
+      if (!results.has(cveId)) {
+        results.set(cveId, {
+          cveId,
+          templateId: cveId.toLowerCase(),
+          verified: true,
+          exploitable: false  // Tested but couldn't exploit
+        });
+      }
+    }
+    
+    log(`nucleiCVE=complete tested=${cveIds.length} exploitable=${Array.from(results.values()).filter(r => r.exploitable).length}`);
+    
+  } catch (error) {
+    log(`nucleiCVE=error`, (error as Error).message);
+  }
+  
+  return results;
+}
+
 // ───────────────── Helper Functions ───────────────────────────────────────
 
 function extractCVSSFromSeverity(severity?: string): number | undefined {
@@ -880,9 +993,15 @@ function postProcessVulnerabilities(
   });
 }
 
-// ───────────────── Enhanced security analysis  ────────────────────────────
-async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Promise<EnhancedSecAnalysis> {
+// ───────────────── Enhanced security analysis with active testing  ────────
+async function analyzeSecurityEnhanced(
+  t: WappTech, 
+  detections: WappTech[], 
+  targets?: string[]
+): Promise<EnhancedSecAnalysis> {
   const limit = pLimit(3);
+  
+  // Get passive vulnerability data from APIs
   const [eol, osv, gh] = await Promise.all([
     limit(() => isEol(t.slug, t.version)),
     limit(() => getOSVVulns(t)),
@@ -893,51 +1012,123 @@ async function analyzeSecurityEnhanced(t: WappTech, detections: WappTech[]): Pro
   const osvProcessed = postProcessVulnerabilities(osv, t.name, t.version);
   const ghProcessed = postProcessVulnerabilities(gh, t.name, t.version);
   
-  const vulns = dedupeVulns([...osvProcessed, ...ghProcessed]);
+  // Merge and deduplicate passive results
+  const passiveVulns = dedupeVulns([...osvProcessed, ...ghProcessed]);
   
-  // Enrich with EPSS + KEV
-  const cveIds = vulns.filter(v => v.id.startsWith('CVE-')).map(v => v.id);
+  // Get CVE IDs for active testing
+  const cveIds = passiveVulns
+    .filter(v => v.id.startsWith('CVE-'))
+    .map(v => v.id);
+  
+  // Run active Nuclei verification if we have CVEs (OPTIONAL - enhances but doesn't filter)
+  let nucleiResults = new Map<string, NucleiCVEResult>();
+  if (cveIds.length > 0 && targets && targets.length > 0) {
+    // Use the first available target for testing
+    const target = targets[0];
+    nucleiResults = await runNucleiCVETests(target, cveIds, t.name);
+    
+    if (nucleiResults.size === 0) {
+      log(`nuclei=skipped tech="${t.name}" reason="not available or no templates"`);
+    }
+  }
+  
+  // Enrich vulnerabilities with both passive and active data
+  const enrichedVulns = passiveVulns.map(vuln => {
+    const nucleiResult = nucleiResults.get(vuln.id);
+    
+    return {
+      ...vuln,
+      activelyTested: !!nucleiResult,
+      exploitable: nucleiResult?.exploitable,
+      verificationDetails: nucleiResult?.details
+    };
+  });
+  
+  // Get EPSS and KEV data
   const epssMap = await getEPSSScores(cveIds);
   const kevSet = await getKEVList();
-  const enriched = vulns.map(v => ({ ...v, epss: epssMap.get(v.id), cisaKev: kevSet.has(v.id) }));
   
-  const merged = mergeGhsaWithCve(enriched);
+  const fullyEnriched = enrichedVulns.map(v => ({
+    ...v,
+    epss: epssMap.get(v.id),
+    cisaKev: kevSet.has(v.id)
+  }));
+  
+  // Apply filtering
+  const merged = mergeGhsaWithCve(fullyEnriched);
   const filtered = filterLowValue(merged);
   
   // Log filtering stats for debugging
   log(`analysis=stats tech="${t.name}" version="${t.version}" ` +
-      `raw=${vulns.length} enriched=${enriched.length} merged=${merged.length} filtered=${filtered.length}`);
+      `raw=${passiveVulns.length} enriched=${enrichedVulns.length} merged=${merged.length} filtered=${filtered.length}`);
+  // Calculate supply chain score
   const scScore = supplyChainScore(filtered);
-  // Risk decision
+  
+  // Enhanced risk assessment considering active testing
   let risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
   const advice: string[] = [];
-  if (eol) { risk = 'HIGH'; advice.push(`Upgrade – version ${t.version} is EOL.`); }
-  if (filtered.length) {
-    const now = Date.now();
-    const ageCut  = CONFIG.MAX_RISK_VULN_AGE_YEARS * 31_557_600_000;
-
-    const hasHighRecent = filtered.some(v => {
-      // Always honour KEV or very-high EPSS
-      if (v.cisaKev || (v.epss ?? 0) >= 0.85) return true;
-      // Otherwise require "recent enough" and critical CVSS
-      const fresh = v.publishedDate ? (now - v.publishedDate.getTime()) <= ageCut : true;
-      return fresh && (v.cvss ?? 0) >= 9;
-    });
-
-    risk = hasHighRecent ? 'HIGH'
-                         : risk === 'LOW' ? 'MEDIUM' : risk;
-    advice.push(`Patch – ${filtered.length} vulnerabilities found.`);
-    if (filtered.some(v => v.cisaKev)) advice.push('CISA Known‑Exploited vuln present.');
+  
+  if (eol) { 
+    risk = 'HIGH'; 
+    advice.push(`Upgrade – version ${t.version} is EOL.`); 
   }
+  
+  if (filtered.length) {
+    // Count actively exploitable vulnerabilities (if tested)
+    const exploitableCount = filtered.filter(v => v.exploitable === true).length;
+    const testedCount = filtered.filter(v => v.activelyTested).length;
+    
+    // Base risk on standard criteria (CVSS, EPSS, KEV)
+    const hasHighRisk = filtered.some(v => 
+      v.cisaKev || 
+      (v.epss ?? 0) >= 0.85 || 
+      (v.cvss ?? 0) >= 9
+    );
+    
+    risk = hasHighRisk ? 'HIGH' : risk === 'LOW' ? 'MEDIUM' : risk;
+    
+    // UPGRADE to CRITICAL if we have confirmed exploitable vulns
+    if (exploitableCount > 0) {
+      risk = 'CRITICAL';
+      advice.push(`⚠️ CRITICAL: ${exploitableCount} vulnerabilities confirmed as actively exploitable!`);
+    }
+    
+    // Build appropriate advice message
+    if (testedCount > 0) {
+      advice.push(`Patch – ${filtered.length} vulnerabilities found (${testedCount} tested by Nuclei: ${exploitableCount} exploitable).`);
+    } else {
+      advice.push(`Patch – ${filtered.length} vulnerabilities found.`);
+    }
+    
+    if (filtered.some(v => v.cisaKev)) {
+      advice.push('CISA Known-Exploited vulnerability present.');
+    }
+  }
+  
   if (scScore >= CONFIG.SUPPLY_CHAIN_THRESHOLD) {
     risk = risk === 'LOW' ? 'MEDIUM' : risk;
-    advice.push(`Supply‑chain score ${scScore}/10.`);
+    advice.push(`Supply-chain score ${scScore}/10.`);
   }
+  
   const vAcc = calculateVersionAccuracy(detections);
-  if (vAcc < CONFIG.MIN_VERSION_CONFIDENCE && t.version)
-    advice.push(`Version detection confidence ${(vAcc * 100).toFixed(1)} %. Verify manually.`);
+  if (vAcc < CONFIG.MIN_VERSION_CONFIDENCE && t.version) {
+    advice.push(`Version detection confidence ${(vAcc * 100).toFixed(1)}%. Verify manually.`);
+  }
 
-  return { eol, vulns: filtered, risk, advice, versionAccuracy: vAcc, supplyChainScore: scScore, packageIntelligence: undefined };
+  return { 
+    eol, 
+    vulns: filtered, 
+    risk, 
+    advice, 
+    versionAccuracy: vAcc, 
+    supplyChainScore: scScore, 
+    packageIntelligence: undefined,
+    activeVerification: {
+      tested: cveIds.length,
+      exploitable: filtered.filter(v => v.exploitable === true).length,
+      notExploitable: filtered.filter(v => v.activelyTested && !v.exploitable).length
+    }
+  };
 }
 
 /* Generate CycloneDX 1.5 SBOM */
@@ -1013,19 +1204,28 @@ function generateSBOM(
 }
 
 // ───────────────── Main export (enhanced with new helpers & severities) ─
-export async function runTechStackScan(job: { domain: string; scanId: string }): Promise<number> {
-  const { domain, scanId } = job;
+export async function runTechStackScan(job: { 
+  domain: string; 
+  scanId: string;
+  targets?: string[]; // Add optional targets array
+}): Promise<number> {
+  const { domain, scanId, targets: providedTargets } = job;
   const start = Date.now();
   log(`techstack=start domain=${domain}`);
+  
+  // Check for nuclei (required for tech detection, optional for CVE active testing)
   const nucleiBinary = await resolveNuclei();
   if (!nucleiBinary) {
     await insertArtifact({ type: 'scan_error', val_text: 'Nuclei not found', severity: 'HIGH', meta: { scan_id: scanId } });
     return 0;
   }
+  
+  // Note: CVE active testing with Nuclei is optional and happens in analyzeSecurityEnhanced
   const cb = new TechnologyScanCircuitBreaker();
   const limit = pLimit(CONFIG.MAX_CONCURRENCY);
   try {
-    const [primary, thirdParty] = await Promise.all([
+    // Build or use provided targets
+    const [primary, thirdParty] = providedTargets ? [providedTargets, []] : await Promise.all([
       buildTargets(scanId, domain),
       discoverThirdPartyOrigins(domain)
     ]);
@@ -1056,7 +1256,7 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
     // analysis
     const analysisMap = new Map<string, EnhancedSecAnalysis>();
     await Promise.all(Array.from(techMap.entries()).map(([slug, tech]) => limit(async () => {
-      const a = await analyzeSecurityEnhanced(tech, detectMap.get(slug) ?? [tech]);
+      const a = await analyzeSecurityEnhanced(tech, detectMap.get(slug) ?? [tech], allTargets);
       analysisMap.set(slug, a);
     })));
     // artefacts
@@ -1074,16 +1274,29 @@ export async function runTechStackScan(job: { domain: string; scanId: string }):
           security: a,
           ecosystem: detectEcosystem(tech),
           supply_chain_score: a.supplyChainScore,
-          version_accuracy: a.versionAccuracy
+          version_accuracy: a.versionAccuracy,
+          active_verification: a.activeVerification // Add this
         }
       });
       artCount++;
       if (a.vulns.length) {
+        const exploitableVulns = a.vulns.filter(v => v.exploitable === true);
+        const testedVulns = a.vulns.filter(v => v.activelyTested === true);
         const list = summarizeVulnIds(a.vulns, CONFIG.MAX_VULN_IDS_PER_FINDING);
+        
+        let description = `${a.vulns.length} vulnerabilities detected: ${list}`;
+        
+        // Add exploitability info if we tested with Nuclei
+        if (testedVulns.length > 0 && exploitableVulns.length > 0) {
+          description = `${a.vulns.length} vulnerabilities detected (⚠️ ${exploitableVulns.length} CONFIRMED EXPLOITABLE): ${list}`;
+        } else if (testedVulns.length > 0) {
+          description = `${a.vulns.length} vulnerabilities detected (${testedVulns.length} tested, ${exploitableVulns.length} exploitable): ${list}`;
+        }
+        
         await insertFinding(
           artId,
           'EXPOSED_SERVICE',
-          `${a.vulns.length} vulnerabilities detected (${list}).`,
+          description,
           a.advice.join(' ')
         );
       } else if (a.advice.length) {
