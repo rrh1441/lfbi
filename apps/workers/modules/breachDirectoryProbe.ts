@@ -10,7 +10,7 @@ import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 
 // Configuration constants
-const BREACH_DIRECTORY_API_BASE = 'https://breachdirectory.org/api_domain_search';
+const BREACH_DIRECTORY_API_BASE = 'https://BreachDirectory.com/api_usage';
 const API_TIMEOUT_MS = 30_000;
 const MAX_SAMPLE_USERNAMES = 100;
 
@@ -41,9 +41,9 @@ async function queryBreachDirectory(domain: string, apiKey: string): Promise<Bre
     
     const response = await axios.get(BREACH_DIRECTORY_API_BASE, {
       params: {
-        domain: domain,
-        plain: 'true',
-        key: apiKey
+        method: 'domain',
+        key: apiKey,
+        query: domain
       },
       timeout: API_TIMEOUT_MS,
       validateStatus: (status) => status < 500 // Accept 4xx as valid responses
@@ -197,10 +197,10 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
   
   log(`Starting Breach Directory probe for domain="${domain}"`);
   
-  // Check for API key
-  const apiKey = process.env.BREACH_DIRECTORY_API_KEY || process.env.BREACHDIRECTORY_KEY;
+  // Check for API key (using Fly environment secret)
+  const apiKey = process.env.BREACH_DIRECTORY_API_KEY;
   if (!apiKey) {
-    log('Breach Directory API key not found, skipping module');
+    log('Breach Directory API key not found in BREACH_DIRECTORY_API_KEY environment variable');
     return 0;
   }
   

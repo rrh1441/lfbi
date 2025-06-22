@@ -10,6 +10,9 @@ export NODE_TLS_REJECT_UNAUTHORIZED=0
 
 # Set testssl.sh path (install first if needed)
 export TESTSSL_PATH="/opt/testssl.sh/testssl.sh"
+
+# BreachDirectory API key (already set in Fly environment secrets)
+# export BREACH_DIRECTORY_API_KEY="your_api_key_here"
 ```
 
 ## Docker Environment Example
@@ -18,6 +21,7 @@ export TESTSSL_PATH="/opt/testssl.sh/testssl.sh"
 # In your Dockerfile or docker-compose.yml
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0
 ENV TESTSSL_PATH=/opt/testssl.sh/testssl.sh
+# ENV BREACH_DIRECTORY_API_KEY=your_api_key_here  # Already set in Fly secrets
 
 # Install testssl.sh
 RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.sh && \
