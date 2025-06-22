@@ -24,6 +24,10 @@ RUN apk add --no-cache \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
+# Security scanner environment variables
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0 \
+    TESTSSL_PATH=/opt/testssl.sh/testssl.sh
+
 # ------------------------------------------------------------------------
 # Security tooling
 # ------------------------------------------------------------------------

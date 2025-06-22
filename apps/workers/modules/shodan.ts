@@ -196,14 +196,7 @@ async function persistMatch(
     if (sev === 'INFO') sev = 'LOW';
   }
 
-  if (m.vulns) {
-    for (const [cve, info] of Object.entries(m.vulns)) {
-      findings.push(cve);
-      const derived = cvssToSeverity(info.cvss);
-      const rank = { INFO: 0, LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 } as const;
-      if (rank[derived] > rank[sev]) sev = derived;
-    }
-  }
+  // CVE processing removed - handled by techStackScan module
 
   const artId = await insertArtifact({
     type: 'shodan_service',

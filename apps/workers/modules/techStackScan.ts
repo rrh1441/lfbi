@@ -323,7 +323,7 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
     // Add discovered endpoints (limit to 100 for performance)
     const discoveredCount = rows[0]?.urls?.length || 0;
     rows[0]?.urls?.slice(0, 100).forEach((url: string) => {
-      if (url.startsWith('http')) targets.add(url);
+      if (url && typeof url === 'string' && url.startsWith('http')) targets.add(url);
     });
     log(`buildTargets discovered=${discoveredCount} total=${targets.size}`);
   } catch (error) {
