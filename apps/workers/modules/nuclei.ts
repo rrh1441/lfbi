@@ -1,20 +1,19 @@
 /*
  * =============================================================================
- * MODULE: nuclei.ts (Refactored v2)
+ * MODULE: nuclei.ts (Streamlined v3)
  * =============================================================================
- * This module runs the Nuclei vulnerability scanner against a set of targets.
+ * This module runs the Nuclei vulnerability scanner against a set of targets
+ * for general vulnerability detection (misconfigurations, exposures, etc.).
  *
- * Key Improvements from previous version:
- * 1.  **Optimized Template Updates:** Checks the last update time and only updates
- * templates if they are older than 24 hours, improving efficiency.
- * 2.  **Configurable Workflow Paths:** The base path for Nuclei workflows is now
- * configurable via an environment variable for deployment flexibility.
- * 3.  **Dependency & Template Management:** Validates that the 'nuclei' binary
- * is installed and ensures templates are kept up-to-date.
- * 4.  **Workflow Execution:** Implements the ability to run advanced, multi-step
- * Nuclei workflows for specific technologies.
- * 5.  **Concurrency & Better Structure:** Scans are run in parallel and logically
- * separated into broad and deep-dive scan phases.
+ * NOTE: CVE-specific testing has been moved to techStackScan.ts for better
+ * integration with vulnerability intelligence and timeline validation.
+ *
+ * Key Features:
+ * 1.  **Optimized Template Updates:** Only updates templates if older than 24 hours
+ * 2.  **Technology-aware Scanning:** Uses technology-specific Nuclei tags
+ * 3.  **Workflow Execution:** Runs advanced multi-step workflows for detected tech
+ * 4.  **Concurrency & Structure:** Parallel scans with tag-based and workflow phases
+ * 5.  **General Vulnerability Focus:** Misconfigurations, exposures, default logins
  * =============================================================================
  */
 
@@ -22,10 +21,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path'; // REFACTOR: Added for path joining.
-import * as https from 'node:https';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
-import { verifyCVEs } from './cveVerifier.js';
 
 const exec = promisify(execFile);
 const MAX_CONCURRENT_SCANS = 4;
@@ -140,8 +137,8 @@ async function processNucleiOutput(stdout: string, scanId: string, scanType: 'ta
 }
 
 
-async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId?: string, verifiedCVEs?: string[]): Promise<number> {
-    const baseTags = new Set(['cve', 'misconfiguration', 'default-logins', 'exposed-panels', 'exposure', 'tech']);
+async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId?: string): Promise<number> {
+    const baseTags = new Set(['misconfiguration', 'default-logins', 'exposed-panels', 'exposure', 'tech']);
     if (target.tech) {
         for (const tech of target.tech) {
             const tags = TECH_TO_NUCLEI_TAG_MAP[tech.toLowerCase()];
@@ -150,7 +147,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     }
     const tags = Array.from(baseTags).join(',');
 
-    // Build command arguments with optional CVE filtering
+    // Build command arguments
     const nucleiArgs = [
         '-u', target.url,
         '-tags', tags,
@@ -166,13 +163,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         nucleiArgs.push('-insecure');
     }
     
-    // Add verified CVE filtering if available
-    if (verifiedCVEs && verifiedCVEs.length > 0) {
-        nucleiArgs.push('-include-ids', verifiedCVEs.join(','));
-        log(`[nuclei] [Tag Scan] Running on ${target.url} with ${verifiedCVEs.length} verified CVEs: ${verifiedCVEs.join(',')}`);
-    } else {
-        log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
-    }
+    log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
 
     try {
         const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: 600000 });
@@ -245,116 +236,7 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
     // REFACTOR: Call the optimized update function.
     await updateTemplatesIfNeeded();
 
-    /* ---------------- CVE PRE-FILTER ------------------------------------ */
     const targets = job.targets?.length ? job.targets : [{ url: `https://${job.domain}` }];
-    
-    // 1. Pull banner info once (HEAD request) – cheap.
-    const bannerMap = new Map<string, string>();   // host -> banner string
-    await Promise.all(targets.map(async t => {
-        try {
-            const fetchOptions: RequestInit = { 
-                method: 'HEAD', 
-                redirect: 'manual', 
-                cache: 'no-store',
-                signal: AbortSignal.timeout(5000), // 5s timeout
-                headers: {
-                    'User-Agent': 'DealBrief-Scanner/1.0'
-                }
-            };
-            
-            // Add TLS bypass if environment variable is set
-            if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-                (fetchOptions as any).agent = new https.Agent({
-                    rejectUnauthorized: false
-                });
-            }
-            
-            const response = await fetch(t.url, fetchOptions);
-            const server = response.headers.get('server');          // e.g. "Apache/2.4.62 (Ubuntu)"
-            if (server) {
-                bannerMap.set(t.url, server);
-                log(`[nuclei] [prefilter] Banner detected for ${t.url}: ${server}`);
-            }
-        } catch (error) {
-            log(`[nuclei] [prefilter] Failed to get banner for ${t.url}: ${(error as Error).message}`);
-        }
-    }));
-
-    // 2. Derive CVE list from banner version (Apache/Nginx example).
-    const prefilter: Record<string, string[]> = {};        // url -> [cve…]
-    bannerMap.forEach((banner, url) => {
-        // Apache CVE detection
-        const apacheMatch = banner.match(/Apache\/(\d+\.\d+\.\d+)/i);
-        if (apacheMatch) {
-            const version = apacheMatch[1];
-            log(`[nuclei] [prefilter] Apache ${version} detected at ${url}`);
-            // Common Apache CVEs that might be tested
-            prefilter[url] = [
-                'CVE-2021-40438', // Apache HTTP Server 2.4.48 and earlier SSRF
-                'CVE-2021-41773', // Apache HTTP Server 2.4.49 Path Traversal  
-                'CVE-2021-42013', // Apache HTTP Server 2.4.50 Path Traversal
-                'CVE-2020-11993', // Apache HTTP Server 2.4.43 and earlier
-                'CVE-2019-0190',  // Apache HTTP Server 2.4.17 to 2.4.38
-                'CVE-2020-11023'  // jQuery (if mod_proxy_html enabled)
-            ];
-        }
-        
-        // Nginx CVE detection
-        const nginxMatch = banner.match(/nginx\/(\d+\.\d+\.\d+)/i);
-        if (nginxMatch) {
-            const version = nginxMatch[1];
-            log(`[nuclei] [prefilter] Nginx ${version} detected at ${url}`);
-            prefilter[url] = [
-                'CVE-2021-23017', // Nginx resolver off-by-one
-                'CVE-2019-20372', // Nginx HTTP/2 implementation 
-                'CVE-2017-7529'   // Nginx range filter integer overflow
-            ];
-        }
-    });
-
-    // 3. Verify / suppress CVEs using the verification system.
-    const verifiedCVEs = new Map<string, string[]>(); // url -> confirmed CVE list
-    
-    for (const [url, cves] of Object.entries(prefilter)) {
-        if (cves.length === 0) continue;
-        
-        try {
-            log(`[nuclei] [prefilter] Verifying ${cves.length} CVEs for ${url}`);
-            const checks = await verifyCVEs({
-                host: url,
-                serverBanner: bannerMap.get(url)!,
-                cves
-            });
-            
-            const confirmedCVEs: string[] = [];
-            checks.forEach(check => {
-                if (check.suppressed) {
-                    log(`[nuclei] [prefilter] ${check.id} SUPPRESSED – fixed in ${check.fixedIn}`);
-                } else if (check.verified) {
-                    log(`[nuclei] [prefilter] ${check.id} VERIFIED – exploit confirmed`);
-                    confirmedCVEs.push(check.id);
-                } else if (!check.error) {
-                    // Not suppressed and not verified (no template available) - keep for regular scan
-                    log(`[nuclei] [prefilter] ${check.id} UNVERIFIED – keeping for tag scan`);
-                    confirmedCVEs.push(check.id);
-                } else {
-                    log(`[nuclei] [prefilter] ${check.id} ERROR – ${check.error}`);
-                }
-            });
-            
-            if (confirmedCVEs.length > 0) {
-                verifiedCVEs.set(url, confirmedCVEs);
-                log(`[nuclei] [prefilter] ${url}: ${confirmedCVEs.length}/${cves.length} CVEs remain after verification`);
-            } else {
-                log(`[nuclei] [prefilter] ${url}: All CVEs suppressed by verification`);
-            }
-        } catch (error) {
-            log(`[nuclei] [prefilter] Verification failed for ${url}: ${(error as Error).message}`);
-            // Fall back to regular scan on verification failure
-            verifiedCVEs.set(url, cves);
-        }
-    }
-    /* -------------------------------------------------------------------- */
 
     let totalFindings = 0;
     
@@ -362,8 +244,7 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
     for (let i = 0; i < targets.length; i += MAX_CONCURRENT_SCANS) {
         const chunk = targets.slice(i, i + MAX_CONCURRENT_SCANS);
         const results = await Promise.all(chunk.map(target => {
-            const targetVerifiedCVEs = verifiedCVEs.get(target.url);
-            return runNucleiTagScan(target, job.scanId, targetVerifiedCVEs);
+            return runNucleiTagScan(target, job.scanId);
         }));
         totalFindings += results.reduce((a, b) => a + b, 0);
     }
@@ -379,30 +260,7 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
         }
     }
 
-    // Generate CVE verification summary
-    const totalCVEsDetected = Object.values(prefilter).reduce((sum, cves) => sum + cves.length, 0);
-    const totalCVEsVerified = Array.from(verifiedCVEs.values()).reduce((sum, cves) => sum + cves.length, 0);
-    const suppressedCount = totalCVEsDetected - totalCVEsVerified;
-    
-    if (totalCVEsDetected > 0) {
-        await insertArtifact({
-            type: 'cve_verification_summary',
-            val_text: `CVE verification: ${suppressedCount}/${totalCVEsDetected} banner-based CVEs suppressed through automated verification`,
-            severity: suppressedCount > 0 ? 'INFO' : 'LOW',
-            meta: {
-                scan_id: job.scanId,
-                scan_module: 'nuclei',
-                total_cves_detected: totalCVEsDetected,
-                total_cves_verified: totalCVEsVerified,
-                cves_suppressed: suppressedCount,
-                suppression_rate: totalCVEsDetected > 0 ? (suppressedCount / totalCVEsDetected * 100).toFixed(1) + '%' : '0%',
-                verification_method: 'Two-layer: distribution version mapping + active exploit probes'
-            }
-        });
-    }
-
     log(`[nuclei] Completed vulnerability scan. Total findings: ${totalFindings}`);
-    log(`[nuclei] CVE verification: ${suppressedCount}/${totalCVEsDetected} false positives suppressed`);
     
     await insertArtifact({
         type: 'scan_summary',
@@ -413,11 +271,6 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
             scan_module: 'nuclei',
             total_findings: totalFindings,
             targets_scanned: targets.length,
-            cve_verification: {
-                total_detected: totalCVEsDetected,
-                suppressed: suppressedCount,
-                verified: totalCVEsVerified
-            },
             timestamp: new Date().toISOString()
         }
     });
