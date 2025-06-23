@@ -12,10 +12,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import axios from 'axios';
 import pLimit from 'p-limit';
-import puppeteer, { Browser } from 'puppeteer';
 import semver from 'semver';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
+import { withPage } from '../util/dynamicBrowser.js';
 
 const exec = promisify(execFile);
 
@@ -131,6 +131,7 @@ interface ScanMetrics {
   runMs: number;
   circuitBreakerTripped: boolean;
   cacheHitRate: number;
+  dynamic_browser_skipped?: boolean;
 }
 
 // ───────────────── Intelligent Cache ───────────────────────────────────────
@@ -372,79 +373,66 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
   return Array.from(targets);
 }
 
-/* Third-party sub-resource discovery using Puppeteer */
+/* Third-party sub-resource discovery using shared Puppeteer */
 async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
-  let browser: Browser | undefined;
+  // Check if Puppeteer is enabled
+  if (process.env.ENABLE_PUPPETEER === '0') {
+    log(`thirdParty=skipped domain=${domain} reason="puppeteer_disabled"`);
+    return [];
+  }
   
   try {
-    // Enhanced Puppeteer launch options for better stability
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',        // Enhanced: prevent /dev/shm memory issues
-        '--disable-accelerated-2d-canvas', // Enhanced: disable GPU acceleration for stability
-        '--disable-gpu',                   // Enhanced: disable GPU for headless reliability
-        '--window-size=1920x1080'         // Enhanced: set consistent window size
-      ],
-      protocolTimeout: 90000, // Enhanced: increased from 60000 to 90000 for better stability
-      timeout: 60000,         // Enhanced: increased browser launch timeout from 30000 to 60000
-      dumpio: process.env.NODE_ENV === 'development' || process.env.DEBUG_PUPPETEER === 'true' // Enhanced: conditional debug output
-    });
-    
-    const page = await browser.newPage();
-    const origins = new Set<string>();
-    
-    // Track network requests
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      const url = request.url();
-      try {
-        const urlObj = new URL(url);
-        const origin = urlObj.origin;
-        
-        // Filter to third-party origins (different eTLD+1) and exclude problematic domains
-        if (!origin.includes(domain) && 
-            !origin.includes('localhost') && 
-            !origin.includes('127.0.0.1') &&
-            !isProblematicDomain(urlObj.hostname)) {
-          origins.add(origin);
+    return await withPage(async (page) => {
+      const origins = new Set<string>();
+      
+      // Track network requests
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        const url = request.url();
+        try {
+          const urlObj = new URL(url);
+          const origin = urlObj.origin;
+          
+          // Filter to third-party origins (different eTLD+1) and exclude problematic domains
+          if (!origin.includes(domain) && 
+              !origin.includes('localhost') && 
+              !origin.includes('127.0.0.1') &&
+              !isProblematicDomain(urlObj.hostname)) {
+            origins.add(origin);
+          }
+        } catch {
+          // Invalid URL, ignore
         }
-      } catch {
-        // Invalid URL, ignore
+        
+        // Continue the request
+        request.continue();
+      });
+      
+      // Navigate and wait for resources with fallback
+      try {
+        await page.goto(`https://${domain}`, { 
+          timeout: CONFIG.PAGE_TIMEOUT_MS,
+          waitUntil: 'networkidle2' 
+        });
+      } catch (navError) {
+        // Fallback: try with less strict wait condition
+        log(`thirdParty=navigation_fallback domain=${domain} error="${(navError as Error).message}"`);
+        await page.goto(`https://${domain}`, { 
+          timeout: CONFIG.PAGE_TIMEOUT_MS,
+          waitUntil: 'domcontentloaded' 
+        });
       }
       
-      // Continue the request
-      request.continue();
+      // Limit results to prevent excessive discovery
+      const limitedOrigins = Array.from(origins).slice(0, CONFIG.MAX_THIRD_PARTY_REQUESTS);
+      log(`thirdParty=discovered domain=${domain} origins=${limitedOrigins.length}`);
+      
+      return limitedOrigins;
     });
-    
-    // Navigate and wait for resources with fallback
-    try {
-      await page.goto(`https://${domain}`, { 
-        timeout: CONFIG.PAGE_TIMEOUT_MS,
-        waitUntil: 'networkidle2' 
-      });
-    } catch (navError) {
-      // Fallback: try with less strict wait condition
-      log(`thirdParty=navigation_fallback domain=${domain} error="${(navError as Error).message}"`);
-      await page.goto(`https://${domain}`, { 
-        timeout: CONFIG.PAGE_TIMEOUT_MS,
-        waitUntil: 'domcontentloaded' 
-      });
-    }
-    
-    // Limit results to prevent excessive discovery
-    const limitedOrigins = Array.from(origins).slice(0, CONFIG.MAX_THIRD_PARTY_REQUESTS);
-    log(`thirdParty=discovered domain=${domain} origins=${limitedOrigins.length}`);
-    
-    return limitedOrigins;
     
   } catch (error) {
     log(`thirdParty=error domain=${domain} error="${(error as Error).message}"`);
     return [];
-  } finally {
-    await browser?.close();
   }
 }
 
@@ -1363,7 +1351,8 @@ export async function runTechStackScan(job: {
       supplyFindings,
       runMs: Date.now() - start,
       circuitBreakerTripped: cb.isTripped(),
-      cacheHitRate: eolCache.stats().hitRate
+      cacheHitRate: eolCache.stats().hitRate,
+      dynamic_browser_skipped: process.env.ENABLE_PUPPETEER === '0'
     };
 
     await insertArtifact({

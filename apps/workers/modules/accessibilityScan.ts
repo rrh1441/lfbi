@@ -5,10 +5,10 @@
  * that create genuine ADA lawsuit risk for companies.
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer';
 import axios from 'axios';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
+import { withPage } from '../util/dynamicBrowser.js';
 
 // Configuration constants
 const PAGE_TIMEOUT_MS = 30_000;
@@ -126,80 +126,94 @@ function isTestableUrl(url: string): boolean {
 /**
  * Test accessibility for a single page using axe-core
  */
-async function testPageAccessibility(page: Page, url: string): Promise<AccessibilityPageResult> {
-  try {
-    log(`Testing accessibility for: ${url}`);
-    
-    // Navigate to page
-    const response = await page.goto(url, { 
-      waitUntil: 'networkidle2', 
-      timeout: PAGE_TIMEOUT_MS 
-    });
-    
-    if (!response || response.status() >= 400) {
-      return { 
-        url, 
-        tested: false, 
-        violations: [], 
-        passes: 0, 
-        incomplete: 0, 
-        error: `HTTP ${response?.status()}` 
-      };
-    }
-    
-    // Wait for page to stabilize
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Inject axe-core
-    await page.addScriptTag({ url: AXE_CORE_CDN });
-    
-    // Run accessibility scan
-    const results = await page.evaluate(async () => {
-      // Configure axe for WCAG 2.1 AA
-      const config = {
-        runOnly: {
-          type: 'tag',
-          values: ['wcag2a', 'wcag2aa', 'wcag21aa']
-        },
-        rules: {
-          'color-contrast': { enabled: true },
-          'image-alt': { enabled: true },
-          'button-name': { enabled: true },
-          'link-name': { enabled: true },
-          'form-field-multiple-labels': { enabled: true },
-          'focus-order-semantics': { enabled: true },
-          'landmark-one-main': { enabled: true },
-          'page-has-heading-one': { enabled: true }
-        }
-      };
-      
-      return await (window as any).axe.run(document, config);
-    });
-    
-    // Transform results
-    const violations: AccessibilityViolation[] = results.violations.map((violation: any) => ({
-      ruleId: violation.id,
-      impact: violation.impact || 'minor',
-      description: violation.description,
-      help: violation.help,
-      helpUrl: violation.helpUrl,
-      elements: violation.nodes.map((node: any) => ({
-        selector: node.target.join(' '),
-        html: node.html,
-        target: node.target
-      })),
-      pageUrl: url
-    }));
-    
-    log(`Accessibility test complete for ${url}: ${violations.length} violations, ${results.passes.length} passes`);
-    
-    return {
-      url,
-      tested: true,
-      violations,
-      passes: results.passes.length,
-      incomplete: results.incomplete.length
+async function testPageAccessibility(url: string): Promise<AccessibilityPageResult> {
+  // Check if Puppeteer is enabled
+  if (process.env.ENABLE_PUPPETEER === '0') {
+    log(`Accessibility test skipped for ${url}: Puppeteer disabled`);
+    return { 
+      url, 
+      tested: false, 
+      violations: [], 
+      passes: 0, 
+      incomplete: 0, 
+      error: 'Puppeteer disabled' 
     };
+  }
+
+  try {
+    return await withPage(async (page) => {
+      log(`Testing accessibility for: ${url}`);
+      
+      // Navigate to page
+      const response = await page.goto(url, { 
+        waitUntil: 'networkidle2', 
+        timeout: PAGE_TIMEOUT_MS 
+      });
+      
+      if (!response || response.status() >= 400) {
+        return { 
+          url, 
+          tested: false, 
+          violations: [], 
+          passes: 0, 
+          incomplete: 0, 
+          error: `HTTP ${response?.status()}` 
+        };
+      }
+      
+      // Wait for page to stabilize
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Inject axe-core
+      await page.addScriptTag({ url: AXE_CORE_CDN });
+      
+      // Run accessibility scan
+      const results = await page.evaluate(async () => {
+        // Configure axe for WCAG 2.1 AA
+        const config = {
+          runOnly: {
+            type: 'tag',
+            values: ['wcag2a', 'wcag2aa', 'wcag21aa']
+          },
+          rules: {
+            'color-contrast': { enabled: true },
+            'image-alt': { enabled: true },
+            'button-name': { enabled: true },
+            'link-name': { enabled: true },
+            'form-field-multiple-labels': { enabled: true },
+            'landmark-one-main': { enabled: true },
+            'page-has-heading-one': { enabled: true }
+          }
+        };
+        
+        return await (window as any).axe.run(document, config);
+      });
+      
+      // Transform results
+      const violations: AccessibilityViolation[] = results.violations.map((violation: any) => ({
+        ruleId: violation.id,
+        impact: violation.impact || 'minor',
+        description: violation.description,
+        help: violation.help,
+        helpUrl: violation.helpUrl,
+        elements: violation.nodes.map((node: any) => ({
+          selector: node.target.join(' '),
+          html: node.html,
+          target: node.target
+        })),
+        pageUrl: url
+      }));
+      
+      log(`Accessibility test complete for ${url}: ${violations.length} violations, ${results.passes.length} passes`);
+      
+      return {
+        url,
+        tested: true,
+        violations,
+        passes: results.passes.length,
+        incomplete: results.incomplete.length
+      };
+    });
     
   } catch (error) {
     log(`Accessibility test error for ${url}: ${(error as Error).message}`);
@@ -341,41 +355,35 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
   
   log(`Starting accessibility scan for domain="${domain}"`);
   
-  let browser: Browser | undefined;
+  // Handle Puppeteer disabled case
+  if (process.env.ENABLE_PUPPETEER === '0') {
+    log('Accessibility scan unavailable: Puppeteer disabled');
+    
+    await insertArtifact({
+      type: 'accessibility_scan_unavailable',
+      val_text: 'Accessibility scan unavailable: Puppeteer disabled',
+      severity: 'INFO',
+      meta: { 
+        scan_id: scanId, 
+        scan_module: 'accessibilityScan',
+        reason: 'puppeteer_disabled',
+        scan_duration_ms: Date.now() - startTime
+      }
+    });
+    
+    return 0;
+  }
+  
   const pageResults: AccessibilityPageResult[] = [];
   
   try {
-    // Launch browser with enhanced stability options
-    browser = await puppeteer.launch({
-      headless: true,
-      // Enhanced args for better stability and performance
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-web-security',
-        '--disable-dev-shm-usage',      // Overcome limited resource problems
-        '--disable-accelerated-2d-canvas',  // Disable hardware acceleration
-        '--disable-gpu',                // Disable GPU hardware acceleration
-        '--window-size=1920x1080'       // Set consistent window size
-      ],
-      // Increase protocol timeout for better stability
-      protocolTimeout: 90000,
-      // Browser launch timeout
-      timeout: 60000,
-      // Enable dumpio for debugging in development
-      dumpio: process.env.NODE_ENV === 'development' || process.env.DEBUG_PUPPETEER === 'true'
-    });
-    
-    const page = await browser.newPage();
-    await page.setViewport(BROWSER_VIEWPORT);
-    
     // Discover pages to test
     const pagesToTest = await discoverTestablePages(domain);
     log(`Discovered ${pagesToTest.length} pages to test for accessibility`);
     
-    // Test each page
+    // Test each page using shared browser
     for (const url of pagesToTest) {
-      const result = await testPageAccessibility(page, url);
+      const result = await testPageAccessibility(url);
       pageResults.push(result);
       
       // Rate limiting between pages
@@ -411,8 +419,5 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
     });
     
     return 0;
-    
-  } finally {
-    await browser?.close();
   }
 }
