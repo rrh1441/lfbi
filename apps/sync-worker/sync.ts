@@ -88,12 +88,7 @@ async function syncScansMasterTable() {
                 total_artifacts_count
              FROM scans_master 
              WHERE updated_at > $1 
-             AND (
-                status IN ('completed', 'failed', 'done') OR
-                progress = 0 OR
-                progress % 20 = 0 OR
-                current_module IS NULL
-             )
+             AND NOT (status = 'completed' AND updated_at < NOW() - INTERVAL '5 minutes')
              ORDER BY updated_at ASC
              LIMIT 100`, // Batching
             [lastSuccessfulScanSync]
