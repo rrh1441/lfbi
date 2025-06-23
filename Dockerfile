@@ -59,9 +59,8 @@ RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
     ln -s /opt/spiderfoot/sf.py /usr/local/bin/sf && \
     ln -s /opt/spiderfoot/sf.py /usr/local/bin/spiderfoot.py   # legacy name
 
-# testssl.sh
-RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl.sh && \
-    ln -s /opt/testssl.sh/testssl.sh /usr/local/bin/testssl.sh
+# sslscan - reliable TLS/SSL scanner
+RUN apk add --no-cache sslscan
 
 # ------------------------------------------------------------------------
 # Node-level tooling

@@ -208,6 +208,24 @@ function summarizeVulnIds(v: VulnRecord[], max: number): string {
 // ───────────────── Utility helpers ─────────────────────────────────────────
 const capitalizeFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/* Filter out problematic domains that cause nuclei issues */
+function isProblematicDomain(hostname: string): boolean {
+  const problematicDomains = [
+    // CDNs and large platforms that nuclei struggles with
+    'google.com', 'www.google.com', 'gstatic.com', 'www.gstatic.com',
+    'googleapis.com', 'fonts.googleapis.com', 'fonts.gstatic.com',
+    'facebook.com', 'amazon.com', 'microsoft.com', 'apple.com',
+    'cloudflare.com', 'amazonaws.com', 'azure.com',
+    // Content delivery networks
+    'cdn.', 'cdnjs.', 'jsdelivr.', 'unpkg.com',
+    'contentful.com', 'ctfassets.net'
+  ];
+  
+  return problematicDomains.some(domain => 
+    hostname === domain || hostname.endsWith('.' + domain) || hostname.startsWith(domain)
+  );
+}
+
 /* Convert Nuclei technology detection output to WappTech format */
 function convertNucleiToWappTech(nucleiLines: string[]): WappTech[] {
   const technologies: WappTech[] = [];
@@ -323,7 +341,18 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
     // Add discovered endpoints (limit to 100 for performance)
     const discoveredCount = rows[0]?.urls?.length || 0;
     rows[0]?.urls?.slice(0, 100).forEach((url: string) => {
-      if (url && typeof url === 'string' && url.startsWith('http')) targets.add(url);
+      if (url && typeof url === 'string' && url !== 'null' && url.startsWith('http')) {
+        // Additional validation to prevent problematic URLs
+        try {
+          const urlObj = new URL(url);
+          // Skip if URL is valid and not problematic
+          if (urlObj.hostname && !isProblematicDomain(urlObj.hostname)) {
+            targets.add(url);
+          }
+        } catch {
+          // Skip invalid URLs
+        }
+      }
     });
     log(`buildTargets discovered=${discoveredCount} total=${targets.size}`);
   } catch (error) {
@@ -375,10 +404,11 @@ async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
         const urlObj = new URL(url);
         const origin = urlObj.origin;
         
-        // Filter to third-party origins (different eTLD+1)
+        // Filter to third-party origins (different eTLD+1) and exclude problematic domains
         if (!origin.includes(domain) && 
             !origin.includes('localhost') && 
-            !origin.includes('127.0.0.1')) {
+            !origin.includes('127.0.0.1') &&
+            !isProblematicDomain(urlObj.hostname)) {
           origins.add(origin);
         }
       } catch {

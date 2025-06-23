@@ -1,20 +1,13 @@
 /* =============================================================================
- * MODULE: tlsScan.ts  (Refactored – “www-aware” v7, 2025-06-16)
+ * MODULE: tlsScan.ts (Rewritten with sslscan v8, 2025-06-22)
  * =============================================================================
- * Performs an in-depth TLS/SSL configuration assessment via **testssl.sh**.
- *
- * v7 – Changes
- * ────────────
- * • Robust certificate detection — works with testssl.sh ≥3.2 JSON schema.
- * • Reverse derivation: if caller passes “www.” we also scan the apex.
- * • Optional extra prefixes (`TLS_DERIVATION_PREFIXES`) centralised in one enum.
- * • All type-safety & strict null checks preserved; no lint regressions.
+ * Performs TLS/SSL configuration assessment using **sslscan** instead of testssl.sh.
+ * sslscan is much more reliable, faster, and easier to integrate.
  * =============================================================================
  */
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
@@ -24,16 +17,32 @@ const exec = promisify(execFile);
 
 type Severity = 'OK' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | 'INFO';
 
-interface TestsslFinding {
-  id: string;
-  finding: string;
-  severity?: Severity;
-}
-
-interface TestsslReport {
-  scanResult?: TestsslFinding[];
-  serverDefaults?: { cert_notAfter?: string };
-  certs?: { notAfter?: string }[];
+interface SSLScanResult {
+  host: string;
+  port: number;
+  certificate?: {
+    subject: string;
+    issuer: string;
+    notBefore: string;
+    notAfter: string;
+    expired: boolean;
+    selfSigned: boolean;
+  };
+  protocols: Array<{
+    name: string;
+    version: string;
+    enabled: boolean;
+  }>;
+  ciphers: Array<{
+    cipher: string;
+    protocols: string[];
+    keyExchange: string;
+    authentication: string;
+    encryption: string;
+    bits: number;
+    status: string;
+  }>;
+  vulnerabilities: string[];
 }
 
 interface ScanOutcome {
@@ -43,246 +52,264 @@ interface ScanOutcome {
 
 /* ---------- Config -------------------------------------------------------- */
 
-const TLS_SCAN_TIMEOUT_MS =
-  Number.parseInt(process.env.TLS_SCAN_TIMEOUT_MS ?? '300000', 10); // 5 min
-
-/** Additional prefixes you want to inspect besides the naked apex.           */
-const TLS_DERIVATION_PREFIXES = ['www']; // extend with 'app', 'login', … if needed
+const TLS_SCAN_TIMEOUT_MS = Number.parseInt(process.env.TLS_SCAN_TIMEOUT_MS ?? '120000', 10); // 2 min
+const TLS_DERIVATION_PREFIXES = ['www']; // extend with 'app', 'login', etc. if needed
 
 /* ---------- Helpers ------------------------------------------------------- */
 
-/** Locate testssl.sh in common paths or $PATH with enhanced detection */
-async function resolveTestsslPath(): Promise<string> {
-  const candidatePaths: string[] = [];
-  
-  // 1. Check TESTSSL_PATH environment variable first
-  if (process.env.TESTSSL_PATH) {
-    candidatePaths.push(process.env.TESTSSL_PATH);
-    log(`[tlsScan] Using TESTSSL_PATH environment variable: ${process.env.TESTSSL_PATH}`);
+/** Validate sslscan is available */
+async function validateSSLScan(): Promise<boolean> {
+  try {
+    const result = await exec('sslscan', ['--version']);
+    log(`[tlsScan] sslscan found: ${result.stdout?.trim() || 'version check ok'}`);
+    return true;
+  } catch (error) {
+    log(`[tlsScan] [CRITICAL] sslscan binary not found: ${(error as Error).message}`);
+    return false;
   }
-  
-  // 2. Add common installation paths
-  candidatePaths.push(
-    '/opt/testssl.sh/testssl.sh',
-    '/usr/local/bin/testssl.sh',
-    '/usr/bin/testssl.sh',
-    'testssl.sh'
-  );
+}
 
-  log(`[tlsScan] Searching for testssl.sh in ${candidatePaths.length} candidate paths...`);
+/** Parse sslscan XML output */
+function parseSSLScanOutput(xmlOutput: string, host: string): SSLScanResult | null {
+  try {
+    // For now, do basic text parsing. Could use xml2js later if needed.
+    const result: SSLScanResult = {
+      host,
+      port: 443,
+      protocols: [],
+      ciphers: [],
+      vulnerabilities: []
+    };
 
-  for (const candidatePath of candidatePaths) {
-    try {
-      log(`[tlsScan] Attempting to validate testssl.sh at: ${candidatePath}`);
+    const lines = xmlOutput.split('\n');
+    
+    // Extract certificate info
+    let certMatch = xmlOutput.match(/Subject:\s+(.+)/);
+    if (certMatch) {
+      const issuerMatch = xmlOutput.match(/Issuer:\s+(.+)/);
+      const notBeforeMatch = xmlOutput.match(/Not valid before:\s+(.+)/);
+      const notAfterMatch = xmlOutput.match(/Not valid after:\s+(.+)/);
       
-      // Test the path by running --version
-      const result = await exec(candidatePath, ['--version'], { 
-        timeout: 10_000,
-        encoding: 'utf8'
-      });
-      
-      // Validate that we got a proper testssl.sh response
-      const output = result.stdout?.toString() || '';
-      if (output.toLowerCase().includes('testssl.sh')) {
-        log(`[tlsScan] Successfully validated testssl.sh at: ${candidatePath}`);
-        log(`[tlsScan] testssl.sh version info: ${output.trim().split('\n')[0]}`);
-        return candidatePath;
-      } else {
-        log(`[tlsScan] Path ${candidatePath} exists but doesn't appear to be testssl.sh (output: ${output.trim()})`);
+      result.certificate = {
+        subject: certMatch[1]?.trim() || '',
+        issuer: issuerMatch?.[1]?.trim() || '',
+        notBefore: notBeforeMatch?.[1]?.trim() || '',
+        notAfter: notAfterMatch?.[1]?.trim() || '',
+        expired: false, // Will calculate below
+        selfSigned: xmlOutput.includes('self signed')
+      };
+
+      // Check if certificate is expired
+      if (result.certificate.notAfter) {
+        const expiryDate = new Date(result.certificate.notAfter);
+        result.certificate.expired = expiryDate < new Date();
       }
-    } catch (error) {
-      const errorMsg = (error as Error).message;
-      log(`[tlsScan] Failed to validate ${candidatePath}: ${errorMsg}`);
-      
-      // Provide more specific error context
-      if (errorMsg.includes('ENOENT')) {
-        log(`[tlsScan] File not found at ${candidatePath}`);
-      } else if (errorMsg.includes('EACCES')) {
-        log(`[tlsScan] Permission denied for ${candidatePath}`);
-      } else if (errorMsg.includes('timeout')) {
-        log(`[tlsScan] Timeout while testing ${candidatePath}`);
-      }
+    }
+
+    // Extract protocol support
+    if (xmlOutput.includes('SSLv2') && xmlOutput.match(/SSLv2\s+enabled/)) {
+      result.vulnerabilities.push('SSLv2 enabled (deprecated)');
+    }
+    if (xmlOutput.includes('SSLv3') && xmlOutput.match(/SSLv3\s+enabled/)) {
+      result.vulnerabilities.push('SSLv3 enabled (deprecated)');
+    }
+    if (xmlOutput.includes('TLSv1.0') && xmlOutput.match(/TLSv1\.0\s+enabled/)) {
+      result.vulnerabilities.push('TLSv1.0 enabled (deprecated)');
+    }
+
+    // Extract weak ciphers
+    if (xmlOutput.includes('RC4')) {
+      result.vulnerabilities.push('RC4 cipher support detected');
+    }
+    if (xmlOutput.includes('DES') || xmlOutput.includes('3DES')) {
+      result.vulnerabilities.push('Weak DES/3DES cipher support detected');
+    }
+    if (xmlOutput.includes('NULL')) {
+      result.vulnerabilities.push('NULL cipher support detected');
+    }
+
+    // Check for missing certificate
+    if (!result.certificate && !xmlOutput.includes('Certificate information')) {
+      result.vulnerabilities.push('No SSL certificate presented');
+    }
+
+    return result;
+    
+  } catch (error) {
+    log(`[tlsScan] Failed to parse sslscan output: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+/** Get remediation advice for TLS issues */
+function getTlsRecommendation(vulnerability: string): string {
+  const recommendations: Record<string, string> = {
+    'SSLv2 enabled': 'Disable SSLv2 completely - it has known security vulnerabilities',
+    'SSLv3 enabled': 'Disable SSLv3 completely - vulnerable to POODLE attack',
+    'TLSv1.0 enabled': 'Disable TLSv1.0 - use TLS 1.2 or higher only',
+    'RC4 cipher': 'Disable RC4 ciphers - they are cryptographically weak',
+    'DES/3DES cipher': 'Disable DES and 3DES ciphers - use AES instead',
+    'NULL cipher': 'Disable NULL ciphers - they provide no encryption',
+    'No SSL certificate': 'Install a valid SSL/TLS certificate from a trusted CA',
+    'expired': 'Renew the SSL certificate immediately',
+    'self signed': 'Replace self-signed certificate with one from a trusted CA'
+  };
+
+  for (const [key, recommendation] of Object.entries(recommendations)) {
+    if (vulnerability.toLowerCase().includes(key.toLowerCase())) {
+      return recommendation;
     }
   }
   
-  // If we get here, none of the paths worked
-  const errorMessage = [
-    'testssl.sh not found in any expected location.',
-    'Searched paths:',
-    ...candidatePaths.map(p => `  - ${p}`),
-    '',
-    'To resolve this issue:',
-    '1. Install testssl.sh from https://github.com/drwetter/testssl.sh',
-    '2. Set the TESTSSL_PATH environment variable to the full path of testssl.sh',
-    '3. Ensure testssl.sh is executable (chmod +x testssl.sh)',
-    '4. Verify testssl.sh works by running: testssl.sh --version'
-  ].join('\n');
-  
-  log(`[tlsScan] ERROR: ${errorMessage}`);
-  throw new Error(errorMessage);
-}
-
-/** Maps testssl.sh test IDs to remediation text (non-exhaustive)             */
-function getTlsRecommendation(testId: string): string {
-  const map: Record<string, string> = {
-    cert_chain:
-      'Fix certificate chain by ensuring proper intermediate certificates are included',
-    cert_commonName:
-      'Ensure certificate Common Name or SAN matches the requested domain',
-    protocols: 'Disable TLS < 1.2 and SSL; enforce TLS 1.2/1.3 only',
-    ciphers: 'Disable weak ciphers; allow only modern AEAD suites',
-    pfs: 'Enable Perfect Forward Secrecy by configuring ECDHE suites',
-    rc4: 'Disable RC4 completely due to known weaknesses',
-    heartbleed: 'Upgrade OpenSSL ≥ 1.0.1g to remediate CVE-2014-0160',
-    ccs: 'Upgrade OpenSSL to address CVE-2014-0224 (CCS Injection)',
-    secure_renegotiation:
-      'Enable secure renegotiation to prevent renegotiation attacks',
-    crime: 'Disable TLS compression to mitigate CRIME',
-    breach:
-      'Disable HTTP compression or implement CSRF tokens to mitigate BREACH',
-  };
-
-  for (const [key, rec] of Object.entries(map)) {
-    if (testId.toLowerCase().includes(key)) return rec;
-  }
-  return 'Review TLS configuration and apply current best practices';
-}
-
-/** Extract `notAfter` regardless of testssl JSON version                     */
-function extractCertNotAfter(report: TestsslReport): string | undefined {
-  if (report.serverDefaults?.cert_notAfter) return report.serverDefaults.cert_notAfter;
-
-  const legacy = report.scanResult?.find((r) => r.id === 'cert_notAfter')?.finding;
-  if (legacy) return legacy;
-
-  if (Array.isArray(report.certs) && report.certs.length) {
-    return report.certs[0]?.notAfter;
-  }
-
-  return undefined;
-}
-
-/** Determine whether a valid cert was presented                              */
-function hasCertificate(report: TestsslReport): boolean {
-  if (extractCertNotAfter(report)) return true;
-
-  // Fallback: any cert_* entry in scanResult implies a handshake and cert
-  return (report.scanResult ?? []).some((r) => r.id.startsWith('cert_'));
+  return 'Review and update TLS configuration according to current security best practices';
 }
 
 /* ---------- Core host-scan routine ---------------------------------------- */
 
-async function scanHost(
-  testsslPath: string,
-  host: string,
-  scanId?: string,
-): Promise<ScanOutcome> {
-  const jsonFile = `/tmp/testssl_${scanId ?? host}.json`;
+async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
   let findingsCount = 0;
   let certificateSeen = false;
 
   try {
-    log(`[tlsScan] (${host}) Running testssl.sh …`);
-    await exec(
-      testsslPath,
-      [
-        '--quiet',
-        '--warnings', 'off',
-        '--jsonfile', jsonFile,
-        host,
-      ],
-      { timeout: TLS_SCAN_TIMEOUT_MS },
-    );
+    log(`[tlsScan] Scanning ${host} with sslscan...`);
+    
+    const { stdout, stderr } = await exec('sslscan', [
+      '--xml=-',  // Output XML to stdout
+      '--no-colour',
+      '--timeout=30',
+      host
+    ], { timeout: TLS_SCAN_TIMEOUT_MS });
 
-    const raw = await fs.readFile(jsonFile, 'utf-8');
-    const report: TestsslReport = JSON.parse(raw);
+    if (stderr) {
+      log(`[tlsScan] sslscan stderr for ${host}: ${stderr}`);
+    }
 
-    /* ---------- 0  Certificate presence check --------------------------- */
-    certificateSeen = hasCertificate(report);
+    const result = parseSSLScanOutput(stdout, host);
+    if (!result) {
+      log(`[tlsScan] Failed to parse results for ${host}`);
+      return { findings: 0, hadCert: false };
+    }
 
-    /* ---------- 1  Generic findings ------------------------------------- */
-    const results = report.scanResult ?? [];
+    certificateSeen = !!result.certificate;
 
-    for (const f of results) {
-      // Only record actionable findings
-      if (!f.severity || f.severity === 'OK' || f.severity === 'INFO') continue;
+    // Check certificate expiry
+    if (result.certificate) {
+      const cert = result.certificate;
+      
+      if (cert.expired) {
+        findingsCount++;
+        const artId = await insertArtifact({
+          type: 'tls_certificate_expired',
+          val_text: `${host} - SSL certificate expired`,
+          severity: 'CRITICAL',
+          meta: {
+            host,
+            certificate: cert,
+            scan_id: scanId,
+            scan_module: 'tlsScan'
+          }
+        });
+        await insertFinding(
+          artId,
+          'CERTIFICATE_EXPIRY',
+          'SSL certificate has expired - renew immediately',
+          `Certificate for ${host} expired on ${cert.notAfter}`
+        );
+      } else if (cert.notAfter) {
+        // Check if expiring soon
+        const expiryDate = new Date(cert.notAfter);
+        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        
+        let severity: Severity | null = null;
+        if (daysUntilExpiry <= 14) {
+          severity = 'HIGH';
+        } else if (daysUntilExpiry <= 30) {
+          severity = 'MEDIUM';
+        } else if (daysUntilExpiry <= 90) {
+          severity = 'LOW';
+        }
 
-      findingsCount += 1;
+        if (severity) {
+          findingsCount++;
+          const artId = await insertArtifact({
+            type: 'tls_certificate_expiry',
+            val_text: `${host} - SSL certificate expires in ${daysUntilExpiry} days`,
+            severity,
+            meta: {
+              host,
+              certificate: cert,
+              days_remaining: daysUntilExpiry,
+              scan_id: scanId,
+              scan_module: 'tlsScan'
+            }
+          });
+          await insertFinding(
+            artId,
+            'CERTIFICATE_EXPIRY',
+            `Certificate expires in ${daysUntilExpiry} days - plan renewal`,
+            `Certificate for ${host} expires on ${cert.notAfter}`
+          );
+        }
+      }
+
+      // Check for self-signed certificate
+      if (cert.selfSigned) {
+        findingsCount++;
+        const artId = await insertArtifact({
+          type: 'tls_self_signed',
+          val_text: `${host} - Self-signed SSL certificate detected`,
+          severity: 'MEDIUM',
+          meta: {
+            host,
+            certificate: cert,
+            scan_id: scanId,
+            scan_module: 'tlsScan'
+          }
+        });
+        await insertFinding(
+          artId,
+          'SELF_SIGNED_CERTIFICATE',
+          'Replace self-signed certificate with one from a trusted CA',
+          `Self-signed certificate detected for ${host}`
+        );
+      }
+    }
+
+    // Process vulnerabilities
+    for (const vulnerability of result.vulnerabilities) {
+      findingsCount++;
+      
+      let severity: Severity = 'MEDIUM';
+      if (vulnerability.includes('SSLv2') || vulnerability.includes('SSLv3') || vulnerability.includes('No SSL certificate')) {
+        severity = 'HIGH';
+      } else if (vulnerability.includes('NULL') || vulnerability.includes('RC4')) {
+        severity = 'HIGH';
+      } else if (vulnerability.includes('TLSv1.0') || vulnerability.includes('DES')) {
+        severity = 'MEDIUM';
+      }
 
       const artId = await insertArtifact({
         type: 'tls_weakness',
-        val_text: `${host} – ${f.id}: ${f.finding}`,
-        severity: f.severity,
+        val_text: `${host} - ${vulnerability}`,
+        severity,
         meta: {
           host,
-          finding_id: f.id,
-          details: f.finding,
+          vulnerability,
           scan_id: scanId,
-          scan_module: 'tlsScan',
-        },
+          scan_module: 'tlsScan'
+        }
       });
 
       await insertFinding(
         artId,
         'TLS_CONFIGURATION_ISSUE',
-        getTlsRecommendation(f.id),
-        f.finding,
+        getTlsRecommendation(vulnerability),
+        vulnerability
       );
     }
 
-    /* ---------- 2  Certificate expiry ----------------------------------- */
-    const certNotAfter = extractCertNotAfter(report);
-
-    if (certNotAfter) {
-      const expiry = new Date(certNotAfter);
-      if (!Number.isNaN(expiry.valueOf())) {
-        const days = Math.ceil((expiry.getTime() - Date.now()) / 86_400_000);
-        let sev: Severity | null = null;
-        let rec = '';
-
-        if (days <= 0) {
-          sev = 'CRITICAL';
-          rec = `Certificate expired ${Math.abs(days)} day(s) ago – renew immediately.`;
-        } else if (days <= 14) {
-          sev = 'HIGH';
-          rec = `Certificate expires in ${days} day(s) – renew immediately.`;
-        } else if (days <= 30) {
-          sev = 'MEDIUM';
-          rec = `Certificate expires in ${days} day(s) – plan renewal.`;
-        } else if (days <= 90) {
-          sev = 'LOW';
-          rec = `Certificate expires in ${days} day(s).`;
-        }
-
-        if (sev) {
-          findingsCount += 1;
-          const artId = await insertArtifact({
-            type: 'tls_certificate_expiry',
-            val_text: `${host} – certificate expires in ${days} days`,
-            severity: sev,
-            meta: {
-              host,
-              expiry_date: expiry.toISOString(),
-              days_remaining: days,
-              scan_id: scanId,
-              scan_module: 'tlsScan',
-            },
-          });
-          await insertFinding(
-            artId,
-            'CERTIFICATE_EXPIRY',
-            rec,
-            `The SSL/TLS certificate for ${host} is nearing expiry.`,
-          );
-        }
-      } else {
-        log(`[tlsScan] (${host}) Unparsable cert_notAfter: ${certNotAfter}`);
-      }
-    }
-  } catch (err) {
-    log(`[tlsScan] (${host}) [ERROR] testssl.sh failed:`, (err as Error).message);
-  } finally {
-    await fs.unlink(jsonFile).catch(() => { /* ignore */ });
+  } catch (error) {
+    log(`[tlsScan] Scan failed for ${host}: ${(error as Error).message}`);
   }
 
   return { findings: findingsCount, hadCert: certificateSeen };
@@ -293,18 +320,29 @@ async function scanHost(
 export async function runTlsScan(job: { domain: string; scanId?: string }): Promise<number> {
   const input = job.domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*/, '');
 
+  // Validate sslscan is available
+  if (!(await validateSSLScan())) {
+    await insertArtifact({
+      type: 'scan_error',
+      val_text: 'sslscan binary not found, TLS scan aborted',
+      severity: 'HIGH',
+      meta: { scan_id: job.scanId, scan_module: 'tlsScan' }
+    });
+    return 0;
+  }
+
   // Derive base domain & host list
   const isWww = input.startsWith('www.');
   const baseDomain = isWww ? input.slice(4) : input;
 
   const candidates = new Set<string>();
-
+  
   // Always scan the original host
   candidates.add(input);
 
   // Forward derivations (apex → prefixes)
   if (!isWww) {
-    TLS_DERIVATION_PREFIXES.forEach((p) => candidates.add(`${p}.${baseDomain}`));
+    TLS_DERIVATION_PREFIXES.forEach((prefix) => candidates.add(`${prefix}.${baseDomain}`));
   }
 
   // Reverse derivation (www → apex)
@@ -312,33 +350,32 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
     candidates.add(baseDomain);
   }
 
-  const testsslPath = await resolveTestsslPath();
   let totalFindings = 0;
   let anyCert = false;
 
   for (const host of candidates) {
-    const { findings, hadCert } = await scanHost(testsslPath, host, job.scanId);
+    const { findings, hadCert } = await scanHost(host, job.scanId);
     totalFindings += findings;
     anyCert ||= hadCert;
   }
 
-  /* Consolidated “no TLS at all” finding (only if *all* hosts lack cert)   */
+  /* Consolidated "no TLS at all" finding (only if *all* hosts lack cert) */
   if (!anyCert) {
     const artId = await insertArtifact({
       type: 'tls_no_certificate',
-      val_text: `${baseDomain} – no valid SSL/TLS certificate on any derived host`,
+      val_text: `${baseDomain} - no valid SSL/TLS certificate on any host`,
       severity: 'HIGH',
       meta: {
         domain: baseDomain,
         scan_id: job.scanId,
-        scan_module: 'tlsScan',
-      },
+        scan_module: 'tlsScan'
+      }
     });
     await insertFinding(
       artId,
       'MISSING_TLS_CERTIFICATE',
-      'Configure an SSL/TLS certificate for all public hosts (apex and sub-domains).',
-      'The server presented no valid certificate on any inspected host variant.',
+      'Configure SSL/TLS certificates for all public hosts',
+      'No valid SSL/TLS certificate found on any tested host variant'
     );
     totalFindings += 1;
   }
@@ -346,17 +383,18 @@ export async function runTlsScan(job: { domain: string; scanId?: string }): Prom
   /* Final summary artifact */
   await insertArtifact({
     type: 'scan_summary',
-    val_text: `TLS scan complete – ${totalFindings} issue(s) recorded`,
+    val_text: `TLS scan complete - ${totalFindings} issue(s) found`,
     severity: 'INFO',
     meta: {
       domain: baseDomain,
       scan_id: job.scanId,
       scan_module: 'tlsScan',
       total_findings: totalFindings,
-      timestamp: new Date().toISOString(),
-    },
+      hosts_scanned: Array.from(candidates),
+      timestamp: new Date().toISOString()
+    }
   });
 
-  log(`[tlsScan] Finished. Hosts scanned: ${[...candidates].join(', ')}. Total findings: ${totalFindings}`);
+  log(`[tlsScan] Scan complete. Hosts: ${[...candidates].join(', ')}. Findings: ${totalFindings}`);
   return totalFindings;
 }

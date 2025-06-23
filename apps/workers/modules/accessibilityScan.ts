@@ -167,7 +167,6 @@ async function testPageAccessibility(page: Page, url: string): Promise<Accessibi
           'button-name': { enabled: true },
           'link-name': { enabled: true },
           'form-field-multiple-labels': { enabled: true },
-          'keyboard-navigation': { enabled: true },
           'focus-order-semantics': { enabled: true },
           'landmark-one-main': { enabled: true },
           'page-has-heading-one': { enabled: true }
