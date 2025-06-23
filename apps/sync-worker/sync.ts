@@ -88,6 +88,12 @@ async function syncScansMasterTable() {
                 total_artifacts_count
              FROM scans_master 
              WHERE updated_at > $1 
+             AND (
+                status IN ('completed', 'failed', 'done') OR
+                progress = 0 OR
+                progress % 20 = 0 OR
+                current_module IS NULL
+             )
              ORDER BY updated_at ASC
              LIMIT 100`, // Batching
             [lastSuccessfulScanSync]
@@ -120,15 +126,15 @@ async function syncScansMasterTable() {
                 return; // Don't update timestamp on error
             }
             
-            // Only log when there are meaningful progress updates (module completion)
-            const completedModules = recordsToUpsert.filter(scan => 
-                scan.status === 'completed' || 
-                (scan.current_module && scan.progress > 0)
+            // Only log when there are meaningful progress updates (module completion or status changes)
+            const meaningfulUpdates = recordsToUpsert.filter(scan => 
+                scan.status === 'completed' || scan.status === 'failed' ||
+                (scan.current_module && scan.progress % 10 === 0) // Only log every 10% progress
             );
             
-            if (completedModules.length > 0) {
-                logProgress(`Module progress updated for ${completedModules.length} scans`, {
-                    completed: completedModules.map(s => `${s.company_name}: ${s.current_module} (${s.progress}/${s.total_modules})`)
+            if (meaningfulUpdates.length > 0) {
+                logProgress(`Module progress updated for ${meaningfulUpdates.length} scans`, {
+                    completed: meaningfulUpdates.map(s => `${s.company_name}: ${s.current_module} (${s.progress}/${s.total_modules})`)
                 });
             }
             

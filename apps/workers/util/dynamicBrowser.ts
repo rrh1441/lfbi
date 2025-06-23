@@ -113,7 +113,7 @@ function createLaunchOptions(overrides: Partial<LaunchOptions> = {}): LaunchOpti
   const isDebug = process.env.DEBUG_PUPPETEER === 'true';
   
   return {
-    headless: isDevelopment ? false : true,
+    headless: !isDevelopment,
     args: [...DEFAULT_BROWSER_ARGS, ...(overrides.args || [])],
     dumpio: isDebug,
     protocolTimeout: 90_000,
@@ -331,16 +331,19 @@ async function gracefulShutdown(signal: string): Promise<void> {
   }
 }
 
-// Set up process event handlers (only if not in test environment)
-if (process.env.NODE_ENV !== 'test') {
-  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  process.on('beforeExit', () => gracefulShutdown('beforeExit'));
+// Initialize process event handlers
+function initializeProcessHandlers() {
+  // Only set up in non-test environments and if process.on exists
+  if (process.env.NODE_ENV !== 'test' && typeof process?.on === 'function') {
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('beforeExit', () => gracefulShutdown('beforeExit'));
+    
+    process.on('unhandledRejection', (reason) => {
+      log(`Unhandled rejection: ${reason}`);
+    });
+  }
 }
 
-// Handle uncaught promise rejections (only if not in test environment)
-if (process.env.NODE_ENV !== 'test') {
-  process.on('unhandledRejection', (reason) => {
-    log(`Unhandled rejection: ${reason}`);
-  });
-}
+// Initialize handlers on module load
+initializeProcessHandlers();
