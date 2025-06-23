@@ -36,6 +36,7 @@ const exec = promisify(execFile);
 // -----------------------------------------------------------------------------
 const MAX_CONCURRENT_CHECKS = 5; // parallel DNS / HTTP checks per batch
 const DELAY_BETWEEN_BATCHES_MS = 1_000; // pause between batches (ms)
+const WHOIS_TIMEOUT_MS = 30_000;
 
 // -----------------------------------------------------------------------------
 // Utility helpers
@@ -141,6 +142,43 @@ async function fetchWithFallback(domain: string): Promise<string | null> {
   return null;
 }
 
+/**
+ * Get WHOIS data for registrar comparison using WhoisXML API
+ */
+async function getWhoisData(domain: string): Promise<{ registrar?: string; registrant?: string; error?: string } | null> {
+  const apiKey = process.env.WHOISXML_API_KEY || process.env.WHOISXML_KEY;
+  if (!apiKey) {
+    return null; // Skip WHOIS checks if no API key
+  }
+
+  try {
+    const response = await axios.get('https://www.whoisxmlapi.com/whoisserver/WhoisService', {
+      params: {
+        apiKey,
+        domainName: domain,
+        outputFormat: 'JSON'
+      },
+      timeout: WHOIS_TIMEOUT_MS
+    });
+    
+    const whoisRecord = response.data.WhoisRecord;
+    if (!whoisRecord) {
+      return { error: 'No WHOIS data available' };
+    }
+    
+    return {
+      registrar: whoisRecord.registrarName,
+      registrant: whoisRecord.registrant?.organization || whoisRecord.registrant?.name || 'Unknown'
+    };
+    
+  } catch (error: any) {
+    if (error.response?.status === 429) {
+      return { error: 'WhoisXML API rate limit exceeded' };
+    }
+    return { error: `WHOIS lookup failed: ${(error as Error).message}` };
+  }
+}
+
 /** Very lightweight phishing heuristics – username & password fields, hotlink favicon, etc. */
 async function analyzeWebPageForPhishing(domain: string, originDomain: string): Promise<{ score: number; evidence: string[] }> {
   const evidence: string[] = [];
@@ -193,6 +231,10 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
   const baseDom = canonical(job.domain);
   let totalFindings = 0;
 
+  // Get WHOIS data for the original domain for comparison
+  log('[dnstwist] Fetching WHOIS data for original domain:', job.domain);
+  const originWhois = await getWhoisData(job.domain);
+
   try {
     const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 120_000 });
     const permutations = JSON.parse(stdout) as Array<{ domain: string; dns_a?: string[]; dns_aaaa?: string[] }>;
@@ -201,6 +243,8 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
     const candidates = permutations
       .filter((p) => canonical(p.domain) !== baseDom)
       .filter((p) => (p.dns_a && p.dns_a.length) || (p.dns_aaaa && p.dns_aaaa.length));
+
+    log(`[dnstwist] Found ${candidates.length} registered typosquat candidates to analyze`);
 
     // Batch processing for rate‑control
     for (let i = 0; i < candidates.length; i += MAX_CONCURRENT_CHECKS) {
@@ -217,6 +261,72 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           const wildcard = await checkForWildcard(entry.domain);
           const phishing = await analyzeWebPageForPhishing(entry.domain, job.domain);
           const redirects = await redirectsToOrigin(entry.domain, job.domain);
+          
+          // Get WHOIS data for registrar comparison
+          const typoWhois = await getWhoisData(entry.domain);
+          
+          // Rate limiting for WhoisXML API
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          // ---------------- Registrar-based risk assessment ----------------
+          let registrarMatch = false;
+          let registrantMatch = false;
+          let privacyProtected = false;
+          const evidence: string[] = [];
+
+          if (originWhois && typoWhois && !typoWhois.error) {
+            // Compare registrars - this is the most reliable indicator
+            if (originWhois.registrar && typoWhois.registrar) {
+              registrarMatch = originWhois.registrar.toLowerCase() === typoWhois.registrar.toLowerCase();
+              if (registrarMatch) {
+                evidence.push(`Same registrar as original domain: ${typoWhois.registrar}`);
+              } else {
+                evidence.push(`Different registrar: ${typoWhois.registrar} (original: ${originWhois.registrar})`);
+              }
+            }
+
+            // Check for privacy protection patterns
+            const privacyPatterns = [
+              'redacted for privacy', 'whois privacy', 'domains by proxy', 'perfect privacy',
+              'contact privacy inc', 'whoisguard', 'private whois', 'data protected',
+              'domain privacy service', 'redacted', 'not disclosed', 'see privacyguardian.org'
+            ];
+            
+            const isPrivacyProtected = (registrant: string) => 
+              privacyPatterns.some(pattern => registrant.toLowerCase().includes(pattern));
+
+            // Handle registrant comparison with privacy awareness
+            if (originWhois.registrant && typoWhois.registrant) {
+              const originPrivacy = isPrivacyProtected(originWhois.registrant);
+              const typoPrivacy = isPrivacyProtected(typoWhois.registrant);
+              
+              if (originPrivacy && typoPrivacy) {
+                // Both have privacy - rely on registrar match + additional signals
+                privacyProtected = true;
+                evidence.push('Both domains use privacy protection - relying on registrar comparison');
+                
+                // For same registrar + privacy, assume defensive if no malicious indicators
+                if (registrarMatch) {
+                  registrantMatch = true; // Assume same org if same registrar + both private
+                  evidence.push('Likely same organization (same registrar + both privacy protected)');
+                }
+              } else if (!originPrivacy && !typoPrivacy) {
+                // Neither has privacy - direct comparison
+                registrantMatch = originWhois.registrant.toLowerCase() === typoWhois.registrant.toLowerCase();
+                if (registrantMatch) {
+                  evidence.push(`Same registrant as original domain: ${typoWhois.registrant}`);
+                } else {
+                  evidence.push(`Different registrant: ${typoWhois.registrant} (original: ${originWhois.registrant})`);
+                }
+              } else {
+                // Mixed privacy - one protected, one not (suspicious pattern)
+                evidence.push('Mixed privacy protection - one domain private, one public (unusual)');
+                registrantMatch = false; // Treat as different
+              }
+            }
+          } else if (typoWhois?.error) {
+            evidence.push(`WHOIS lookup failed: ${typoWhois.error}`);
+          }
 
           // ---------------- Severity calculation -------------
           let score = 10;
@@ -225,9 +335,30 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           if (wildcard) score += 30;
           score += phishing.score;
 
+          // Registrar-based scoring with privacy protection awareness
+          if (registrarMatch && registrantMatch) {
+            // Likely defensive registration by same organization
+            score = Math.max(score - 40, 5); // Significantly reduce suspicion
+            evidence.push('Likely defensive registration by same organization');
+          } else if (registrarMatch && privacyProtected) {
+            // Same registrar + both privacy protected = likely defensive
+            score = Math.max(score - 25, 10); // Moderate reduction in suspicion
+            evidence.push('Same registrar with privacy protection - likely defensive');
+          } else if (!registrarMatch && !privacyProtected && originWhois && typoWhois && !typoWhois.error) {
+            // Different registrar AND clear registrant info = high suspicion
+            score += 35;
+            evidence.push('Different registrar and registrant - potential typosquat threat');
+          } else if (!registrarMatch && privacyProtected) {
+            // Different registrar + privacy = moderate suspicion
+            score += 20;
+            evidence.push('Different registrar with privacy protection - moderate threat');
+          }
+
           let severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
           if (redirects && mxRecords.length === 0) {
             severity = 'MEDIUM'; // verify ownership case
+          } else if (registrarMatch && registrantMatch) {
+            severity = 'LOW'; // Defensive registration
           } else if (score >= 70) {
             severity = 'CRITICAL';
           } else if (score >= 50) {
@@ -241,7 +372,9 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           // ---------------- Artifact creation ---------------
           const artifactId = await insertArtifact({
             type: 'typo_domain',
-            val_text: `Potentially malicious typosquatted domain detected: ${entry.domain}`,
+            val_text: registrarMatch && registrantMatch
+              ? `Defensive typosquat registration detected: ${entry.domain} (same registrar/registrant)`
+              : `Potentially malicious typosquatted domain detected: ${entry.domain}`,
             severity,
             meta: {
               scan_id: job.scanId,
@@ -256,19 +389,41 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
               phishing_score: phishing.score,
               phishing_evidence: phishing.evidence,
               severity_score: score,
+              // WHOIS intelligence
+              registrar_match: registrarMatch,
+              registrant_match: registrantMatch,
+              privacy_protected: privacyProtected,
+              typo_registrar: typoWhois?.registrar,
+              typo_registrant: typoWhois?.registrant,
+              origin_registrar: originWhois?.registrar,
+              origin_registrant: originWhois?.registrant,
+              whois_evidence: evidence,
             },
           });
 
           // ---------------- Finding creation ----------------
           if (severity !== 'LOW') {
-            const description = redirects
-              ? `Domain 3xx redirects to ${job.domain}; verify ownership. MX present: ${mxRecords.length > 0}`
-              : `Domain shows signs of malicious activity (Phishing Score: ${phishing.score}, Wildcard: ${wildcard}, MX Active: ${mxRecords.length > 0})`;
+            let findingType: string;
+            let description: string;
+
+            if (registrarMatch && registrantMatch) {
+              // Defensive registration - informational finding
+              findingType = 'DEFENSIVE_TYPOSQUAT';
+              description = `Defensive domain registration by same organization. Registrar: ${typoWhois?.registrar}, Registrant: ${typoWhois?.registrant}`;
+            } else if (redirects) {
+              findingType = 'TYPOSQUAT_REDIRECT';
+              description = `Domain redirects to ${job.domain}; verify legitimate ownership. Evidence: ${evidence.join(', ')}`;
+            } else {
+              findingType = 'PHISHING_SETUP';
+              description = `Potential typosquat threat with different ownership. Risk factors: ${evidence.join(', ')}`;
+            }
 
             await insertFinding(
               artifactId,
-              'PHISHING_SETUP',
-              `Investigate and initiate takedown procedures for the suspected malicious or impersonating domain ${entry.domain}.`,
+              findingType,
+              registrarMatch && registrantMatch
+                ? `Monitor defensive registration: ${entry.domain}`
+                : `Investigate and potentially initiate takedown procedures for ${entry.domain}`,
               description,
             );
           }

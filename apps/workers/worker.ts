@@ -20,7 +20,6 @@ import { runDenialWalletScan } from './modules/denialWalletScan.js';
 import { runBreachDirectoryProbe } from './modules/breachDirectoryProbe.js';
 import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
 import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
-import { runTyposquatScorer } from './modules/typosquatScorer.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -231,7 +230,9 @@ async function processScan(job: ScanJob): Promise<void> {
 
           case 'typosquat_scorer':
             log(`[${scanId}] STARTING typosquat analysis for ${domain}`);
-            moduleFindings = await runTyposquatScorer({ domain, scanId });
+            // Typosquat scanning now handled by dnsTwist module with WHOIS intelligence
+            log(`Skipping removed typosquatScorer module - functionality merged into dnsTwist`);
+            moduleFindings = 0;
             log(`[${scanId}] COMPLETED typosquat analysis: ${moduleFindings} active typosquats detected`);
             break;
             
