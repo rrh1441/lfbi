@@ -83,8 +83,16 @@ async function updateScanMasterStatus(scanId: string, updates: ScanMasterUpdate)
     
     const values = [scanId, ...Object.values(updates)];
     
+    // Only update updated_at for meaningful changes:
+    // - Status changes (including completion)
+    // - Error messages
+    // - Final completion with findings/artifacts counts
+    const shouldUpdateTimestamp = updates.status || updates.error_message || updates.completed_at || updates.total_findings_count !== undefined;
+    
+    const timestampClause = shouldUpdateTimestamp ? ', updated_at = NOW()' : '';
+    
     const result = await pool.query(
-      `UPDATE scans_master SET ${setClause}, updated_at = NOW() WHERE scan_id = $1`,
+      `UPDATE scans_master SET ${setClause}${timestampClause} WHERE scan_id = $1`,
       values
     );
     

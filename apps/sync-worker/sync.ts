@@ -22,6 +22,11 @@ const SYNC_INTERVAL_MS = 60 * 1000; // Sync every 1 minute
 let lastSuccessfulScanSync = new Date(0);
 let lastSuccessfulFindingSync = new Date(0);
 
+// Declare global type for lastFindingsLogTime
+declare global {
+    var lastFindingsLogTime: number | undefined;
+}
+
 function logDebug(message: string, data?: any) {
     // Reduced logging - only log meaningful progress updates
     const timestamp = new Date().toISOString();
@@ -88,7 +93,7 @@ async function syncScansMasterTable() {
                 total_artifacts_count
              FROM scans_master 
              WHERE updated_at > $1 
-             AND NOT (status = 'completed' AND updated_at < NOW() - INTERVAL '5 minutes')
+             AND (status NOT IN ('completed', 'failed') OR updated_at > NOW() - INTERVAL '1 hour')
              ORDER BY updated_at ASC
              LIMIT 100`, // Batching
             [lastSuccessfulScanSync]
@@ -121,15 +126,27 @@ async function syncScansMasterTable() {
                 return; // Don't update timestamp on error
             }
             
-            // Only log when there are meaningful progress updates (module completion or status changes)
-            const meaningfulUpdates = recordsToUpsert.filter(scan => 
-                scan.status === 'completed' || scan.status === 'failed' ||
-                (scan.current_module && scan.progress % 10 === 0) // Only log every 10% progress
+            // Only log when there are meaningful progress updates
+            const recentCompletions = recordsToUpsert.filter(scan => 
+                (scan.status === 'completed' || scan.status === 'failed') &&
+                new Date(scan.last_updated).getTime() > Date.now() - (60 * 60 * 1000) // Within last hour
             );
             
-            if (meaningfulUpdates.length > 0) {
-                logProgress(`Module progress updated for ${meaningfulUpdates.length} scans`, {
-                    completed: meaningfulUpdates.map(s => `${s.company_name}: ${s.current_module} (${s.progress}/${s.total_modules})`)
+            const activeProgress = recordsToUpsert.filter(scan => 
+                scan.status === 'processing' &&
+                scan.current_module && 
+                scan.progress % 20 === 0 // Only log every 20% progress
+            );
+            
+            if (recentCompletions.length > 0) {
+                logProgress(`Recently completed scans: ${recentCompletions.length}`, {
+                    completed: recentCompletions.map(s => `${s.company_name}: ${s.status}`)
+                });
+            }
+            
+            if (activeProgress.length > 0) {
+                logProgress(`Active scans progress: ${activeProgress.length}`, {
+                    progress: activeProgress.map(s => `${s.company_name}: ${s.current_module} (${s.progress}%)`)
                 });
             }
             
@@ -202,24 +219,37 @@ async function syncFindingsTable() {
                 }));
             
             if (recordsToUpsert.length > 0) {
+                // Check what findings already exist in Supabase to avoid logging duplicates
+                const existingIds = recordsToUpsert.map(f => f.id);
+                const { data: existingFindings } = await supabase
+                    .from('findings')
+                    .select('id')
+                    .in('id', existingIds);
+                
+                const existingIdSet = new Set(existingFindings?.map(f => f.id) || []);
+                const newFindings = recordsToUpsert.filter(f => !existingIdSet.has(f.id));
+                
                 const { data, error } = await supabase
                     .from('findings')
-                    .upsert(recordsToUpsert, { onConflict: 'id', ignoreDuplicates: false });
+                    .upsert(recordsToUpsert, { onConflict: 'id', ignoreDuplicates: true });
 
                 if (error) {
                     logError('Error upserting findings to Supabase', error);
                     return; // Don't update timestamp on error
                 }
                 
-                // Only log when findings are successfully inserted
-                const findingsByType = recordsToUpsert.reduce((acc, f) => {
-                    acc[f.type] = (acc[f.type] || 0) + 1;
-                    return acc;
-                }, {} as Record<string, number>);
-                
-                logProgress(`Findings inserted: ${recordsToUpsert.length} total`, findingsByType);
+                // Only log when there are actually NEW findings
+                if (newFindings.length > 0) {
+                    const findingsByType = newFindings.reduce((acc, f) => {
+                        acc[f.type] = (acc[f.type] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+                    
+                    logProgress(`New findings synced: ${newFindings.length}`, findingsByType);
+                }
             }
             
+            // Always update timestamp to prevent re-processing same batch
             lastSuccessfulFindingSync = new Date(rows[rows.length - 1].created_at);
         }
     } catch (error) {
