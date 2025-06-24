@@ -273,7 +273,8 @@ async function runSyncCycle() {
     }
     
     await syncScansMasterTable();
-    await syncFindingsTable();
+    // TEMPORARILY DISABLE FINDINGS SYNC TO STOP SPAM
+    // await syncFindingsTable();
 }
 
 async function startSyncWorker() {
