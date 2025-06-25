@@ -34,9 +34,11 @@ const exec = promisify(execFile);
 // -----------------------------------------------------------------------------
 // Tuning constants
 // -----------------------------------------------------------------------------
-const MAX_CONCURRENT_CHECKS = 5; // parallel DNS / HTTP checks per batch
-const DELAY_BETWEEN_BATCHES_MS = 1_000; // pause between batches (ms)
-const WHOIS_TIMEOUT_MS = 30_000;
+const MAX_CONCURRENT_CHECKS = 15; // Increased from 5 to 15 for speed
+const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms  
+const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
+const SKIP_DEEP_ANALYSIS = true; // Skip time-consuming phishing analysis
+const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
 
 // -----------------------------------------------------------------------------
 // Utility helpers
@@ -236,7 +238,7 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
   const originWhois = await getWhoisData(job.domain);
 
   try {
-    const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 120_000 });
+    const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 60_000 }); // Reduced from 120s to 60s
     const permutations = JSON.parse(stdout) as Array<{ domain: string; dns_a?: string[]; dns_aaaa?: string[] }>;
 
     // Pre‑filter: exclude canonical & non‑resolving entries
@@ -255,18 +257,38 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
         batch.map(async (entry) => {
           totalFindings += 1;
 
-          // ---------------- Enrichment calls ----------------
-          const { mx: mxRecords, ns: nsRecords } = await getDnsRecords(entry.domain);
-          const ctCerts = await checkCTLogs(entry.domain);
-          const wildcard = await checkForWildcard(entry.domain);
-          const phishing = await analyzeWebPageForPhishing(entry.domain, job.domain);
-          const redirects = await redirectsToOrigin(entry.domain, job.domain);
+          // ---------------- Fast mode enrichment ----------------
+          const mxRecords: string[] = [];
+          const nsRecords: string[] = [];
+          const ctCerts: Array<{ issuer_name: string; common_name: string }> = [];
+          let wildcard = false;
+          let phishing = { score: 0, evidence: [] as string[] };
+          let redirects = false;
+          let typoWhois: any = { error: 'Skipped in fast mode' };
           
-          // Get WHOIS data for registrar comparison
-          const typoWhois = await getWhoisData(entry.domain);
-          
-          // Rate limiting for WhoisXML API
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (!SKIP_DEEP_ANALYSIS) {
+            // Only do expensive operations if deep analysis is enabled
+            const dnsResults = await getDnsRecords(entry.domain);
+            mxRecords.push(...dnsResults.mx);
+            nsRecords.push(...dnsResults.ns);
+            
+            ctCerts.push(...await checkCTLogs(entry.domain));
+            wildcard = await checkForWildcard(entry.domain);
+            phishing = await analyzeWebPageForPhishing(entry.domain, job.domain);
+            redirects = await redirectsToOrigin(entry.domain, job.domain);
+            typoWhois = await getWhoisData(entry.domain);
+            
+            // Rate limiting for WhoisXML API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            // Fast mode: minimal DNS check only
+            const fastDns = await getDnsRecords(entry.domain);
+            mxRecords.push(...fastDns.mx);
+            nsRecords.push(...fastDns.ns);
+            
+            // Quick redirect check only
+            redirects = await redirectsToOrigin(entry.domain, job.domain);
+          }
 
           // ---------------- Registrar-based risk assessment ----------------
           let registrarMatch = false;

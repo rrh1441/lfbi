@@ -8,9 +8,13 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const exec = promisify(execFile);
 

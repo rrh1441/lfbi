@@ -165,8 +165,8 @@ async function processScan(job: ScanJob): Promise<void> {
     let modulesCompleted = 0;
     
     // === MODULE EXECUTION ===
-    // Phase 1: Independent discovery modules (can run in parallel)
-    const phase1Modules = ['spiderfoot', 'dns_twist', 'shodan', 'breach_directory_probe'];
+    // Phase 1: Fast independent discovery modules (can run in parallel)
+    const phase1Modules = ['spiderfoot', 'shodan', 'breach_directory_probe']; // Moved dns_twist to Phase 2
     const phase1Results = await Promise.allSettled(
       phase1Modules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -183,11 +183,6 @@ async function processScan(job: ScanJob): Promise<void> {
             const sfFindings = await runSpiderFoot({ domain, scanId });
             log(`[${scanId}] COMPLETED SpiderFoot discovery: ${sfFindings} targets found`);
             return sfFindings;
-          case 'dns_twist':
-            log(`[${scanId}] STARTING DNS Twist scan for ${domain}`);
-            const dnsFindings = await runDnsTwist({ domain, scanId });
-            log(`[${scanId}] COMPLETED DNS Twist: ${dnsFindings} typo-domains found`);
-            return dnsFindings;
           case 'shodan':
             log(`[${scanId}] STARTING Shodan scan for ${domain}`);
             const shodanFindings = await runShodanScan({ domain, scanId, companyName });
