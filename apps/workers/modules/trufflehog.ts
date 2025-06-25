@@ -29,15 +29,15 @@ import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
-const MAX_CRAWL_DEPTH = 1; // Reduced from 2 to 1
+const MAX_CRAWL_DEPTH = 2; // Keep depth for admin/api paths
 const MAX_GIT_REPOS_TO_SCAN = 10; // Reduced from 20 to 10
 const TRUFFLEHOG_GIT_DEPTH = parseInt(process.env.TRUFFLEHOG_GIT_DEPTH || '3'); // Reduced from 5 to 3
 
-// PERFORMANCE: Reduced resource limits for faster scanning
-const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // Reduced from 5MB to 2MB per file
-const MAX_FILES_PER_CRAWL = 25; // Reduced from 50 to 25 files per domain
-const MAX_TOTAL_CRAWL_SIZE_BYTES = 20 * 1024 * 1024; // Reduced from 50MB to 20MB total
-const MAX_PAGES = 30; // Reduced from 250 to 30 pages for speed
+// BALANCED: Moderate limits for better secret detection
+const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3MB - catches most modern SPAs
+const MAX_FILES_PER_CRAWL = 35; // 35 files - good coverage without excess
+const MAX_TOTAL_CRAWL_SIZE_BYTES = 30 * 1024 * 1024; // 30MB total
+const MAX_PAGES = 75; // 75 pages - covers main site + admin sections
 
 /**
  * Processes the JSON line-by-line output from a TruffleHog scan.
@@ -205,16 +205,76 @@ async function scanLocalFiles(scanId: string): Promise<number> {
     return findings;
 }
 
+/**
+ * Scan high-value targets likely to contain secrets based on common patterns
+ */
+async function scanHighValueTargets(domain: string, scanId: string): Promise<number> {
+    let findings = 0;
+    
+    // High-probability secret locations
+    const highValuePaths = [
+        '/.env',
+        '/config.json', 
+        '/app.config.json',
+        '/.aws/credentials',
+        '/api-keys.txt',
+        '/secrets.json',
+        '/.htaccess',
+        '/web.config',
+        '/config.php',
+        '/app.js',
+        '/bundle.js',
+        '/main.js'
+    ];
+    
+    log(`[trufflehog] [Targeted Scan] Testing ${highValuePaths.length} high-value paths for secrets`);
+    
+    for (const path of highValuePaths) {
+        try {
+            const url = `https://${domain}${path}`;
+            const response = await axios.get(url, { 
+                timeout: 5000,
+                maxContentLength: 1024 * 1024, // 1MB max
+                validateStatus: (status) => status === 200
+            });
+            
+            if (response.data && typeof response.data === 'string') {
+                log(`[trufflehog] [Targeted Scan] Found accessible file: ${url}`);
+                
+                // Save content to temp file and scan with TruffleHog
+                const tempFile = `/tmp/trufflehog-target-${scanId}-${path.replace(/[^a-zA-Z0-9]/g, '_')}.txt`;
+                await fs.writeFile(tempFile, response.data);
+                
+                const { stdout } = await exec('trufflehog', ['filesystem', tempFile, '--json']);
+                findings += await processTrufflehogOutput(stdout, 'http', url);
+                
+                // Clean up temp file
+                await fs.unlink(tempFile).catch(() => {});
+            }
+        } catch (error) {
+            // Expected for most paths - don't log as errors
+        }
+    }
+    
+    log(`[trufflehog] [Targeted Scan] Completed high-value path scanning: ${findings} secrets found`);
+    return findings;
+}
+
 
 export async function runTrufflehog(job: { domain: string; scanId?: string }): Promise<number> {
-  log('[trufflehog] Starting secret scan for domain:', job.domain);
+  log('[trufflehog] Starting targeted secret scan for domain:', job.domain);
   if (!job.scanId) {
       log('[trufflehog] [ERROR] scanId is required for TruffleHog module.');
       return 0;
   }
   let totalFindings = 0;
 
-  totalFindings += await scanWebsite(job.domain, job.scanId);
+  // OPTIMIZATION: Skip redundant website crawling - other modules handle endpoint discovery
+  // totalFindings += await scanWebsite(job.domain, job.scanId);
+  log('[trufflehog] Skipping website crawl - relying on endpoint discovery from other modules');
+  
+  // Scan specific high-value targets found by other modules
+  totalFindings += await scanHighValueTargets(job.domain, job.scanId);
 
   try {
     const linksPath = `/tmp/spiderfoot-links-${job.scanId}.json`;
