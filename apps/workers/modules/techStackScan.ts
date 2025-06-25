@@ -314,16 +314,101 @@ function calculateVersionAccuracy(detections: WappTech[]): number {
   return Math.max(0, 1 - (stddev / 10));
 }
 
+/* Analyze HTTP headers for basic technology detection (fallback) */
+function analyzeHttpHeaders(headers: Headers, url: string): WappTech[] {
+  const technologies: WappTech[] = [];
+  
+  // Server header analysis
+  const server = headers.get('server');
+  if (server) {
+    if (/nginx/i.test(server)) {
+      technologies.push({
+        name: 'Nginx',
+        slug: 'nginx',
+        confidence: 100,
+        categories: [{ id: 22, name: 'Web Servers', slug: 'web-servers' }]
+      });
+    }
+    if (/apache/i.test(server)) {
+      technologies.push({
+        name: 'Apache',
+        slug: 'apache',
+        confidence: 100,
+        categories: [{ id: 22, name: 'Web Servers', slug: 'web-servers' }]
+      });
+    }
+    if (/cloudflare/i.test(server)) {
+      technologies.push({
+        name: 'Cloudflare',
+        slug: 'cloudflare',
+        confidence: 100,
+        categories: [{ id: 31, name: 'CDN', slug: 'cdn' }]
+      });
+    }
+  }
+  
+  // X-Powered-By header
+  const poweredBy = headers.get('x-powered-by');
+  if (poweredBy) {
+    if (/php/i.test(poweredBy)) {
+      const versionMatch = poweredBy.match(/php\/?([\d.]+)/i);
+      technologies.push({
+        name: 'PHP',
+        slug: 'php',
+        version: versionMatch?.[1],
+        confidence: 100,
+        categories: [{ id: 27, name: 'Programming Languages', slug: 'programming-languages' }]
+      });
+    }
+    if (/asp\.net/i.test(poweredBy)) {
+      technologies.push({
+        name: 'ASP.NET',
+        slug: 'asp-net',
+        confidence: 100,
+        categories: [{ id: 18, name: 'Web Frameworks', slug: 'web-frameworks' }]
+      });
+    }
+  }
+  
+  // Content-Type analysis
+  const contentType = headers.get('content-type');
+  if (contentType && /application\/json/i.test(contentType)) {
+    technologies.push({
+      name: 'JSON API',
+      slug: 'json-api',
+      confidence: 75,
+      categories: [{ id: 19, name: 'Miscellaneous', slug: 'miscellaneous' }]
+    });
+  }
+  
+  return technologies;
+}
+
 /* Resolve Nuclei binary for technology detection */
 async function resolveNuclei(): Promise<string | null> {
-  try {
-    await exec('nuclei', ['--version'], { timeout: 5_000 });
-    log(`techstack=nuclei binary confirmed`);
-    return 'nuclei';
-  } catch {
-    log(`techstack=nuclei binary not found`);
-    return null;
+  const candidates = [
+    'nuclei',
+    '/usr/local/bin/nuclei',
+    '/usr/bin/nuclei',
+    '/opt/nuclei/nuclei',
+    `${process.env.HOME}/go/bin/nuclei`
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      const { stdout } = await exec(candidate, ['--version'], { timeout: 5_000 });
+      if (stdout.includes('Nuclei Engine')) {
+        log(`techstack=nuclei binary confirmed at ${candidate}`);
+        return candidate;
+      }
+    } catch (error) {
+      // Try next candidate
+      continue;
+    }
   }
+  
+  log(`techstack=nuclei binary not found in any of: ${candidates.join(', ')}`);
+  return null;
 }
 
 /* Build enhanced target list */
@@ -1231,10 +1316,16 @@ export async function runTechStackScan(job: {
   const start = Date.now();
   log(`techstack=start domain=${domain}`);
   
-  // Check for nuclei (required for tech detection, optional for CVE active testing)
+  // Check for nuclei (required for tech detection)
   const nucleiBinary = await resolveNuclei();
   if (!nucleiBinary) {
-    await insertArtifact({ type: 'scan_error', val_text: 'Nuclei not found', severity: 'HIGH', meta: { scan_id: scanId } });
+    log(`techstack=error Nuclei binary not found - aborting scan`);
+    await insertArtifact({
+      type: 'scan_error',
+      val_text: 'Nuclei binary not found in container - tech stack scan failed',
+      severity: 'HIGH',
+      meta: { scan_id: scanId, scan_module: 'techStackScan' }
+    });
     return 0;
   }
   
@@ -1251,26 +1342,72 @@ export async function runTechStackScan(job: {
     log(`techstack=targets primary=${primary.length} thirdParty=${thirdParty.length} total=${allTargets.length}`);
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
-    // fingerprint
-    await Promise.all(allTargets.map(url => limit(async () => {
-      if (cb.isTripped()) return;
-      try {
-        log(`techstack=nuclei url="${url}"`);
-        const { stdout } = await exec(nucleiBinary, ['-u', url, '-silent', '-json', '-tags', 'tech', '-no-color'], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
-        const lines = stdout.trim().split('\n').filter(Boolean);
-        log(`techstack=nuclei_output url="${url}" lines=${lines.length}`);
-        const techs = convertNucleiToWappTech(lines);
-        log(`techstack=converted url="${url}" techs=${techs.length}`);
-        techs.forEach(t => {
-          techMap.set(t.slug, t);
-          if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
-          detectMap.get(t.slug)!.push(t);
-        });
-      } catch (e) { 
-        log(`techstack=nuclei_error url="${url}" error="${(e as Error).message}"`);
-        if ((e as Error).message.includes('timeout')) cb.recordTimeout(); 
-      }
-    })));
+    // fingerprint with Nuclei or fallback
+    if (nucleiBinary) {
+      // Primary: Nuclei-based detection
+      await Promise.all(allTargets.map(url => limit(async () => {
+        if (cb.isTripped()) return;
+        try {
+          log(`techstack=nuclei url="${url}"`);
+          const { stdout, stderr } = await exec(nucleiBinary, [
+            '-u', url, 
+            '-silent', 
+            '-json', 
+            '-tags', 'tech', 
+            '-no-color',
+            '-timeout', '15',  // Increase timeout from default
+            '-retries', '1',   // Add retries
+            '-rate-limit', '10' // Add rate limiting to avoid blocks
+          ], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          
+          if (stderr) {
+            log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);
+          }
+          
+          const lines = stdout.trim().split('\n').filter(Boolean);
+          log(`techstack=nuclei_output url="${url}" lines=${lines.length} stdout_size=${stdout.length}`);
+          
+          if (lines.length === 0) {
+            log(`techstack=nuclei_no_output url="${url}" raw_stdout="${stdout.slice(0, 100)}"`);
+          }
+          
+          const techs = convertNucleiToWappTech(lines);
+          log(`techstack=converted url="${url}" techs=${techs.length}`);
+          techs.forEach(t => {
+            techMap.set(t.slug, t);
+            if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
+            detectMap.get(t.slug)!.push(t);
+          });
+        } catch (e) { 
+          const error = e as Error;
+          log(`techstack=nuclei_error url="${url}" error="${error.message}" code="${(e as any).code}"`);
+          if (error.message.includes('timeout')) cb.recordTimeout(); 
+        }
+      })));
+    } else {
+      // Fallback: Basic HTTP header analysis
+      await Promise.all(allTargets.slice(0, 5).map(url => limit(async () => { // Limit to 5 URLs for fallback
+        if (cb.isTripped()) return;
+        try {
+          log(`techstack=fallback_scan url="${url}"`);
+          const response = await fetch(url, { 
+            method: 'HEAD',
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TechStackScanner/1.0)' },
+            signal: AbortSignal.timeout(10000)
+          });
+          
+          const techs = analyzeHttpHeaders(response.headers, url);
+          log(`techstack=fallback_detected url="${url}" techs=${techs.length}`);
+          techs.forEach(t => {
+            techMap.set(t.slug, t);
+            if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
+            detectMap.get(t.slug)!.push(t);
+          });
+        } catch (e) {
+          log(`techstack=fallback_error url="${url}" error="${(e as Error).message}"`);
+        }
+      })));
+    }
     // analysis
     const analysisMap = new Map<string, EnhancedSecAnalysis>();
     await Promise.all(Array.from(techMap.entries()).map(([slug, tech]) => limit(async () => {

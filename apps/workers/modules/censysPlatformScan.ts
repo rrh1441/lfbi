@@ -7,12 +7,11 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 
 /* ─────────── Configuration ─────────── */
 
-if (!process.env.CENSYS_PAT || !process.env.CENSYS_ORG_ID) {
-  throw new Error('CENSYS_PAT and CENSYS_ORG_ID must be set');
-}
+// Don't throw error on import - handle gracefully in scan function
 
 const CENSYS_PAT     = process.env.CENSYS_PAT as string;
 const CENSYS_ORG_ID  = process.env.CENSYS_ORG_ID as string;
@@ -66,6 +65,7 @@ const logWrap = (l?: (m: string) => void) =>
 /* ─────────── Fetch with throttle + retry ─────────── */
 
 const tick: number[] = [];
+let censysApiCallsCount = 0;
 
 async function censysFetch<T>(
   url: string,
@@ -103,6 +103,7 @@ async function censysFetch<T>(
     clearTimeout(timeout);
 
     if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    censysApiCallsCount++;
     return (await res.json()) as T;
   } catch (e) {
     if (attempt >= RETRIES) throw e;
@@ -283,6 +284,88 @@ export async function runCensysPlatformScan({
       `${findings.length} total`,
   );
   return findings;
+}
+
+// Wrapper function for DealBrief worker integration
+export async function runCensysScan(job: { domain: string; scanId: string }): Promise<number> {
+  const { domain, scanId } = job;
+  
+  // Check if Censys credentials are available
+  if (!process.env.CENSYS_PAT || !process.env.CENSYS_ORG_ID) {
+    const log = logWrap();
+    log(`[${scanId}] Censys scan skipped - CENSYS_PAT and CENSYS_ORG_ID not configured (saves ~$2-10 per scan)`);
+    return 0;
+  }
+  
+  const log = logWrap();
+  log(`[${scanId}] Censys scan starting - estimated cost: $2-10 for typical domain (at $0.20/credit)`);
+  
+  try {
+    const findings = await runCensysPlatformScan({ domain, scanId });
+    
+    // Convert Censys findings to DealBrief artifacts
+    let persistedFindings = 0;
+    
+    for (const finding of findings) {
+      if (finding.status === 'resolved') continue; // Skip resolved findings
+      
+      const severity = finding.risk === 'high' ? 'HIGH' : finding.risk === 'medium' ? 'MEDIUM' : 'LOW';
+      
+      const artifactId = await insertArtifact({
+        type: 'censys_service',
+        val_text: `${finding.ip} - ${finding.service}`,
+        severity,
+        src_url: `https://search.censys.io/hosts/${finding.ip}`,
+        meta: {
+          scan_id: scanId,
+          scan_module: 'censysPlatformScan',
+          ip: finding.ip,
+          hostnames: finding.hostnames,
+          service: finding.service,
+          evidence: finding.evidence,
+          risk: finding.risk,
+          status: finding.status,
+          timestamp: finding.timestamp
+        }
+      });
+      
+      await insertFinding(
+        artifactId,
+        'EXPOSED_SERVICE',
+        `Review and secure ${finding.service} service on ${finding.ip}`,
+        `Service: ${finding.service}, Risk: ${finding.risk}, Status: ${finding.status}`
+      );
+      
+      persistedFindings++;
+    }
+    
+    // Create summary artifact
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `Censys scan: ${persistedFindings} services discovered`,
+      severity: 'INFO',
+      meta: {
+        scan_id: scanId,
+        scan_module: 'censysPlatformScan',
+        total_findings: persistedFindings,
+        new_findings: findings.filter(f => f.status === 'new').length,
+        resolved_findings: findings.filter(f => f.status === 'resolved').length,
+        api_calls_used: censysApiCallsCount,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
+    const log = logWrap();
+    const estimatedCost = (censysApiCallsCount * 0.20).toFixed(2);
+    log(`[${scanId}] Censys scan complete: ${persistedFindings} services, ${censysApiCallsCount} API calls used (~$${estimatedCost})`);
+    
+    return persistedFindings;
+    
+  } catch (error) {
+    const log = logWrap();
+    log(`[${scanId}] Censys scan failed: ${(error as Error).message}`);
+    return 0;
+  }
 }
 
 export default runCensysPlatformScan;

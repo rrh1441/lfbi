@@ -171,7 +171,7 @@ function parseSSLScanOutput(xmlOutput: string, host: string): SSLScanResult | nu
       result.vulnerabilities.push('NULL cipher support detected');
     }
 
-    // Check for missing certificate
+    // Check for missing certificate - but this will be cross-validated with Python
     if (!result.certificate && !xmlOutput.includes('Certificate information')) {
       result.vulnerabilities.push('No SSL certificate presented');
     }
@@ -216,15 +216,17 @@ async function performCrossValidation(
 ): Promise<{additionalFindings: number}> {
   let additionalFindings = 0;
 
-  // 1. Check for validation mismatches (SNI/certificate issues)
+  // 1. Check for validation mismatches - Trust Python validator over sslscan
   const sslscanHasCert = !!sslscanResult.certificate;
   const pythonHasCert = pythonResult.valid && !!pythonResult.certificate;
   
-  if (sslscanHasCert !== pythonHasCert) {
+  // Only report a mismatch if Python says INVALID but sslscan says valid
+  // If Python says valid but sslscan says invalid, trust Python (common with SNI/cloud certs)
+  if (sslscanHasCert && !pythonHasCert) {
     additionalFindings++;
     const artId = await insertArtifact({
       type: 'tls_validation_mismatch',
-      val_text: `${host} - Certificate validation mismatch detected`,
+      val_text: `${host} - Certificate validation mismatch: sslscan found cert but Python validation failed`,
       severity: 'MEDIUM',
       meta: {
         host,
@@ -240,10 +242,11 @@ async function performCrossValidation(
     await insertFinding(
       artId,
       'TLS_VALIDATION_INCONSISTENCY',
-      'Certificate validation inconsistency - investigate SNI configuration',
-      `sslscan: ${sslscanHasCert ? 'found cert' : 'no cert'}, Python validator: ${pythonHasCert ? 'valid cert' : 'invalid/no cert'}`
+      'Certificate found by sslscan but Python validation failed - investigate certificate validity',
+      `sslscan: found cert, Python validator: ${pythonResult.error || 'validation failed'}`
     );
   }
+  // REMOVED: Don't report when Python says valid but sslscan says invalid (trust Python)
 
   // 2. SNI-specific issues
   if (!pythonResult.sni_supported && sslscanResult.certificate) {
@@ -463,8 +466,14 @@ async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
       certificateSeen = certificateSeen || (pythonData.valid && !!pythonData.certificate);
     }
 
-    // Process vulnerabilities
+    // Process vulnerabilities - filter out false positives when Python says certificate is valid
     for (const vulnerability of result.vulnerabilities) {
+      // Skip "No SSL certificate presented" if Python validator confirmed a valid certificate
+      if (vulnerability.includes('No SSL certificate') && pythonData && pythonData.valid && pythonData.certificate) {
+        log(`[tlsScan] Skipping false positive: "${vulnerability}" - Python validator confirmed valid certificate`);
+        continue;
+      }
+      
       findingsCount++;
       
       let severity: Severity = 'MEDIUM';

@@ -96,6 +96,8 @@ const cvssToSeverity = (s?: number): Sev => {
 
 const tsQueue: number[] = [];
 
+let apiCallsCount = 0;
+
 async function rlFetch<T>(url: string, attempt = 0): Promise<T> {
   const now = Date.now();
   while (tsQueue.length && now - tsQueue[0] > 1_000) tsQueue.shift();
@@ -106,6 +108,8 @@ async function rlFetch<T>(url: string, attempt = 0): Promise<T> {
 
   try {
     const res = await axios.get<T>(url, { timeout: 30_000 });
+    apiCallsCount++;
+    log(`[Shodan] API call ${apiCallsCount} - ${url.includes('search') ? 'search' : 'host'} query`);
     return res.data;
   } catch (err) {
     const ae = err as AxiosError;
@@ -293,10 +297,16 @@ export async function runShodanScan(job: {
     type: 'scan_summary',
     val_text: `Shodan scan: ${totalItems} items`,
     severity: 'INFO',
-    meta: { scan_id: scanId, total_items: totalItems, timestamp: new Date().toISOString() },
+    meta: { 
+      scan_id: scanId, 
+      total_items: totalItems, 
+      api_calls_used: apiCallsCount,
+      targets_queried: targets.size,
+      timestamp: new Date().toISOString() 
+    },
   });
 
-  log(`[Shodan] Done — ${totalItems} rows persisted`);
+  log(`[Shodan] Done — ${totalItems} rows persisted, ${apiCallsCount} API calls used for ${targets.size} targets`);
   return totalItems;
 }
 

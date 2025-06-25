@@ -20,6 +20,7 @@ import { runDenialWalletScan } from './modules/denialWalletScan.js';
 import { runBreachDirectoryProbe } from './modules/breachDirectoryProbe.js';
 import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
 import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
+import { runCensysScan } from './modules/censysPlatformScan.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -44,6 +45,7 @@ const ALL_MODULES_IN_ORDER = [
   'dns_twist',
   'document_exposure',
   'shodan',
+  'censys',
   'breach_directory_probe',
   'rdp_vpn_templates',
   'email_bruteforce_surface',
@@ -161,12 +163,12 @@ async function processScan(job: ScanJob): Promise<void> {
     
     await queue.updateStatus(scanId, 'processing', 'Comprehensive security discovery in progress...');
     
-    let totalFindings = 0;
+    let totalModuleResults = 0; // Count of module results (mix of artifacts/findings)
     let modulesCompleted = 0;
     
     // === MODULE EXECUTION ===
     // Phase 1: Fast discovery modules (parallel)
-    const phase1Modules = ['spiderfoot', 'shodan', 'breach_directory_probe'];
+    const phase1Modules = ['spiderfoot', 'breach_directory_probe'];
     const phase1Results = await Promise.allSettled(
       phase1Modules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -183,11 +185,6 @@ async function processScan(job: ScanJob): Promise<void> {
             const sfFindings = await runSpiderFoot({ domain, scanId });
             log(`[${scanId}] COMPLETED SpiderFoot discovery: ${sfFindings} targets found`);
             return sfFindings;
-          case 'shodan':
-            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
-            const shodanFindings = await runShodanScan({ domain, scanId, companyName });
-            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${shodanFindings} services found`);
-            return shodanFindings;
           case 'breach_directory_probe':
             log(`[${scanId}] STARTING Breach Directory intelligence probe for ${domain}`);
             const breachFindings = await runBreachDirectoryProbe({ domain, scanId });
@@ -200,20 +197,20 @@ async function processScan(job: ScanJob): Promise<void> {
     );
     
     // Collect Phase 1 results
-    let phase1TotalFindings = 0;
+    let phase1TotalResults = 0;
     phase1Results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
-        phase1TotalFindings += result.value;
+        phase1TotalResults += result.value;
       } else {
         log(`Phase 1 module ${phase1Modules[index]} failed:`, result.reason);
       }
     });
     
-    totalFindings += phase1TotalFindings;
+    totalModuleResults += phase1TotalResults;
     modulesCompleted += phase1Modules.length;
 
     // Phase 2A: Independent analysis modules (parallel - no dependencies)
-    const phase2aModules = ['document_exposure', 'dns_twist', 'tls_scan', 'spf_dmarc'];
+    const phase2aModules = ['shodan', 'censys', 'document_exposure', 'dns_twist', 'tls_scan', 'spf_dmarc'];
     const phase2aResults = await Promise.allSettled(
       phase2aModules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -225,6 +222,16 @@ async function processScan(job: ScanJob): Promise<void> {
         log(`=== Running module (Phase 2A): ${moduleName} ===`);
         
         switch (moduleName) {
+          case 'shodan':
+            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
+            const shodanFindings = await runShodanScan({ domain, scanId, companyName });
+            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${shodanFindings} services found`);
+            return shodanFindings;
+          case 'censys':
+            log(`[${scanId}] STARTING Censys platform scan for ${domain}`);
+            const censysFindings = await runCensysScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED Censys platform scan: ${censysFindings} services found`);
+            return censysFindings;
           case 'document_exposure':
             log(`[${scanId}] STARTING document exposure scan for ${companyName}`);
             const docFindings = await runDocumentExposure({ companyName, domain, scanId });
@@ -252,16 +259,16 @@ async function processScan(job: ScanJob): Promise<void> {
     );
     
     // Collect Phase 2A results
-    let phase2aTotalFindings = 0;
+    let phase2aTotalResults = 0;
     phase2aResults.forEach((result, index) => {
       if (result.status === 'fulfilled') {
-        phase2aTotalFindings += result.value;
+        phase2aTotalResults += result.value;
       } else {
         log(`Phase 2A module ${phase2aModules[index]} failed:`, result.reason);
       }
     });
     
-    totalFindings += phase2aTotalFindings;
+    totalModuleResults += phase2aTotalResults;
     modulesCompleted += phase2aModules.length;
 
     // Phase 2B: Endpoint discovery (must run before endpoint-dependent modules)
@@ -273,9 +280,9 @@ async function processScan(job: ScanJob): Promise<void> {
     });
     
     log(`[${scanId}] STARTING endpoint discovery for ${domain}`);
-    const endpointFindings = await runEndpointDiscovery({ domain, scanId });
-    log(`[${scanId}] COMPLETED endpoint discovery: ${endpointFindings} endpoint collections found`);
-    totalFindings += endpointFindings;
+    const endpointResults = await runEndpointDiscovery({ domain, scanId });
+    log(`[${scanId}] COMPLETED endpoint discovery: ${endpointResults} endpoint collections found`);
+    totalModuleResults += endpointResults;
     modulesCompleted += 1;
 
     // Phase 2C: Endpoint-dependent modules (parallel)
@@ -318,16 +325,16 @@ async function processScan(job: ScanJob): Promise<void> {
     );
     
     // Collect Phase 2C results
-    let phase2cTotalFindings = 0;
+    let phase2cTotalResults = 0;
     phase2cResults.forEach((result, index) => {
       if (result.status === 'fulfilled') {
-        phase2cTotalFindings += result.value;
+        phase2cTotalResults += result.value;
       } else {
         log(`Phase 2C module ${phase2cModules[index]} failed:`, result.reason);
       }
     });
     
-    totalFindings += phase2cTotalFindings;
+    totalModuleResults += phase2cTotalResults;
     modulesCompleted += phase2cModules.length;
 
     // Phase 3: Final sequential modules  
@@ -458,7 +465,7 @@ async function processScan(job: ScanJob): Promise<void> {
             break;
         }
         
-        totalFindings += moduleFindings;
+        totalModuleResults += moduleFindings;
         modulesCompleted++;
         
         // Update progress after successful module completion
@@ -491,9 +498,9 @@ async function processScan(job: ScanJob): Promise<void> {
       }
     }
 
-    // If no real findings, the scan failed
-    if (totalFindings === 0) {
-      throw new Error(`No real security findings discovered for ${domain}. Comprehensive scan failed to produce actionable results.`);
+    // If no real module results, the scan failed
+    if (totalModuleResults === 0) {
+      throw new Error(`No security results discovered for ${domain}. Comprehensive scan failed to produce actionable results.`);
     }
 
     // === SCAN COMPLETION ===
@@ -548,10 +555,10 @@ async function processScan(job: ScanJob): Promise<void> {
     await queue.updateStatus(
       scanId, 
       'done', 
-      `Comprehensive security scan completed - ${totalFindings} verified findings across ${TOTAL_MODULES} security modules. Findings ready for processing.`
+      `Comprehensive security scan completed - ${totalFindingsCount} verified findings across ${TOTAL_MODULES} security modules. Findings ready for processing.`
     );
     
-    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindings} verified findings, ${totalArtifactsCount} artifacts across ${TOTAL_MODULES} security modules`);
+    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindingsCount} verified findings, ${totalArtifactsCount} artifacts across ${TOTAL_MODULES} security modules`);
 
   } catch (error) {
     log(`❌ Scan failed for ${companyName}:`, (error as Error).message);

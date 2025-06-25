@@ -25,6 +25,7 @@ import axios, { AxiosRequestConfig } from 'axios';
 import { parse } from 'node-html-parser';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
+import { resolveWhoisBatch } from './whoisWrapper.js';
 
 // -----------------------------------------------------------------------------
 // Promisified helpers
@@ -39,6 +40,8 @@ const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms
 const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
 const SKIP_DEEP_ANALYSIS = true; // Skip time-consuming phishing analysis
 const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
+const ENABLE_WHOIS_ENRICHMENT = process.env.ENABLE_WHOIS_ENRICHMENT === 'true'; // Cost control for WHOIS ($0.015/call WhoisXML or $0.002/call Whoxy)
+const USE_WHOXY_RESOLVER = process.env.USE_WHOXY_RESOLVER === 'true'; // Switch to Whoxy for 87% cost savings
 
 // -----------------------------------------------------------------------------
 // Utility helpers
@@ -145,39 +148,69 @@ async function fetchWithFallback(domain: string): Promise<string | null> {
 }
 
 /**
- * Get WHOIS data for registrar comparison using WhoisXML API
+ * Get WHOIS data for registrar comparison using hybrid RDAP+Whoxy or legacy WhoisXML
  */
 async function getWhoisData(domain: string): Promise<{ registrar?: string; registrant?: string; error?: string } | null> {
-  const apiKey = process.env.WHOISXML_API_KEY || process.env.WHOISXML_KEY;
-  if (!apiKey) {
-    return null; // Skip WHOIS checks if no API key
+  if (!ENABLE_WHOIS_ENRICHMENT) {
+    return null; // Skip WHOIS checks if disabled for cost control
   }
 
-  try {
-    const response = await axios.get('https://www.whoisxmlapi.com/whoisserver/WhoisService', {
-      params: {
-        apiKey,
-        domainName: domain,
-        outputFormat: 'JSON'
-      },
-      timeout: WHOIS_TIMEOUT_MS
-    });
-    
-    const whoisRecord = response.data.WhoisRecord;
-    if (!whoisRecord) {
-      return { error: 'No WHOIS data available' };
+  if (USE_WHOXY_RESOLVER) {
+    // New hybrid RDAP+Whoxy resolver (87% cost savings)
+    if (!process.env.WHOXY_API_KEY) {
+      return { error: 'WHOXY_API_KEY required for Whoxy resolver' };
     }
     
-    return {
-      registrar: whoisRecord.registrarName,
-      registrant: whoisRecord.registrant?.organization || whoisRecord.registrant?.name || 'Unknown'
-    };
-    
-  } catch (error: any) {
-    if (error.response?.status === 429) {
-      return { error: 'WhoisXML API rate limit exceeded' };
+    try {
+      const result = await resolveWhoisBatch([domain]);
+      const record = result.records[0];
+      
+      if (!record) {
+        return { error: 'No WHOIS data available' };
+      }
+      
+      return {
+        registrar: record.registrar,
+        registrant: record.registrant_org || record.registrant_name || 'Unknown'
+      };
+      
+    } catch (error) {
+      return { error: `Whoxy WHOIS lookup failed: ${(error as Error).message}` };
     }
-    return { error: `WHOIS lookup failed: ${(error as Error).message}` };
+    
+  } else {
+    // Legacy WhoisXML API
+    const apiKey = process.env.WHOISXML_API_KEY || process.env.WHOISXML_KEY;
+    if (!apiKey) {
+      return { error: 'WHOISXML_API_KEY required for WhoisXML resolver' };
+    }
+
+    try {
+      const response = await axios.get('https://www.whoisxmlapi.com/whoisserver/WhoisService', {
+        params: {
+          apiKey,
+          domainName: domain,
+          outputFormat: 'JSON'
+        },
+        timeout: WHOIS_TIMEOUT_MS
+      });
+      
+      const whoisRecord = response.data.WhoisRecord;
+      if (!whoisRecord) {
+        return { error: 'No WHOIS data available' };
+      }
+      
+      return {
+        registrar: whoisRecord.registrarName,
+        registrant: whoisRecord.registrant?.organization || whoisRecord.registrant?.name || 'Unknown'
+      };
+      
+    } catch (error: any) {
+      if (error.response?.status === 429) {
+        return { error: 'WhoisXML API rate limit exceeded' };
+      }
+      return { error: `WHOIS lookup failed: ${(error as Error).message}` };
+    }
   }
 }
 
@@ -234,7 +267,16 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
   let totalFindings = 0;
 
   // Get WHOIS data for the original domain for comparison
-  log('[dnstwist] Fetching WHOIS data for original domain:', job.domain);
+  if (ENABLE_WHOIS_ENRICHMENT) {
+    if (USE_WHOXY_RESOLVER) {
+      log('[dnstwist] Using hybrid RDAP+Whoxy resolver (87% cheaper than WhoisXML) for original domain:', job.domain);
+    } else {
+      log('[dnstwist] Using WhoisXML resolver for original domain:', job.domain);
+    }
+  } else {
+    const potentialSavings = USE_WHOXY_RESOLVER ? '$0.05-0.15' : '$0.30-0.75';
+    log(`[dnstwist] WHOIS enrichment disabled (saves ~${potentialSavings} per scan) - set ENABLE_WHOIS_ENRICHMENT=true to enable`);
+  }
   const originWhois = await getWhoisData(job.domain);
 
   try {

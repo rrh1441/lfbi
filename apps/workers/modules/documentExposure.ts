@@ -451,6 +451,10 @@ export async function runDocumentExposure(job: {
     log('[documentExposure] SERPER_KEY missing');
     return 0;
   }
+  
+  // Cost control - limit search queries to prevent excessive Serper usage
+  const MAX_SEARCH_QUERIES = parseInt(process.env.MAX_DOCUMENT_SEARCHES || '10');
+  log(`[documentExposure] Cost control: limiting to ${MAX_SEARCH_QUERIES} search queries max`);
 
   const sig = await loadBrandSignature(companyName, domain);
   const industryLabel = await gptIndustry(companyName, domain);
@@ -465,10 +469,17 @@ export async function runDocumentExposure(job: {
 
   for (const [category, qs] of dorks.entries()) {
     for (const q of qs) {
+      if (queries >= MAX_SEARCH_QUERIES) {
+        log(`[documentExposure] Reached search query limit (${MAX_SEARCH_QUERIES}) - stopping to control costs`);
+        break;
+      }
       queries++;
       try {
+        log(`[documentExposure] Serper API call ${queries}: "${q}"`);
         const { data } = await axios.post(SERPER_URL, { q, num: 20 }, { headers });
-        for (const hit of data.organic ?? []) {
+        const results = data.organic ?? [];
+        log(`[documentExposure] Serper returned ${results.length} results for query ${queries}`);
+        for (const hit of results) {
           const urlStr: string = hit.link;
           if (seen.has(urlStr)) continue;
           seen.add(urlStr);
@@ -515,7 +526,11 @@ export async function runDocumentExposure(job: {
       }
       await new Promise((r) => setTimeout(r, 1_500));
     }
+    if (queries >= MAX_SEARCH_QUERIES) break; // Break outer loop too
   }
+
+  const estimatedCost = (queries * 0.003).toFixed(3); // Rough estimate at $0.003/search
+  log(`[documentExposure] Completed: ${total} files found, ${queries} Serper calls (~$${estimatedCost})`);
 
   await insertArtifact({
     type: 'scan_summary',
@@ -526,6 +541,7 @@ export async function runDocumentExposure(job: {
       scan_module: 'documentExposure',
       total_findings: total,
       queries_executed: queries,
+      estimated_cost_usd: estimatedCost,
       timestamp: new Date().toISOString(),
       industry_label: industryLabel
     }

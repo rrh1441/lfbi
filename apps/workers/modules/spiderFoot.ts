@@ -72,7 +72,7 @@ async function probeAndCreateUrlArtifacts(domain: string, baseArtifact: any): Pr
 }
 
 const TARGET_MODULES = [
-  'sfp_crtsh', 'sfp_censys', 'sfp_sublist3r', 'sfp_shodan', 'sfp_chaos',
+  'sfp_crtsh', 'sfp_sublist3r', 'sfp_chaos',
   'sfp_r7_dns', 'sfp_haveibeenpwnd', 'sfp_psbdmp', 'sfp_skymem',
   'sfp_sslcert', 'sfp_nuclei', 'sfp_whois', 'sfp_dnsresolve',
 ].join(',');
@@ -115,8 +115,6 @@ export async function runSpiderFoot(job: { domain: string; scanId: string }): Pr
     await fs.mkdir(confDir, { recursive: true });
 
     const config = {
-        shodan_api_key: process.env.SHODAN_API_KEY ?? '',
-        censys_api_key: process.env.CENSYS_API_KEY ?? '',
         haveibeenpwnd_api_key: process.env.HIBP_API_KEY ?? '',
         chaos_api_key: process.env.CHAOS_API_KEY ?? '',
         dbconnectstr: `sqlite:////tmp/spiderfoot-${scanId}.db`,
@@ -140,7 +138,7 @@ export async function runSpiderFoot(job: { domain: string; scanId: string }): Pr
     }
 
     const mask = (v: string) => (v ? '✅' : '❌');
-    log(`[SpiderFoot] API keys: Shodan ${mask(config.shodan_api_key)}, Censys ${mask(config.censys_api_key)}, HIBP ${mask(config.haveibeenpwnd_api_key)}, Chaos ${mask(config.chaos_api_key)}`);
+    log(`[SpiderFoot] API keys: HIBP ${mask(config.haveibeenpwnd_api_key)}, Chaos ${mask(config.chaos_api_key)} (Shodan/Censys handled by dedicated modules)`);
     await fs.writeFile(`${confDir}/spiderfoot.conf`, Object.entries(config).map(([k, v]) => `${k}=${v}`).join('\n'));
     
     const cmd = `${spiderFootCmd} -q -s ${domain} -m ${TARGET_MODULES} -o json`;

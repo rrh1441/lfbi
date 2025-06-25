@@ -102,13 +102,17 @@ async function checkMemoryUsage(): Promise<void> {
 }
 
 /**
- * Log browser metrics periodically
+ * Log browser metrics periodically - only when pages are active or memory is high
  */
 function logBrowserMetrics(): void {
   if (isShuttingDown) return;
   
   const { rss, heapUsed } = getMemoryUsage();
-  log(`Metrics: browser_rss_mb=${rss}, heap_used_mb=${heapUsed}, pages_open=${activePagesCount}`);
+  
+  // Only log if pages are active OR memory usage is concerning
+  if (activePagesCount > 0 || rss > 1000 || heapUsed > 500) {
+    log(`Metrics: browser_rss_mb=${rss}, heap_used_mb=${heapUsed}, pages_open=${activePagesCount}`);
+  }
 }
 
 /**
