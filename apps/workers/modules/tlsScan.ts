@@ -8,6 +8,7 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { join } from 'node:path';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
@@ -50,6 +51,26 @@ interface ScanOutcome {
   hadCert: boolean;
 }
 
+interface PythonValidationResult {
+  host: string;
+  port: number;
+  valid: boolean;
+  error?: string;
+  certificate?: {
+    subject_cn: string;
+    issuer_cn: string;
+    not_after: string;
+    days_until_expiry: number | null;
+    is_expired: boolean;
+    self_signed: boolean;
+    subject_alt_names: Array<{type: string; value: string}>;
+  };
+  tls_version?: string;
+  cipher_suite?: any;
+  sni_supported: boolean;
+  validation_method: string;
+}
+
 /* ---------- Config -------------------------------------------------------- */
 
 const TLS_SCAN_TIMEOUT_MS = Number.parseInt(process.env.TLS_SCAN_TIMEOUT_MS ?? '120000', 10); // 2 min
@@ -66,6 +87,24 @@ async function validateSSLScan(): Promise<boolean> {
   } catch (error) {
     log(`[tlsScan] [CRITICAL] sslscan binary not found: ${(error as Error).message}`);
     return false;
+  }
+}
+
+/** Run Python certificate validator with SNI support */
+async function runPythonCertificateValidator(host: string, port: number = 443): Promise<PythonValidationResult | null> {
+  try {
+    const pythonScript = join(__dirname, '../scripts/tls_verify.py');
+    const result = await exec('python3', [pythonScript, host, '--port', port.toString(), '--json'], {
+      timeout: 30000 // 30 second timeout
+    });
+    
+    const validationResult = JSON.parse(result.stdout || '{}') as PythonValidationResult;
+    log(`[tlsScan] Python validator: ${host} - ${validationResult.valid ? 'VALID' : 'INVALID'}`);
+    return validationResult;
+    
+  } catch (error) {
+    log(`[tlsScan] Python validator failed for ${host}: ${(error as Error).message}`);
+    return null;
   }
 }
 
@@ -164,6 +203,122 @@ function getTlsRecommendation(vulnerability: string): string {
   return 'Review and update TLS configuration according to current security best practices';
 }
 
+/** Cross-validate sslscan and Python certificate validator results */
+async function performCrossValidation(
+  host: string, 
+  sslscanResult: SSLScanResult, 
+  pythonResult: PythonValidationResult,
+  scanId?: string
+): Promise<{additionalFindings: number}> {
+  let additionalFindings = 0;
+
+  // 1. Check for validation mismatches (SNI/certificate issues)
+  const sslscanHasCert = !!sslscanResult.certificate;
+  const pythonHasCert = pythonResult.valid && !!pythonResult.certificate;
+  
+  if (sslscanHasCert !== pythonHasCert) {
+    additionalFindings++;
+    const artId = await insertArtifact({
+      type: 'tls_validation_mismatch',
+      val_text: `${host} - Certificate validation mismatch detected`,
+      severity: 'MEDIUM',
+      meta: {
+        host,
+        sslscan_has_cert: sslscanHasCert,
+        python_has_cert: pythonHasCert,
+        python_error: pythonResult.error,
+        sni_supported: pythonResult.sni_supported,
+        scan_id: scanId,
+        scan_module: 'tlsScan_hybrid'
+      }
+    });
+    
+    await insertFinding(
+      artId,
+      'TLS_VALIDATION_INCONSISTENCY',
+      'Certificate validation inconsistency - investigate SNI configuration',
+      `sslscan: ${sslscanHasCert ? 'found cert' : 'no cert'}, Python validator: ${pythonHasCert ? 'valid cert' : 'invalid/no cert'}`
+    );
+  }
+
+  // 2. SNI-specific issues
+  if (!pythonResult.sni_supported && sslscanResult.certificate) {
+    additionalFindings++;
+    const artId = await insertArtifact({
+      type: 'tls_sni_issue',
+      val_text: `${host} - SNI configuration issue detected`,
+      severity: 'HIGH',
+      meta: {
+        host,
+        python_error: pythonResult.error,
+        scan_id: scanId,
+        scan_module: 'tlsScan_hybrid'
+      }
+    });
+    
+    await insertFinding(
+      artId,
+      'SNI_CONFIGURATION_ISSUE',
+      'Configure proper SNI support for cloud-hosted certificates',
+      `Certificate found by sslscan but Python validator failed: ${pythonResult.error}`
+    );
+  }
+
+  // 3. Enhanced certificate expiry validation (Python is more accurate)
+  if (pythonResult.certificate?.is_expired && sslscanResult.certificate && !sslscanResult.certificate.expired) {
+    additionalFindings++;
+    const artId = await insertArtifact({
+      type: 'tls_certificate_expired_python',
+      val_text: `${host} - Certificate expired (Python validator)`,
+      severity: 'CRITICAL',
+      meta: {
+        host,
+        python_certificate: pythonResult.certificate,
+        validation_discrepancy: true,
+        scan_id: scanId,
+        scan_module: 'tlsScan_hybrid'
+      }
+    });
+    
+    await insertFinding(
+      artId,
+      'CERTIFICATE_EXPIRY_VERIFIED',
+      'Certificate expiry confirmed by Python validator - renew immediately',
+      `Python validator confirms certificate expired: ${pythonResult.certificate.not_after}`
+    );
+  }
+
+  // 4. Modern TLS version detection (Python provides actual negotiated version)
+  if (pythonResult.tls_version) {
+    const tlsVersion = pythonResult.tls_version;
+    if (tlsVersion.includes('1.0') || tlsVersion.includes('1.1')) {
+      additionalFindings++;
+      const artId = await insertArtifact({
+        type: 'tls_weak_version_negotiated',
+        val_text: `${host} - Weak TLS version negotiated: ${tlsVersion}`,
+        severity: 'MEDIUM',
+        meta: {
+          host,
+          negotiated_version: tlsVersion,
+          cipher_suite: pythonResult.cipher_suite,
+          scan_id: scanId,
+          scan_module: 'tlsScan_hybrid'
+        }
+      });
+      
+      await insertFinding(
+        artId,
+        'WEAK_TLS_VERSION_NEGOTIATED',
+        'Disable TLS 1.0 and 1.1 - use TLS 1.2+ only',
+        `Negotiated TLS version: ${tlsVersion}`
+      );
+    }
+  }
+
+  log(`[tlsScan] Cross-validation complete for ${host}: ${additionalFindings} additional findings`);
+  return { additionalFindings };
+}
+
 /* ---------- Core host-scan routine ---------------------------------------- */
 
 async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
@@ -171,20 +326,40 @@ async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
   let certificateSeen = false;
 
   try {
-    log(`[tlsScan] Scanning ${host} with sslscan...`);
+    log(`[tlsScan] Scanning ${host} with hybrid validation (sslscan + Python)...`);
     
-    const { stdout, stderr } = await exec('sslscan', [
-      '--xml=-',  // Output XML to stdout
-      '--no-colour',
-      '--timeout=30',
-      host
-    ], { timeout: TLS_SCAN_TIMEOUT_MS });
+    // Run both sslscan and Python validator concurrently
+    const [sslscanResult, pythonResult] = await Promise.allSettled([
+      exec('sslscan', [
+        '--xml=-',  // Output XML to stdout
+        '--no-colour',
+        '--timeout=30',
+        host
+      ], { timeout: TLS_SCAN_TIMEOUT_MS }),
+      runPythonCertificateValidator(host)
+    ]);
 
-    if (stderr) {
-      log(`[tlsScan] sslscan stderr for ${host}: ${stderr}`);
+    // Process sslscan results
+    let sslscanData: { stdout: string; stderr: string } | null = null;
+    if (sslscanResult.status === 'fulfilled') {
+      sslscanData = sslscanResult.value;
+      if (sslscanData.stderr) {
+        log(`[tlsScan] sslscan stderr for ${host}: ${sslscanData.stderr}`);
+      }
+    } else {
+      log(`[tlsScan] sslscan failed for ${host}: ${sslscanResult.reason}`);
     }
 
-    const result = parseSSLScanOutput(stdout, host);
+    // Process Python validation results
+    let pythonData: PythonValidationResult | null = null;
+    if (pythonResult.status === 'fulfilled') {
+      pythonData = pythonResult.value;
+    } else {
+      log(`[tlsScan] Python validator failed for ${host}: ${pythonResult.reason}`);
+    }
+
+    // Parse sslscan output
+    const result = sslscanData ? parseSSLScanOutput(sslscanData.stdout, host) : null;
     if (!result) {
       log(`[tlsScan] Failed to parse results for ${host}`);
       return { findings: 0, hadCert: false };
@@ -273,6 +448,15 @@ async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
           `Self-signed certificate detected for ${host}`
         );
       }
+    }
+
+    // Cross-validate with Python certificate validator
+    if (pythonData && result) {
+      const crossValidation = await performCrossValidation(host, result, pythonData, scanId);
+      findingsCount += crossValidation.additionalFindings;
+      
+      // Update certificate seen status with Python validation
+      certificateSeen = certificateSeen || (pythonData.valid && !!pythonData.certificate);
     }
 
     // Process vulnerabilities
