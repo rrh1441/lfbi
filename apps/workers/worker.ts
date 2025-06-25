@@ -165,14 +165,14 @@ async function processScan(job: ScanJob): Promise<void> {
     let modulesCompleted = 0;
     
     // === MODULE EXECUTION ===
-    // Phase 1: Fast independent discovery modules (can run in parallel)
-    const phase1Modules = ['spiderfoot', 'shodan', 'breach_directory_probe']; // Moved dns_twist to Phase 2
+    // Phase 1: Fast discovery modules (parallel)
+    const phase1Modules = ['spiderfoot', 'shodan', 'breach_directory_probe'];
     const phase1Results = await Promise.allSettled(
       phase1Modules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
           status: 'processing',
-          current_module: `${moduleName}_parallel`,
-          progress: 10
+          current_module: `${moduleName}_phase1`,
+          progress: 5
         });
         
         log(`=== Running module (Phase 1): ${moduleName} ===`);
@@ -211,11 +211,134 @@ async function processScan(job: ScanJob): Promise<void> {
     
     totalFindings += phase1TotalFindings;
     modulesCompleted += phase1Modules.length;
+
+    // Phase 2A: Independent analysis modules (parallel - no dependencies)
+    const phase2aModules = ['document_exposure', 'dns_twist', 'tls_scan', 'spf_dmarc'];
+    const phase2aResults = await Promise.allSettled(
+      phase2aModules.map(async (moduleName) => {
+        await updateScanMasterStatus(scanId, {
+          status: 'processing',
+          current_module: `${moduleName}_phase2a`,
+          progress: 20
+        });
+        
+        log(`=== Running module (Phase 2A): ${moduleName} ===`);
+        
+        switch (moduleName) {
+          case 'document_exposure':
+            log(`[${scanId}] STARTING document exposure scan for ${companyName}`);
+            const docFindings = await runDocumentExposure({ companyName, domain, scanId });
+            log(`[${scanId}] COMPLETED document exposure: ${docFindings} discoveries`);
+            return docFindings;
+          case 'dns_twist':
+            log(`[${scanId}] STARTING DNS Twist scan for ${domain}`);
+            const dnsFindings = await runDnsTwist({ domain, scanId });
+            log(`[${scanId}] COMPLETED DNS Twist: ${dnsFindings} typo-domains found`);
+            return dnsFindings;
+          case 'tls_scan':
+            log(`[${scanId}] STARTING TLS security scan for ${domain}`);
+            const tlsFindings = await runTlsScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED TLS scan: ${tlsFindings} TLS issues found`);
+            return tlsFindings;
+          case 'spf_dmarc':
+            log(`[${scanId}] STARTING SPF/DMARC email security scan for ${domain}`);
+            const emailFindings = await runSpfDmarc({ domain, scanId });
+            log(`[${scanId}] COMPLETED email security scan: ${emailFindings} email issues found`);
+            return emailFindings;
+          default:
+            return 0;
+        }
+      })
+    );
     
-    // Phase 2: Sequential modules that depend on Phase 1 or need browser resources
-    const phase2Modules = ALL_MODULES_IN_ORDER.filter(m => !phase1Modules.includes(m));
+    // Collect Phase 2A results
+    let phase2aTotalFindings = 0;
+    phase2aResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        phase2aTotalFindings += result.value;
+      } else {
+        log(`Phase 2A module ${phase2aModules[index]} failed:`, result.reason);
+      }
+    });
     
-    for (const moduleName of phase2Modules) {
+    totalFindings += phase2aTotalFindings;
+    modulesCompleted += phase2aModules.length;
+
+    // Phase 2B: Endpoint discovery (must run before endpoint-dependent modules)
+    log(`=== Running endpoint discovery ===`);
+    await updateScanMasterStatus(scanId, {
+      status: 'processing',
+      current_module: 'endpoint_discovery',
+      progress: 50
+    });
+    
+    log(`[${scanId}] STARTING endpoint discovery for ${domain}`);
+    const endpointFindings = await runEndpointDiscovery({ domain, scanId });
+    log(`[${scanId}] COMPLETED endpoint discovery: ${endpointFindings} endpoint collections found`);
+    totalFindings += endpointFindings;
+    modulesCompleted += 1;
+
+    // Phase 2C: Endpoint-dependent modules (parallel)
+    const phase2cModules = ['tech_stack_scan', 'abuse_intel_scan', 'accessibility_scan', 'denial_wallet_scan'];
+    const phase2cResults = await Promise.allSettled(
+      phase2cModules.map(async (moduleName) => {
+        await updateScanMasterStatus(scanId, {
+          status: 'processing',
+          current_module: `${moduleName}_phase2c`,
+          progress: 70
+        });
+        
+        log(`=== Running module (Phase 2C): ${moduleName} ===`);
+        
+        switch (moduleName) {
+          case 'tech_stack_scan':
+            log(`[${scanId}] STARTING tech stack scan for ${domain}`);
+            const techFindings = await runTechStackScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED tech stack scan: ${techFindings} technologies detected`);
+            return techFindings;
+          case 'abuse_intel_scan':
+            log(`[${scanId}] STARTING AbuseIPDB intelligence scan for IPs`);
+            const abuseFindings = await runAbuseIntelScan({ scanId });
+            log(`[${scanId}] COMPLETED AbuseIPDB scan: ${abuseFindings} malicious/suspicious IPs found`);
+            return abuseFindings;
+          case 'accessibility_scan':
+            log(`[${scanId}] STARTING accessibility compliance scan for ${domain}`);
+            const accessFindings = await runAccessibilityScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED accessibility scan: ${accessFindings} WCAG violations found`);
+            return accessFindings;
+          case 'denial_wallet_scan':
+            log(`[${scanId}] STARTING denial-of-wallet vulnerability scan for ${domain}`);
+            const dowFindings = await runDenialWalletScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED denial-of-wallet scan: ${dowFindings} cost amplification vulnerabilities found`);
+            return dowFindings;
+          default:
+            return 0;
+        }
+      })
+    );
+    
+    // Collect Phase 2C results
+    let phase2cTotalFindings = 0;
+    phase2cResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        phase2cTotalFindings += result.value;
+      } else {
+        log(`Phase 2C module ${phase2cModules[index]} failed:`, result.reason);
+      }
+    });
+    
+    totalFindings += phase2cTotalFindings;
+    modulesCompleted += phase2cModules.length;
+
+    // Phase 3: Final sequential modules  
+    const phase3Modules = ALL_MODULES_IN_ORDER.filter(m => 
+      !phase1Modules.includes(m) && 
+      !phase2aModules.includes(m) && 
+      !phase2cModules.includes(m) && 
+      m !== 'endpoint_discovery'
+    );
+    
+    for (const moduleName of phase3Modules) {
       const progress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
       
       // Update status before running module
