@@ -165,7 +165,62 @@ async function processScan(job: ScanJob): Promise<void> {
     let modulesCompleted = 0;
     
     // === MODULE EXECUTION ===
-    for (const moduleName of ALL_MODULES_IN_ORDER) {
+    // Phase 1: Independent discovery modules (can run in parallel)
+    const phase1Modules = ['spiderfoot', 'dns_twist', 'shodan', 'breach_directory_probe'];
+    const phase1Results = await Promise.allSettled(
+      phase1Modules.map(async (moduleName) => {
+        await updateScanMasterStatus(scanId, {
+          status: 'processing',
+          current_module: `${moduleName}_parallel`,
+          progress: 10
+        });
+        
+        log(`=== Running module (Phase 1): ${moduleName} ===`);
+        
+        switch (moduleName) {
+          case 'spiderfoot':
+            log(`[${scanId}] STARTING SpiderFoot discovery for ${domain}`);
+            const sfFindings = await runSpiderFoot({ domain, scanId });
+            log(`[${scanId}] COMPLETED SpiderFoot discovery: ${sfFindings} targets found`);
+            return sfFindings;
+          case 'dns_twist':
+            log(`[${scanId}] STARTING DNS Twist scan for ${domain}`);
+            const dnsFindings = await runDnsTwist({ domain, scanId });
+            log(`[${scanId}] COMPLETED DNS Twist: ${dnsFindings} typo-domains found`);
+            return dnsFindings;
+          case 'shodan':
+            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
+            const shodanFindings = await runShodanScan({ domain, scanId, companyName });
+            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${shodanFindings} services found`);
+            return shodanFindings;
+          case 'breach_directory_probe':
+            log(`[${scanId}] STARTING Breach Directory intelligence probe for ${domain}`);
+            const breachFindings = await runBreachDirectoryProbe({ domain, scanId });
+            log(`[${scanId}] COMPLETED Breach Directory probe: ${breachFindings} breach findings`);
+            return breachFindings;
+          default:
+            return 0;
+        }
+      })
+    );
+    
+    // Collect Phase 1 results
+    let phase1TotalFindings = 0;
+    phase1Results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        phase1TotalFindings += result.value;
+      } else {
+        log(`Phase 1 module ${phase1Modules[index]} failed:`, result.reason);
+      }
+    });
+    
+    totalFindings += phase1TotalFindings;
+    modulesCompleted += phase1Modules.length;
+    
+    // Phase 2: Sequential modules that depend on Phase 1 or need browser resources
+    const phase2Modules = ALL_MODULES_IN_ORDER.filter(m => !phase1Modules.includes(m));
+    
+    for (const moduleName of phase2Modules) {
       const progress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
       
       // Update status before running module
@@ -181,47 +236,10 @@ async function processScan(job: ScanJob): Promise<void> {
         let moduleFindings = 0;
         
         switch (moduleName) {
-          case 'spiderfoot':
-            log(`[${scanId}] STARTING SpiderFoot discovery for ${domain}`);
-            moduleFindings = await runSpiderFoot({ domain, scanId });
-            log(`[${scanId}] COMPLETED SpiderFoot discovery: ${moduleFindings} targets found`);
-            break;
-            
-          case 'dns_twist':
-            log(`[${scanId}] STARTING DNS Twist scan for ${domain}`);
-            moduleFindings = await runDnsTwist({ domain, scanId });
-            log(`[${scanId}] COMPLETED DNS Twist: ${moduleFindings} typo-domains found`);
-            break;
-            
           case 'document_exposure':
             log(`[${scanId}] STARTING document exposure scan for ${companyName}`);
             moduleFindings = await runDocumentExposure({ companyName, domain, scanId });
             log(`[${scanId}] COMPLETED document exposure: ${moduleFindings} discoveries`);
-            break;
-            
-          case 'shodan':
-            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
-            console.log('[worker] 🔍 SHODAN SCAN STARTING');
-            
-            const apiKey = process.env.SHODAN_API_KEY;
-            if (!apiKey) {
-              throw new Error('SHODAN_API_KEY not configured');
-            }
-            
-            const startTime = Date.now();
-            moduleFindings = await runShodanScan({ domain, scanId, companyName });
-            const duration = Date.now() - startTime;
-            
-            console.log('[worker] ✅ SHODAN SCAN COMPLETED');
-            console.log('[worker] Duration:', duration, 'ms');
-            console.log('[worker] Findings:', moduleFindings);
-            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${moduleFindings} services found`);
-            break;
-
-          case 'breach_directory_probe':
-            log(`[${scanId}] STARTING Breach Directory intelligence probe for ${domain}`);
-            moduleFindings = await runBreachDirectoryProbe({ domain, scanId });
-            log(`[${scanId}] COMPLETED Breach Directory probe: ${moduleFindings} breach findings`);
             break;
 
           case 'rdp_vpn_templates':

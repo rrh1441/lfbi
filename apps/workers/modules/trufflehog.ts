@@ -29,15 +29,15 @@ import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
-const MAX_CRAWL_DEPTH = 2;
-const MAX_GIT_REPOS_TO_SCAN = 20;
-const TRUFFLEHOG_GIT_DEPTH = parseInt(process.env.TRUFFLEHOG_GIT_DEPTH || '5'); // Reduced default depth
+const MAX_CRAWL_DEPTH = 1; // Reduced from 2 to 1
+const MAX_GIT_REPOS_TO_SCAN = 10; // Reduced from 20 to 10
+const TRUFFLEHOG_GIT_DEPTH = parseInt(process.env.TRUFFLEHOG_GIT_DEPTH || '3'); // Reduced from 5 to 3
 
-// REFACTOR: Added resource limits for the website crawler.
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB per file
-const MAX_FILES_PER_CRAWL = 50; // Max 50 files per domain
-const MAX_TOTAL_CRAWL_SIZE_BYTES = 50 * 1024 * 1024; // 50MB total
-const MAX_PAGES = 250; // Maximum pages to crawl to prevent deep link farm attacks
+// PERFORMANCE: Reduced resource limits for faster scanning
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // Reduced from 5MB to 2MB per file
+const MAX_FILES_PER_CRAWL = 25; // Reduced from 50 to 25 files per domain
+const MAX_TOTAL_CRAWL_SIZE_BYTES = 20 * 1024 * 1024; // Reduced from 50MB to 20MB total
+const MAX_PAGES = 30; // Reduced from 250 to 30 pages for speed
 
 /**
  * Processes the JSON line-by-line output from a TruffleHog scan.

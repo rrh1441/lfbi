@@ -20,7 +20,13 @@ const DEFAULT_BROWSER_ARGS = [
   '--disable-setuid-sandbox', 
   '--disable-dev-shm-usage',
   '--disable-gpu',
-  '--window-size=1920,1080'
+  '--disable-web-security',
+  '--disable-features=VizDisplayCompositor',
+  '--window-size=1920,1080',
+  '--headless=new',
+  '--disable-background-timer-throttling',
+  '--disable-backgrounding-occluded-windows',
+  '--disable-renderer-backgrounding'
 ];
 
 const MEMORY_CHECK_INTERVAL_MS = 15_000; // 15 seconds
