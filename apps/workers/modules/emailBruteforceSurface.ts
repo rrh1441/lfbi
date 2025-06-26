@@ -177,12 +177,10 @@ async function runNucleiEmailScan(targets: string[]): Promise<NucleiResult[]> {
       ...templateArgs,
       '-json',
       '-silent',
-      '-no-color',
       '-timeout', '30',
       '-retries', '2',
-      '-rate-limit', '50',
       `-c`, CONCURRENCY.toString(),
-      '-disable-update-check'
+      '-headless'
     ];
     
     // Add -insecure flag if TLS verification is disabled

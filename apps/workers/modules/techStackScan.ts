@@ -384,32 +384,6 @@ function analyzeHttpHeaders(headers: Headers, url: string): WappTech[] {
   return technologies;
 }
 
-/* Resolve Nuclei binary for technology detection */
-async function resolveNuclei(): Promise<string | null> {
-  const candidates = [
-    'nuclei',
-    '/usr/local/bin/nuclei',
-    '/usr/bin/nuclei',
-    '/opt/nuclei/nuclei',
-    `${process.env.HOME}/go/bin/nuclei`
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      const { stdout } = await exec(candidate, ['--version'], { timeout: 5_000 });
-      if (stdout.includes('Nuclei Engine')) {
-        log(`techstack=nuclei binary confirmed at ${candidate}`);
-        return candidate;
-      }
-    } catch (error) {
-      // Try next candidate
-      continue;
-    }
-  }
-  
-  log(`techstack=nuclei binary not found in any of: ${candidates.join(', ')}`);
-  return null;
-}
 
 /* Build enhanced target list */
 async function buildTargets(scanId: string, domain: string): Promise<string[]> {
@@ -1316,17 +1290,15 @@ export async function runTechStackScan(job: {
   const start = Date.now();
   log(`techstack=start domain=${domain}`);
   
-  // Check for nuclei (required for tech detection)
-  const nucleiBinary = await resolveNuclei();
-  if (!nucleiBinary) {
-    log(`techstack=error Nuclei binary not found - aborting scan`);
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: 'Nuclei binary not found in container - tech stack scan failed',
-      severity: 'HIGH',
-      meta: { scan_id: scanId, scan_module: 'techStackScan' }
-    });
-    return 0;
+  // Check for nuclei (required for tech detection) - use same approach as working nuclei module
+  let nucleiAvailable = false;
+  try {
+    await exec('nuclei', ['-version'], { timeout: 5_000 });
+    nucleiAvailable = true;
+    log(`techstack=nuclei confirmed available`);
+  } catch (error) {
+    log(`techstack=nuclei not available: ${(error as Error).message}`);
+    nucleiAvailable = false;
   }
   
   // Note: CVE active testing with Nuclei is optional and happens in analyzeSecurityEnhanced
@@ -1343,22 +1315,28 @@ export async function runTechStackScan(job: {
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
     // fingerprint with Nuclei or fallback
-    if (nucleiBinary) {
+    if (nucleiAvailable) {
       // Primary: Nuclei-based detection
       await Promise.all(allTargets.map(url => limit(async () => {
         if (cb.isTripped()) return;
         try {
           log(`techstack=nuclei url="${url}"`);
-          const { stdout, stderr } = await exec(nucleiBinary, [
-            '-u', url, 
-            '-silent', 
-            '-json', 
-            '-tags', 'tech', 
-            '-no-color',
-            '-timeout', '15',  // Increase timeout from default
-            '-retries', '1',   // Add retries
-            '-rate-limit', '10' // Add rate limiting to avoid blocks
-          ], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          const nucleiArgs = [
+            '-u', url,
+            '-tags', 'tech',
+            '-json',
+            '-silent',
+            '-timeout', '10',
+            '-retries', '2',
+            '-headless'
+          ];
+          
+          // Add -insecure flag if TLS bypass is enabled (same as working nuclei module)
+          if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+            nucleiArgs.push('-insecure');
+          }
+          
+          const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
           
           if (stderr) {
             log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);

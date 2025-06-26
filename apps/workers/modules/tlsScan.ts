@@ -10,6 +10,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import axios from 'axios';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
@@ -184,6 +185,106 @@ function parseSSLScanOutput(xmlOutput: string, host: string): SSLScanResult | nu
   }
 }
 
+/** Check if domain is behind CDN/proxy that terminates SSL */
+async function isCloudFlareProtected(hostname: string): Promise<boolean> {
+  try {
+    // Check DNS for known CDN IP ranges
+    const { stdout } = await exec('dig', ['+short', hostname]);
+    const ips = stdout.trim().split('\n').filter(ip => ip.includes('.'));
+    
+    // Comprehensive CDN IP ranges
+    const cdnRanges = {
+      cloudflare: [
+        '104.16.', '104.17.', '104.18.', '104.19.', '104.20.', '104.21.', '104.22.', '104.23.',
+        '104.24.', '104.25.', '104.26.', '104.27.', '104.28.', '104.29.', '104.30.', '104.31.',
+        '172.64.', '172.65.', '172.66.', '172.67.', '108.162.', '141.101.', '162.158.', '162.159.',
+        '173.245.', '188.114.', '190.93.', '197.234.', '198.41.', '103.21.', '103.22.', '103.31.'
+      ],
+      fastly: [
+        '23.235.32.', '23.235.33.', '23.235.34.', '23.235.35.', '23.235.36.', '23.235.37.',
+        '23.235.38.', '23.235.39.', '23.235.40.', '23.235.41.', '23.235.42.', '23.235.43.',
+        '23.235.44.', '23.235.45.', '23.235.46.', '23.235.47.', '185.31.16.', '185.31.17.',
+        '185.31.18.', '185.31.19.', '151.101.'
+      ],
+      bunnycdn: [
+        '89.187.162.', '89.187.163.', '89.187.164.', '89.187.165.', '89.187.166.', '89.187.167.',
+        '89.187.168.', '89.187.169.', '89.187.170.', '89.187.171.', '89.187.172.', '89.187.173.'
+      ],
+      keycdn: [
+        '167.114.', '192.254.', '178.32.', '176.31.', '87.98.', '94.23.', '5.196.'
+      ]
+    };
+    
+    // Check if any IP matches known CDN ranges
+    for (const [cdn, ranges] of Object.entries(cdnRanges)) {
+      const matchesCDN = ips.some(ip => ranges.some(range => ip.startsWith(range)));
+      if (matchesCDN) {
+        log(`[tlsScan] ${hostname} detected behind ${cdn.toUpperCase()} CDN`);
+        return true;
+      }
+    }
+    
+    // Check HTTP headers for comprehensive CDN detection
+    try {
+      const response = await axios.head(`https://${hostname}`, { 
+        timeout: 5000,
+        headers: { 'User-Agent': 'DealBrief-TLS-Scanner/1.0' }
+      });
+      
+      const headers = response.headers;
+      const headerStr = JSON.stringify(headers).toLowerCase();
+      
+      // Comprehensive CDN/Proxy header detection
+      const cdnIndicators = {
+        cloudflare: ['cf-ray', 'cf-cache-status', 'cloudflare', 'cf-edge', 'cf-worker'],
+        aws_cloudfront: ['x-amz-cf-id', 'x-amzn-trace-id', 'x-amz-cf-pop', 'cloudfront'],
+        fastly: ['x-served-by', 'x-fastly-request-id', 'fastly-debug-digest', 'x-timer'],
+        akamai: ['x-akamai-', 'akamai', 'x-cache-key', 'x-check-cacheable'],
+        maxcdn_stackpath: ['x-pull', 'x-cache', 'maxcdn', 'stackpath'],
+        keycdn: ['x-edge-location', 'keycdn'],
+        bunnycdn: ['bunnycdn', 'x-bunny'],
+        jsdelivr: ['x-served-by', 'jsdelivr'],
+        sucuri: ['x-sucuri-id', 'sucuri', 'x-sucuri-cache'],
+        incapsula: ['x-iinfo', 'incap-ses', 'x-cdn', 'imperva'],
+        // Security services that terminate SSL
+        ddos_guard: ['x-ddos-protection', 'ddos-guard'],
+        stormwall: ['x-stormwall', 'stormwall'],
+        qrator: ['x-qrator', 'qrator']
+      };
+      
+      // Check for any CDN/proxy indicators
+      for (const [service, indicators] of Object.entries(cdnIndicators)) {
+        const matchesService = indicators.some(indicator => 
+          headerStr.includes(indicator) || 
+          Object.keys(headers).some(header => header.toLowerCase().includes(indicator))
+        );
+        
+        if (matchesService) {
+          log(`[tlsScan] ${hostname} detected behind ${service.replace('_', ' ').toUpperCase()} via headers`);
+          return true;
+        }
+      }
+      
+      // Check server headers for common CDN signatures
+      const serverHeader = headers.server?.toLowerCase() || '';
+      const cdnServerSigs = ['cloudflare', 'fastly', 'akamaighost', 'keycdn', 'bunnycdn'];
+      if (cdnServerSigs.some(sig => serverHeader.includes(sig))) {
+        log(`[tlsScan] ${hostname} detected CDN via Server header: ${serverHeader}`);
+        return true;
+      }
+      
+    } catch (httpError) {
+      // HTTP check failed, but that doesn't mean it's not behind a CDN
+    }
+    
+    return false;
+    
+  } catch (error) {
+    log(`[tlsScan] CDN detection failed for ${hostname}: ${(error as Error).message}`);
+    return false;
+  }
+}
+
 /** Get remediation advice for TLS issues */
 function getTlsRecommendation(vulnerability: string): string {
   const recommendations: Record<string, string> = {
@@ -351,7 +452,16 @@ async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
     if (sslscanResult.status === 'fulfilled') {
       sslscanData = sslscanResult.value;
       if (sslscanData.stderr) {
-        log(`[tlsScan] sslscan stderr for ${host}: ${sslscanData.stderr}`);
+        // Filter out common ECDHE key generation warnings that don't affect functionality
+        const filteredStderr = sslscanData.stderr
+          .split('\n')
+          .filter(line => !line.includes('Failed to generate ECDHE key for nid'))
+          .join('\n')
+          .trim();
+        
+        if (filteredStderr) {
+          log(`[tlsScan] sslscan stderr for ${host}: ${filteredStderr}`);
+        }
       }
     } else {
       log(`[tlsScan] sslscan failed for ${host}: ${sslscanResult.reason}`);
@@ -473,12 +583,51 @@ async function scanHost(host: string, scanId?: string): Promise<ScanOutcome> {
         log(`[tlsScan] Skipping false positive: "${vulnerability}" - Python validator confirmed valid certificate`);
         continue;
       }
+
+      // Check if site is behind CDN/proxy that terminates SSL - skip origin cert issues
+      if (vulnerability.includes('No SSL certificate') && await isCloudFlareProtected(host)) {
+        log(`[tlsScan] Skipping origin cert issue for ${host} - behind CDN/proxy (not user-facing risk)`);
+        continue;
+      }
+
+      // Enhanced certificate issue analysis with Python validation context
+      if (vulnerability.includes('No SSL certificate')) {
+        // If Python validator shows certificate chain issues vs no certificate at all
+        if (pythonData && pythonData.error?.includes('unable to get local issuer certificate')) {
+          log(`[tlsScan] Converting "No SSL certificate" to "Incomplete certificate chain" based on Python validation`);
+          // This is a configuration issue, not a security vulnerability
+          const artId = await insertArtifact({
+            type: 'tls_configuration',
+            val_text: `${host} - Incomplete SSL certificate chain (missing intermediates)`,
+            severity: 'INFO',
+            meta: {
+              host,
+              issue_type: 'incomplete_certificate_chain',
+              python_error: pythonData.error,
+              scan_id: scanId,
+              scan_module: 'tlsScan'
+            }
+          });
+
+          await insertFinding(
+            artId,
+            'TLS_CONFIGURATION_ISSUE',
+            'Configure server to present complete certificate chain including intermediate certificates',
+            `Python validation: ${pythonData.error}`
+          );
+          
+          findingsCount++;
+          continue; // Skip the generic "No SSL certificate" processing
+        }
+      }
       
       findingsCount++;
       
       let severity: Severity = 'MEDIUM';
-      if (vulnerability.includes('SSLv2') || vulnerability.includes('SSLv3') || vulnerability.includes('No SSL certificate')) {
-        severity = 'HIGH';
+      if (vulnerability.includes('SSLv2') || vulnerability.includes('SSLv3')) {
+        severity = 'HIGH'; // Removed "No SSL certificate" from HIGH severity
+      } else if (vulnerability.includes('No SSL certificate')) {
+        severity = 'HIGH'; // Only for actual missing certificates
       } else if (vulnerability.includes('NULL') || vulnerability.includes('RC4')) {
         severity = 'HIGH';
       } else if (vulnerability.includes('TLSv1.0') || vulnerability.includes('DES')) {

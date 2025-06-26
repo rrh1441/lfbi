@@ -221,9 +221,10 @@ function analyzeCombinedBreach(
   const leakCheckUsernames = leakCheckData.result
     .map(entry => {
       // Extract username from email or use username field
-      const username = entry.username || entry.email.split('@')[0];
+      const username = entry.username || (entry.email ? entry.email.split('@')[0] : null);
       return username;
     })
+    .filter(username => username !== null) // Remove null values
     .slice(0, 50); // Limit to 50 for performance
   
   const combinedUsernames = [...sample_usernames, ...leakCheckUsernames]
@@ -259,8 +260,9 @@ function analyzeCombinedBreach(
   
   // Check for recent breaches in LeakCheck data
   const recentBreaches = leakCheckData.result.filter(entry => {
+    if (!entry.source?.breach_date) return false;
     const breachYear = parseInt(entry.source.breach_date.split('-')[0]);
-    return breachYear >= 2020; // Breaches from 2020 onwards
+    return !isNaN(breachYear) && breachYear >= 2020; // Breaches from 2020 onwards
   });
   
   if (recentBreaches.length >= 10) {
