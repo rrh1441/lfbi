@@ -127,15 +127,18 @@ async function syncScansMasterTable() {
             }
             
             // Only log when there are meaningful progress updates
+            // Avoid logging old completed scans from previous sessions
             const recentCompletions = recordsToUpsert.filter(scan => 
                 (scan.status === 'completed' || scan.status === 'failed') &&
-                new Date(scan.last_updated).getTime() > Date.now() - (60 * 60 * 1000) // Within last hour
+                new Date(scan.last_updated).getTime() > Date.now() - (30 * 60 * 1000) && // Within last 30 minutes
+                new Date(scan.last_updated).getTime() > Date.now() - (10 * 60 * 1000) // And after startup window
             );
             
             const activeProgress = recordsToUpsert.filter(scan => 
                 scan.status === 'processing' &&
                 scan.current_module && 
-                scan.progress % 20 === 0 // Only log every 20% progress
+                scan.progress % 20 === 0 && // Only log every 20% progress
+                new Date(scan.last_updated).getTime() > Date.now() - (10 * 60 * 1000) // And recent
             );
             
             if (recentCompletions.length > 0) {
@@ -287,6 +290,12 @@ async function startSyncWorker() {
     }
     
     logProgress('Sync Worker started - monitoring for module completions and findings');
+    
+    // Initialize sync timestamps to prevent logging old data on startup
+    // Only sync data from the last 10 minutes to avoid noise from previous deployments
+    const recentTime = new Date(Date.now() - (10 * 60 * 1000)); // 10 minutes ago
+    lastSuccessfulScanSync = recentTime;
+    lastSuccessfulFindingSync = recentTime;
     
     // Perform an initial check to catch up if worker was down
     await runSyncCycle(); 

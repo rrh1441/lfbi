@@ -22,7 +22,7 @@ const exec = promisify(execFile);
 // ───────────────── Configuration ────────────────────────────────────────────
 const CONFIG = {
   MAX_CONCURRENCY: 6,
-  NUCLEI_TIMEOUT_MS: 10_000,
+  NUCLEI_TIMEOUT_MS: 30_000,  // Increased from 10s to 30s for tech detection
   API_TIMEOUT_MS: 15_000,
   MIN_VERSION_CONFIDENCE: 0.6,
   TECH_CIRCUIT_BREAKER: 20,
@@ -848,7 +848,7 @@ async function runNucleiCVETests(
       '-id', cveIds.join(','), // Target specific CVE IDs
       '-json',
       '-silent',
-      '-timeout', '10',
+      '-timeout', '20',
       '-retries', '1'
     ];
     
@@ -1326,7 +1326,7 @@ export async function runTechStackScan(job: {
             '-tags', 'tech',
             '-json',
             '-silent',
-            '-timeout', '10',
+            '-timeout', '20',
             '-retries', '2',
             '-headless'
           ];

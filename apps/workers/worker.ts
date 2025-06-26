@@ -131,7 +131,51 @@ async function initializeScansMasterTable(): Promise<void> {
     
     CREATE INDEX IF NOT EXISTS idx_scans_master_updated_at ON scans_master(updated_at);
     CREATE INDEX IF NOT EXISTS idx_scans_master_status ON scans_master(status);
+
+    CREATE TABLE IF NOT EXISTS worker_instances (
+      instance_id VARCHAR(255) PRIMARY KEY,
+      started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+      last_heartbeat TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_worker_instances_heartbeat ON worker_instances(last_heartbeat);
   `);
+}
+
+// Clean up incomplete scans from previous worker instances
+async function cleanupIncompleteScans(): Promise<void> {
+  try {
+    const result = await pool.query(`
+      UPDATE scans_master 
+      SET 
+        status = 'failed',
+        error_message = 'Worker restart - scan interrupted',
+        completed_at = NOW(),
+        updated_at = NOW()
+      WHERE status IN ('queued', 'processing', 'module_failed')
+      AND updated_at < NOW() - INTERVAL '5 minutes'
+      RETURNING scan_id, company_name, status
+    `);
+    
+    if (result.rows.length > 0) {
+      log(`Cleaned up ${result.rows.length} incomplete scans from previous worker sessions:`, 
+          result.rows.map(r => `${r.company_name} (${r.scan_id})`));
+      
+      // Also update the queue status for these jobs
+      for (const scan of result.rows) {
+        try {
+          await queue.updateStatus(scan.scan_id, 'failed', 'Worker restart - scan interrupted');
+        } catch (queueError) {
+          log(`Warning: Could not update queue status for ${scan.scan_id}:`, (queueError as Error).message);
+        }
+      }
+    } else {
+      log('No incomplete scans found to clean up');
+    }
+  } catch (error) {
+    log('Warning: Failed to cleanup incomplete scans:', (error as Error).message);
+    // Don't fail startup if cleanup fails
+  }
 }
 
 async function processScan(job: ScanJob): Promise<void> {
@@ -594,7 +638,9 @@ async function processScan(job: ScanJob): Promise<void> {
 }
 
 async function startWorker() {
-  log('Starting security scanning worker');
+  // Log worker startup with instance identifier
+  const workerInstanceId = process.env.FLY_MACHINE_ID || `worker-${Date.now()}`;
+  log(`Starting security scanning worker [${workerInstanceId}]`);
   
   // Validate required environment
   if (!process.env.SHODAN_API_KEY) {
@@ -607,41 +653,105 @@ async function startWorker() {
     await initializeDatabase();
     await initializeScansMasterTable();
     log('Database and scans_master table initialized successfully');
+    
+    // Clean up any incomplete scans from previous worker instances
+    await cleanupIncompleteScans();
+    
+    // Mark this worker instance as active
+    await pool.query(`
+      INSERT INTO worker_instances (instance_id, started_at, last_heartbeat) 
+      VALUES ($1, NOW(), NOW())
+      ON CONFLICT (instance_id) DO UPDATE SET 
+        started_at = NOW(), 
+        last_heartbeat = NOW()
+    `, [workerInstanceId]);
+    
   } catch (error) {
     log('Database initialization failed:', (error as Error).message);
     process.exit(1);
   }
 
   // Main processing loop
-  while (true) {
+  while (!isShuttingDown) {
     try {
       const job = await queue.getNextJob();
       
-      if (job) {
+      if (job && !isShuttingDown) {
         log('Processing scan job:', job.id);
         await processScan(job);
       } else {
-        // No jobs available, wait
+        // No jobs available, wait (but check for shutdown)
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
       
     } catch (error) {
-      log('Worker error:', (error as Error).message);
-      await new Promise(resolve => setTimeout(resolve, 10000));
+      if (!isShuttingDown) {
+        log('Worker error:', (error as Error).message);
+        await new Promise(resolve => setTimeout(resolve, 10000));
+      }
     }
   }
+  
+  log('Worker loop exited due to shutdown signal');
 }
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  log('Received SIGTERM, shutting down...');
-  process.exit(0);
-});
+let isShuttingDown = false;
 
-process.on('SIGINT', () => {
-  log('Received SIGINT, shutting down...');
-  process.exit(0);
-});
+async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) {
+    log(`Already shutting down, ignoring ${signal}`);
+    return;
+  }
+  
+  isShuttingDown = true;
+  log(`Received ${signal}, initiating graceful shutdown...`);
+  
+  try {
+    // Mark any currently processing scans as interrupted
+    const workerInstanceId = process.env.FLY_MACHINE_ID || `worker-${Date.now()}`;
+    
+    const interruptedScans = await pool.query(`
+      UPDATE scans_master 
+      SET 
+        status = 'failed',
+        error_message = 'Worker shutdown - scan interrupted',
+        completed_at = NOW(),
+        updated_at = NOW()
+      WHERE status IN ('processing', 'queued')
+      RETURNING scan_id, company_name
+    `);
+    
+    if (interruptedScans.rows.length > 0) {
+      log(`Marked ${interruptedScans.rows.length} scans as interrupted due to shutdown`);
+      
+      // Update queue status for interrupted scans
+      for (const scan of interruptedScans.rows) {
+        try {
+          await queue.updateStatus(scan.scan_id, 'failed', 'Worker shutdown - scan interrupted');
+        } catch (queueError) {
+          log(`Warning: Could not update queue status for ${scan.scan_id}:`, (queueError as Error).message);
+        }
+      }
+    }
+    
+    // Remove worker instance record
+    await pool.query('DELETE FROM worker_instances WHERE instance_id = $1', [workerInstanceId]);
+    
+    // Close database connections
+    await pool.end();
+    
+    log('Graceful shutdown completed');
+    process.exit(0);
+    
+  } catch (error) {
+    log('Error during graceful shutdown:', (error as Error).message);
+    process.exit(1);
+  }
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startWorker().catch(error => {
   log('CRITICAL: Failed to start worker:', (error as Error).message);
