@@ -86,7 +86,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 
         if (Date.now() - lastUpdateTime > oneDay) {
             log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            const result = await exec('nuclei', ['-update-templates'], { timeout: 300000 }); // 5 min timeout
+            const result = await exec('nuclei', ['-update-templates', '-ut', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
             if (result.stderr) {
                 log('[nuclei] Template update stderr:', result.stderr);
             }
@@ -155,12 +155,13 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         '-silent',
         '-timeout', '10',
         '-retries', '2',
-        '-headless'
+        '-headless',
+        '-t', '/opt/nuclei-templates'
     ];
     
-    // Add -insecure flag if TLS bypass is enabled
+    // Add disable SSL verification flag if TLS bypass is enabled
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-        nucleiArgs.push('-insecure');
+        nucleiArgs.push('-disable-ssl-verification');
     }
     
     log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
@@ -202,12 +203,13 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             '-w', workflowPath,
             '-json',
             '-silent',
-            '-timeout', '15'
+            '-timeout', '15',
+            '-t', '/opt/nuclei-templates'
         ];
         
-        // Add -insecure flag if TLS bypass is enabled
+        // Add disable SSL verification flag if TLS bypass is enabled
         if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiWorkflowArgs.push('-insecure');
+            nucleiWorkflowArgs.push('-disable-ssl-verification');
         }
         
         const { stdout, stderr } = await exec('nuclei', nucleiWorkflowArgs, { timeout: 900000 });

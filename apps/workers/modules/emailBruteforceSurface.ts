@@ -188,7 +188,7 @@ async function runNucleiEmailScan(targets: string[]): Promise<NucleiResult[]> {
       args.push('-insecure');
     }
     
-    const { stdout, stderr } = await execFileAsync('nuclei', args, {
+    const { stdout, stderr } = await execFileAsync('nuclei', [...args, '-t', '/opt/nuclei-templates'], {
       timeout: NUCLEI_TIMEOUT_MS,
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer
       env: { ...process.env, NO_COLOR: '1' }

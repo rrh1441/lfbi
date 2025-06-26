@@ -859,7 +859,7 @@ async function runNucleiCVETests(
     
     log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
     
-    const { stdout, stderr } = await exec('nuclei', nucleiArgs, { 
+    const { stdout, stderr } = await exec('nuclei', [...nucleiArgs, '-t', '/opt/nuclei-templates'], { 
       timeout: 60000 // 1 minute timeout for CVE tests
     });
     
@@ -1336,7 +1336,7 @@ export async function runTechStackScan(job: {
             nucleiArgs.push('-insecure');
           }
           
-          const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          const { stdout, stderr } = await exec('nuclei', [...nucleiArgs, '-t', '/opt/nuclei-templates'], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
           
           if (stderr) {
             log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);

@@ -134,6 +134,7 @@ async function runNucleiForDb(host: string, port: string, type: string, scanId?:
             '-u', `${host}:${port}`,
             '-json',
             '-silent',
+            '-t', '/opt/nuclei-templates',
             '-timeout', '5',
             '-retries', '1',
             '-tags', `cve,misconfiguration,default-credentials,${techTag}`
