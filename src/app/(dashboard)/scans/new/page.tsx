@@ -56,7 +56,7 @@ export default function NewScanPage() {
         throw new Error('Failed to start scan')
       }
 
-      const result = await response.json()
+      await response.json()
       router.push('/scans')
     } catch (error) {
       console.error('Error starting scan:', error)
