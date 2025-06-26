@@ -57,7 +57,7 @@ export default function NewScanPage() {
       }
 
       const result = await response.json()
-      router.push(`/scans/${result.scanId}`)
+      router.push('/scans')
     } catch (error) {
       console.error('Error starting scan:', error)
       // Here you would typically show an error toast/notification

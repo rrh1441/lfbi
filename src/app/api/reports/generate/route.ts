@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const promptContent = fs.readFileSync(promptPath, 'utf-8')
 
     // Prepare findings data in CSV format as specified in prompt.md
-    const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high'
+    const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high,eal_daily'
     const csvRows = findings.map((f: {
       id: string;
       created_at?: string;
@@ -34,9 +34,10 @@ export async function POST(request: NextRequest) {
       severity: string;
       attack_type_code?: string;
       state: string;
-      eal_low?: number;
-      eal_ml?: number;
-      eal_high?: number;
+      eal_low?: number | null;
+      eal_ml?: number | null;
+      eal_high?: number | null;
+      eal_daily?: number | null;
     }) => {
       const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
       return [
@@ -49,9 +50,10 @@ export async function POST(request: NextRequest) {
         f.severity,
         f.attack_type_code || 'UNKNOWN',
         f.state,
-        f.eal_low || 0,
-        f.eal_ml || 0,
-        f.eal_high || 0
+        f.eal_low || '',
+        f.eal_ml || '',
+        f.eal_high || '',
+        f.eal_daily || ''
       ].join(',')
     })
     const csvData = [csvHeader, ...csvRows].join('\n')

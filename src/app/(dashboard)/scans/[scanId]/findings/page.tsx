@@ -256,6 +256,8 @@ export default function FindingsPage() {
                   <SelectItem value="AUTOMATED">Automated</SelectItem>
                   <SelectItem value="VERIFIED">Verified</SelectItem>
                   <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+                  <SelectItem value="DISREGARD">Disregard</SelectItem>
+                  <SelectItem value="NEED_OWNER_VERIFICATION">Need Owner Verification</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -328,6 +330,8 @@ export default function FindingsPage() {
                         <SelectItem value="AUTOMATED">Automated</SelectItem>
                         <SelectItem value="VERIFIED">Verified</SelectItem>
                         <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
+                        <SelectItem value="DISREGARD">Disregard</SelectItem>
+                        <SelectItem value="NEED_OWNER_VERIFICATION">Need Owner Verification</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>

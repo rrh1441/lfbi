@@ -46,7 +46,7 @@ export interface Database {
           recommendation: string
           severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code: string
-          state: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          state: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE' | 'DISREGARD' | 'NEED_OWNER_VERIFICATION'
           eal_low: number | null
           eal_ml: number | null
           eal_high: number | null
@@ -61,7 +61,7 @@ export interface Database {
           recommendation: string
           severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code: string
-          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE' | 'DISREGARD' | 'NEED_OWNER_VERIFICATION'
           eal_low?: number | null
           eal_ml?: number | null
           eal_high?: number | null
@@ -76,7 +76,7 @@ export interface Database {
           recommendation?: string
           severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
           attack_type_code?: string
-          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE'
+          state?: 'AUTOMATED' | 'VERIFIED' | 'FALSE_POSITIVE' | 'DISREGARD' | 'NEED_OWNER_VERIFICATION'
           eal_low?: number | null
           eal_ml?: number | null
           eal_high?: number | null

@@ -259,6 +259,8 @@ function FindingsContent() {
               <SelectItem value="AUTOMATED">Automated</SelectItem>
               <SelectItem value="VERIFIED">Verified</SelectItem>
               <SelectItem value="falsepositive">False Positive</SelectItem>
+              <SelectItem value="DISREGARD">Disregard</SelectItem>
+              <SelectItem value="NEED_OWNER_VERIFICATION">Need Owner Verification</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -391,6 +393,8 @@ function FindingsContent() {
                                       <SelectItem value="AUTOMATED" className="cursor-pointer">Automated</SelectItem>
                                       <SelectItem value="VERIFIED" className="cursor-pointer">Verified</SelectItem>
                                       <SelectItem value="FALSE_POSITIVE" className="cursor-pointer">False Positive</SelectItem>
+                                      <SelectItem value="DISREGARD" className="cursor-pointer">Disregard</SelectItem>
+                                      <SelectItem value="NEED_OWNER_VERIFICATION" className="cursor-pointer">Need Owner Verification</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 </TableCell>
