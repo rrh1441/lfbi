@@ -477,7 +477,6 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
       
       analysis.leakcheck_results.forEach(credential => {
         // Calculate risk level (same logic as sync worker)
-        let riskLevel = 'MEDIUM_EMAIL_EXPOSED';
         if (credential.has_cookies || credential.has_autofill || credential.has_browser_data ||
             (credential.source?.name && (
                 credential.source.name.toLowerCase().includes('stealer') ||
@@ -485,7 +484,6 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
                 credential.source.name.toLowerCase().includes('raccoon') ||
                 credential.source.name.toLowerCase().includes('vidar')
             ))) {
-          riskLevel = 'CRITICAL_INFOSTEALER';
           credentialAnalysis.critical_infostealer++;
           if (credential.source?.name) {
             credentialAnalysis.infostealer_sources.add(credential.source.name);
@@ -494,7 +492,6 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
             credentialAnalysis.sample_critical_users.push(credential.username);
           }
         } else if (credential.has_password) {
-          riskLevel = 'HIGH_PASSWORD_EXPOSED';
           credentialAnalysis.high_password++;
         } else {
           credentialAnalysis.medium_email++;

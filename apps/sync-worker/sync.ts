@@ -22,6 +22,7 @@ const SYNC_INTERVAL_MS = 60 * 1000; // Sync every 1 minute
 let lastSuccessfulScanSync = new Date(0);
 let lastSuccessfulFindingSync = new Date(0);
 let lastSuccessfulCredentialsSync = new Date(0);
+let lastSuccessfulTotalsSync = new Date(0);
 
 // Declare global type for lastFindingsLogTime
 declare global {
@@ -368,6 +369,161 @@ async function syncCompromisedCredentialsTable() {
     }
 }
 
+async function syncScanTotalsAutomated() {
+    try {
+        // Query for completed scans that need totals calculated
+        const scanQuery = `
+            SELECT DISTINCT s.scan_id, s.domain, s.completed_at
+            FROM scan_status s
+            WHERE s.status = 'completed'
+            AND s.completed_at > $1
+            AND NOT EXISTS (
+                SELECT 1 FROM scan_totals_automated sta 
+                WHERE sta.scan_id = s.scan_id
+            )
+            ORDER BY s.completed_at ASC
+            LIMIT 20`;
+        
+        const { rows: scans } = await flyPostgresPool.query(scanQuery, [lastSuccessfulTotalsSync]);
+
+        if (scans.length > 0) {
+            for (const scan of scans) {
+                // Get all findings for this scan with EAL values
+                const findingsQuery = `
+                    SELECT 
+                        attack_type_code,
+                        COUNT(*) as finding_count,
+                        SUM(eal_low) as total_eal_low,
+                        SUM(eal_ml) as total_eal_ml,
+                        SUM(eal_high) as total_eal_high,
+                        SUM(eal_daily) as total_eal_daily
+                    FROM findings 
+                    WHERE scan_id = $1 
+                    AND attack_type_code IS NOT NULL
+                    AND (eal_low > 0 OR eal_ml > 0 OR eal_high > 0 OR eal_daily > 0)
+                    GROUP BY attack_type_code`;
+                
+                const { rows: findingTotals } = await flyPostgresPool.query(findingsQuery, [scan.scan_id]);
+                
+                // Initialize totals object
+                const totals = {
+                    scan_id: scan.scan_id,
+                    company_domain: scan.domain,
+                    
+                    // Individual cyber incident types
+                    phishing_bec_low: 0,
+                    phishing_bec_ml: 0,
+                    phishing_bec_high: 0,
+                    
+                    site_hack_low: 0,
+                    site_hack_ml: 0,
+                    site_hack_high: 0,
+                    
+                    malware_low: 0,
+                    malware_ml: 0,
+                    malware_high: 0,
+                    
+                    // Cyber totals (calculated after)
+                    cyber_total_low: 0,
+                    cyber_total_ml: 0,
+                    cyber_total_high: 0,
+                    
+                    // ADA compliance
+                    ada_compliance_low: 0,
+                    ada_compliance_ml: 0,
+                    ada_compliance_high: 0,
+                    
+                    // DoW daily losses
+                    dow_daily_low: 0,
+                    dow_daily_ml: 0,
+                    dow_daily_high: 0,
+                    
+                    total_findings: 0,
+                    verified_findings: 0
+                };
+                
+                // Process findings by attack type
+                findingTotals.forEach(finding => {
+                    const attackType = finding.attack_type_code;
+                    const low = Number(finding.total_eal_low) || 0;
+                    const ml = Number(finding.total_eal_ml) || 0;
+                    const high = Number(finding.total_eal_high) || 0;
+                    const daily = Number(finding.total_eal_daily) || 0;
+                    
+                    totals.total_findings += Number(finding.finding_count);
+                    
+                    switch (attackType) {
+                        case 'PHISHING_BEC':
+                            totals.phishing_bec_low += low;
+                            totals.phishing_bec_ml += ml;
+                            totals.phishing_bec_high += high;
+                            break;
+                            
+                        case 'SITE_HACK':
+                            totals.site_hack_low += low;
+                            totals.site_hack_ml += ml;
+                            totals.site_hack_high += high;
+                            break;
+                            
+                        case 'MALWARE':
+                            totals.malware_low += low;
+                            totals.malware_ml += ml;
+                            totals.malware_high += high;
+                            break;
+                            
+                        case 'ADA_COMPLIANCE':
+                            totals.ada_compliance_low += low;
+                            totals.ada_compliance_ml += ml;
+                            totals.ada_compliance_high += high;
+                            break;
+                            
+                        case 'DENIAL_OF_WALLET':
+                            totals.dow_daily_low += daily;
+                            totals.dow_daily_ml += daily;
+                            totals.dow_daily_high += daily;
+                            break;
+                    }
+                });
+                
+                // Calculate cyber totals
+                totals.cyber_total_low = totals.phishing_bec_low + totals.site_hack_low + totals.malware_low;
+                totals.cyber_total_ml = totals.phishing_bec_ml + totals.site_hack_ml + totals.malware_ml;
+                totals.cyber_total_high = totals.phishing_bec_high + totals.site_hack_high + totals.malware_high;
+                
+                // Count verified findings
+                const verifiedQuery = `
+                    SELECT COUNT(*) as verified_count 
+                    FROM findings 
+                    WHERE scan_id = $1 AND state = 'VERIFIED'`;
+                const { rows: verified } = await flyPostgresPool.query(verifiedQuery, [scan.scan_id]);
+                totals.verified_findings = Number(verified[0]?.verified_count) || 0;
+                
+                // Insert into Supabase
+                const { data, error } = await supabase
+                    .from('scan_totals_automated')
+                    .insert([totals]);
+
+                if (error) {
+                    logError(`Error inserting scan totals for ${scan.scan_id}`, error);
+                    continue; // Skip this scan, don't update timestamp
+                }
+                
+                logProgress(`Scan totals calculated for ${scan.scan_id}`, {
+                    cyber_total: totals.cyber_total_ml,
+                    ada_total: totals.ada_compliance_ml,
+                    dow_daily: totals.dow_daily_ml,
+                    total_findings: totals.total_findings
+                });
+            }
+            
+            // Update timestamp
+            lastSuccessfulTotalsSync = new Date(scans[scans.length - 1].completed_at);
+        }
+    } catch (error) {
+        logError('Error in syncScanTotalsAutomated', error);
+    }
+}
+
 async function runSyncCycle() {
     // Test connections first
     const flyConnectionOk = await testFlyPostgresConnection();
@@ -386,6 +542,7 @@ async function runSyncCycle() {
     await syncScansMasterTable();
     await syncFindingsTable();
     await syncCompromisedCredentialsTable();
+    await syncScanTotalsAutomated();
 }
 
 async function startSyncWorker() {
@@ -406,6 +563,7 @@ async function startSyncWorker() {
     lastSuccessfulScanSync = recentTime;
     lastSuccessfulFindingSync = recentTime;
     lastSuccessfulCredentialsSync = recentTime;
+    lastSuccessfulTotalsSync = recentTime;
     
     // Perform an initial check to catch up if worker was down
     await runSyncCycle(); 
