@@ -57,6 +57,24 @@ interface BreachProbeSummary {
   leakcheck_sources: string[];
   leakcheck_success: boolean;
   combined_total: number;
+  leakcheck_results: Array<{
+    email: string | null;
+    username: string | null;
+    source: {
+      name: string;
+      breach_date: string | null;
+      unverified: number;
+      passwordless: number;
+      compilation: number;
+    };
+    has_password: boolean;
+    has_cookies: boolean;
+    has_autofill: boolean;
+    has_browser_data: boolean;
+    field_count: number;
+    first_name: string | null;
+    last_name: string | null;
+  }>;
 }
 
 /**
@@ -217,15 +235,34 @@ function analyzeCombinedBreach(
     .filter((name, index, array) => array.indexOf(name) === index) // Remove duplicates
     .slice(0, 20); // Limit to first 20 unique sources
   
-  // Add emails from LeakCheck to sample usernames (extract username part)
-  const leakCheckUsernames = leakCheckData.result
-    .map(entry => {
-      // Extract username from email or use username field
-      const username = entry.username || (entry.email ? entry.email.split('@')[0] : null);
-      return username;
-    })
-    .filter(username => username !== null) // Remove null values
-    .slice(0, 50); // Limit to 50 for performance
+  // Process LeakCheck results for enhanced analysis (NO sensitive data stored)
+  const leakCheckResults = leakCheckData.result
+    .map(entry => ({
+      email: entry.email || null,
+      username: entry.username || (entry.email ? entry.email.split('@')[0] : null),
+      source: {
+        name: entry.source?.name || 'Unknown',
+        breach_date: entry.source?.breach_date || null,
+        unverified: entry.source?.unverified || 0,
+        passwordless: entry.source?.passwordless || 0,
+        compilation: entry.source?.compilation || 0
+      },
+      // Only store field existence flags, NOT actual values
+      has_password: entry.fields?.includes('password') || false,
+      has_cookies: entry.fields?.includes('cookies') || entry.fields?.includes('cookie') || false,
+      has_autofill: entry.fields?.includes('autofill') || entry.fields?.includes('autofill_data') || false,
+      has_browser_data: entry.fields?.includes('browser_data') || entry.fields?.includes('browser') || false,
+      field_count: entry.fields?.length || 0,
+      first_name: entry.first_name || null,
+      last_name: entry.last_name || null
+    }))
+    .slice(0, 100); // Limit to 100 for performance
+
+  // Add usernames from LeakCheck to sample usernames for backward compatibility
+  const leakCheckUsernames = leakCheckResults
+    .map(entry => entry.username)
+    .filter(username => username !== null)
+    .slice(0, 50);
   
   const combinedUsernames = [...sample_usernames, ...leakCheckUsernames]
     .filter((name, index, array) => array.indexOf(name) === index) // Remove duplicates
@@ -278,7 +315,8 @@ function analyzeCombinedBreach(
     leakcheck_total,
     leakcheck_sources,
     leakcheck_success: leakCheckData.success,
-    combined_total
+    combined_total,
+    leakcheck_results: leakCheckResults // Add full results with security flags
   };
 }
 
@@ -425,8 +463,109 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
     
     let findingsCount = 0;
     
-    // Create findings based on combined breach count and risk assessment
-    if (analysis.combined_total >= 100) {
+    // Analyze credentials by risk level for detailed findings
+    if (analysis.leakcheck_results && analysis.leakcheck_results.length > 0) {
+      const credentialAnalysis = {
+        critical_infostealer: 0,
+        high_password: 0,
+        medium_email: 0,
+        corporate_emails: 0,
+        personal_emails: 0,
+        infostealer_sources: new Set<string>(),
+        sample_critical_users: [] as string[]
+      };
+      
+      analysis.leakcheck_results.forEach(credential => {
+        // Calculate risk level (same logic as sync worker)
+        let riskLevel = 'MEDIUM_EMAIL_EXPOSED';
+        if (credential.has_cookies || credential.has_autofill || credential.has_browser_data ||
+            (credential.source?.name && (
+                credential.source.name.toLowerCase().includes('stealer') ||
+                credential.source.name.toLowerCase().includes('redline') ||
+                credential.source.name.toLowerCase().includes('raccoon') ||
+                credential.source.name.toLowerCase().includes('vidar')
+            ))) {
+          riskLevel = 'CRITICAL_INFOSTEALER';
+          credentialAnalysis.critical_infostealer++;
+          if (credential.source?.name) {
+            credentialAnalysis.infostealer_sources.add(credential.source.name);
+          }
+          if (credential.username && credentialAnalysis.sample_critical_users.length < 5) {
+            credentialAnalysis.sample_critical_users.push(credential.username);
+          }
+        } else if (credential.has_password) {
+          riskLevel = 'HIGH_PASSWORD_EXPOSED';
+          credentialAnalysis.high_password++;
+        } else {
+          credentialAnalysis.medium_email++;
+        }
+        
+        // Track email types
+        if (credential.email && credential.email.includes('@' + domain)) {
+          credentialAnalysis.corporate_emails++;
+        } else {
+          credentialAnalysis.personal_emails++;
+        }
+      });
+      
+      // Create critical infostealer finding
+      if (credentialAnalysis.critical_infostealer > 0) {
+        const description = `CRITICAL: ${credentialAnalysis.critical_infostealer} employees compromised by infostealer malware (${credentialAnalysis.corporate_emails} corporate emails)`;
+        const evidence = `Infostealer sources: ${Array.from(credentialAnalysis.infostealer_sources).join(', ')}. Sample users: ${credentialAnalysis.sample_critical_users.join(', ')}`;
+        
+        await insertFinding(
+          artifactId,
+          'INFOSTEALER_COMPROMISE',
+          description,
+          evidence
+        );
+        findingsCount++;
+      }
+      
+      // Create high-risk password finding
+      if (credentialAnalysis.high_password > 0) {
+        const description = `HIGH: ${credentialAnalysis.high_password} employees have exposed passwords in breaches`;
+        const evidence = `Passwords exposed across ${analysis.leakcheck_sources.length} breach databases`;
+        
+        await insertFinding(
+          artifactId,
+          'PASSWORD_EXPOSURE',
+          description,
+          evidence
+        );
+        findingsCount++;
+      }
+      
+      // Create general breach exposure finding
+      if (credentialAnalysis.medium_email > 0) {
+        const description = `MEDIUM: ${credentialAnalysis.medium_email} employee email addresses found in breach databases`;
+        const evidence = `Email exposure across ${analysis.leakcheck_sources.length} sources. Corporate: ${credentialAnalysis.corporate_emails}, Personal: ${credentialAnalysis.personal_emails}`;
+        
+        await insertFinding(
+          artifactId,
+          'EMAIL_EXPOSURE',
+          description,
+          evidence
+        );
+        findingsCount++;
+      }
+      
+      // Create overall summary finding
+      const totalExposed = credentialAnalysis.critical_infostealer + credentialAnalysis.high_password + credentialAnalysis.medium_email;
+      if (totalExposed > 0) {
+        const description = `Breach Summary: ${totalExposed} total employees exposed (${credentialAnalysis.critical_infostealer} infostealer, ${credentialAnalysis.high_password} password, ${credentialAnalysis.medium_email} email-only)`;
+        const evidence = `Sources: ${analysis.leakcheck_sources.slice(0, 5).join(', ')}${analysis.leakcheck_sources.length > 5 ? '...' : ''}`;
+        
+        await insertFinding(
+          artifactId,
+          'BREACH_SUMMARY',
+          description,
+          evidence
+        );
+        findingsCount++;
+      }
+    } else if (analysis.combined_total > 0) {
+      // Fallback for old data structure or BreachDirectory-only results
       const description = `Domain ${domain} has ${analysis.combined_total} breached accounts across public databases (BreachDirectory: ${analysis.breached_total}, LeakCheck: ${analysis.leakcheck_total})`;
       const evidence = `Sample usernames: ${analysis.sample_usernames.slice(0, 10).join(', ')}${analysis.sample_usernames.length > 10 ? '...' : ''}`;
       
@@ -436,19 +575,6 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         description,
         evidence
       );
-      
-      findingsCount++;
-    } else if (analysis.combined_total > 0 && analysis.high_risk_assessment) {
-      const description = `Domain ${domain} has ${analysis.combined_total} breached accounts including privileged users (BreachDirectory: ${analysis.breached_total}, LeakCheck: ${analysis.leakcheck_total})`;
-      const evidence = `Sample usernames: ${analysis.sample_usernames.slice(0, 10).join(', ')}`;
-      
-      await insertFinding(
-        artifactId,
-        'DOMAIN_BREACH_COUNT',
-        description,
-        evidence
-      );
-      
       findingsCount++;
     }
     

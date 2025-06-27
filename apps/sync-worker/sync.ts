@@ -21,6 +21,7 @@ const supabase: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROL
 const SYNC_INTERVAL_MS = 60 * 1000; // Sync every 1 minute
 let lastSuccessfulScanSync = new Date(0);
 let lastSuccessfulFindingSync = new Date(0);
+let lastSuccessfulCredentialsSync = new Date(0);
 
 // Declare global type for lastFindingsLogTime
 declare global {
@@ -260,6 +261,113 @@ async function syncFindingsTable() {
     }
 }
 
+async function syncCompromisedCredentialsTable() {
+    try {
+        // Query for breach_directory_summary artifacts created after last successful sync
+        const query = `
+            SELECT id, meta, created_at 
+            FROM artifacts 
+            WHERE type = 'breach_directory_summary' 
+            AND created_at > $1
+            AND meta->'breach_analysis'->'leakcheck_results' IS NOT NULL
+            ORDER BY created_at ASC
+            LIMIT 50`;
+        
+        const { rows } = await flyPostgresPool.query(query, [lastSuccessfulCredentialsSync]);
+
+        if (rows.length > 0) {
+            const credentialsToInsert = [];
+            
+            for (const artifact of rows) {
+                const breachAnalysis = artifact.meta?.breach_analysis;
+                const scanId = artifact.meta?.scan_id;
+                const domain = breachAnalysis?.domain;
+                
+                if (breachAnalysis?.leakcheck_results && scanId) {
+                    for (const credential of breachAnalysis.leakcheck_results) {
+                        // Calculate risk level
+                        let riskLevel = 'MEDIUM_EMAIL_EXPOSED';
+                        if (credential.has_cookies || credential.has_autofill || credential.has_browser_data ||
+                            (credential.source?.name && (
+                                credential.source.name.toLowerCase().includes('stealer') ||
+                                credential.source.name.toLowerCase().includes('redline') ||
+                                credential.source.name.toLowerCase().includes('raccoon') ||
+                                credential.source.name.toLowerCase().includes('vidar')
+                            ))) {
+                            riskLevel = 'CRITICAL_INFOSTEALER';
+                        } else if (credential.has_password) {
+                            riskLevel = 'HIGH_PASSWORD_EXPOSED';
+                        }
+                        
+                        // Determine email type
+                        let emailType = 'PERSONAL_EMAIL';
+                        if (credential.email && domain && credential.email.includes('@' + domain)) {
+                            emailType = 'CORPORATE_EMAIL';
+                        }
+                        
+                        credentialsToInsert.push({
+                            scan_id: scanId,
+                            company_domain: domain,
+                            username: credential.username,
+                            email: credential.email,
+                            breach_source: credential.source?.name || 'Unknown',
+                            breach_date: credential.source?.breach_date || null,
+                            has_password: credential.has_password || false,
+                            has_cookies: credential.has_cookies || false,
+                            has_autofill: credential.has_autofill || false,
+                            has_browser_data: credential.has_browser_data || false,
+                            field_count: credential.field_count || 0,
+                            risk_level: riskLevel,
+                            email_type: emailType,
+                            first_name: credential.first_name,
+                            last_name: credential.last_name,
+                            created_at: artifact.created_at
+                        });
+                    }
+                }
+            }
+            
+            if (credentialsToInsert.length > 0) {
+                // Check for existing records to avoid duplicates
+                const scanIds = [...new Set(credentialsToInsert.map(c => c.scan_id))];
+                const { data: existingCredentials } = await supabase
+                    .from('compromised_credentials')
+                    .select('scan_id, email, username')
+                    .in('scan_id', scanIds);
+                
+                const existingSet = new Set(existingCredentials?.map(c => `${c.scan_id}-${c.email}-${c.username}`) || []);
+                const newCredentials = credentialsToInsert.filter(c => 
+                    !existingSet.has(`${c.scan_id}-${c.email}-${c.username}`)
+                );
+                
+                if (newCredentials.length > 0) {
+                    const { data, error } = await supabase
+                        .from('compromised_credentials')
+                        .insert(newCredentials);
+
+                    if (error) {
+                        logError('Error inserting compromised credentials to Supabase', error);
+                        return; // Don't update timestamp on error
+                    }
+                    
+                    // Log summary by risk level
+                    const credentialsByRisk = newCredentials.reduce((acc, c) => {
+                        acc[c.risk_level] = (acc[c.risk_level] || 0) + 1;
+                        return acc;
+                    }, {} as Record<string, number>);
+                    
+                    logProgress(`New compromised credentials synced: ${newCredentials.length}`, credentialsByRisk);
+                }
+            }
+            
+            // Update timestamp to prevent re-processing
+            lastSuccessfulCredentialsSync = new Date(rows[rows.length - 1].created_at);
+        }
+    } catch (error) {
+        logError('Error in syncCompromisedCredentialsTable', error);
+    }
+}
+
 async function runSyncCycle() {
     // Test connections first
     const flyConnectionOk = await testFlyPostgresConnection();
@@ -277,6 +385,7 @@ async function runSyncCycle() {
     
     await syncScansMasterTable();
     await syncFindingsTable();
+    await syncCompromisedCredentialsTable();
 }
 
 async function startSyncWorker() {
@@ -296,6 +405,7 @@ async function startSyncWorker() {
     const recentTime = new Date(Date.now() - (10 * 60 * 1000)); // 10 minutes ago
     lastSuccessfulScanSync = recentTime;
     lastSuccessfulFindingSync = recentTime;
+    lastSuccessfulCredentialsSync = recentTime;
     
     // Perform an initial check to catch up if worker was down
     await runSyncCycle(); 

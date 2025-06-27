@@ -19,89 +19,182 @@ CREATE TABLE public.account (
   CONSTRAINT account_userId_fkey FOREIGN KEY (userId) REFERENCES public.user(id)
 );
 CREATE TABLE public.artifacts (
+  id integer NOT NULL DEFAULT nextval('artifacts_id_seq'::regclass),
   type character varying NOT NULL,
   val_text text NOT NULL,
+  severity character varying DEFAULT 'INFO'::character varying,
   src_url text,
   sha256 character varying,
   mime character varying,
-  id integer NOT NULL DEFAULT nextval('artifacts_id_seq'::regclass),
-  severity character varying DEFAULT 'INFO'::character varying,
   meta jsonb DEFAULT '{}'::jsonb,
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT artifacts_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.attack_meta (
+  attack_type_code text NOT NULL,
+  prevalence numeric,
+  raw_weight numeric,
+  CONSTRAINT attack_meta_pkey PRIMARY KEY (attack_type_code)
+);
+CREATE TABLE public.attack_type (
+  code text NOT NULL,
+  prevalence numeric,
+  cost_weight numeric,
+  CONSTRAINT attack_type_pkey PRIMARY KEY (code)
+);
+CREATE TABLE public.dow_cost_constants (
+  id integer NOT NULL DEFAULT nextval('dow_cost_constants_id_seq'::regclass),
+  finding_type character varying NOT NULL DEFAULT 'DENIAL_OF_WALLET'::character varying,
+  tokens_per_request_default integer NOT NULL DEFAULT 750,
+  tokens_per_request_openai integer NOT NULL DEFAULT 800,
+  tokens_per_request_anthropic integer NOT NULL DEFAULT 650,
+  tokens_per_request_cohere integer NOT NULL DEFAULT 500,
+  memory_mb_aws_lambda integer NOT NULL DEFAULT 256,
+  memory_mb_gcp_functions integer NOT NULL DEFAULT 128,
+  memory_mb_azure_functions integer NOT NULL DEFAULT 128,
+  memory_mb_default integer NOT NULL DEFAULT 128,
+  window_trivial_bypass integer NOT NULL DEFAULT 86400,
+  window_high_bypass integer NOT NULL DEFAULT 21600,
+  window_medium_bypass integer NOT NULL DEFAULT 7200,
+  window_low_bypass integer NOT NULL DEFAULT 1800,
+  auth_bypass_threshold_trivial numeric NOT NULL DEFAULT 0.90,
+  auth_bypass_threshold_high numeric NOT NULL DEFAULT 0.50,
+  auth_bypass_threshold_medium numeric NOT NULL DEFAULT 0.20,
+  complexity_multiplier_trivial numeric NOT NULL DEFAULT 3.00,
+  complexity_multiplier_low numeric NOT NULL DEFAULT 2.00,
+  complexity_multiplier_medium numeric NOT NULL DEFAULT 1.00,
+  complexity_multiplier_high numeric NOT NULL DEFAULT 0.30,
+  rps_threshold_high integer NOT NULL DEFAULT 50,
+  rps_threshold_medium integer NOT NULL DEFAULT 10,
+  rps_multiplier_high numeric NOT NULL DEFAULT 1.50,
+  rps_multiplier_medium numeric NOT NULL DEFAULT 1.20,
+  rps_multiplier_low numeric NOT NULL DEFAULT 1.00,
+  discovery_likelihood_api numeric NOT NULL DEFAULT 0.80,
+  discovery_likelihood_other numeric NOT NULL DEFAULT 0.40,
+  daily_to_weekly_factor numeric NOT NULL DEFAULT 5.0,
+  daily_to_monthly_factor numeric NOT NULL DEFAULT 20.0,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT dow_cost_constants_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.finding (
+  id integer NOT NULL DEFAULT nextval('finding_id_seq'::regclass),
+  scan_id uuid,
+  asset text,
+  category text,
+  attack_type text,
+  severity text,
+  rationale jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT finding_pkey PRIMARY KEY (id),
+  CONSTRAINT finding_attack_type_fkey FOREIGN KEY (attack_type) REFERENCES public.attack_type(code),
+  CONSTRAINT finding_severity_fkey FOREIGN KEY (severity) REFERENCES public.severity_weight(severity)
+);
 CREATE TABLE public.findings (
+  id integer NOT NULL DEFAULT nextval('findings_id_seq'::regclass),
+  created_at timestamp without time zone DEFAULT now(),
   description text,
   scan_id character varying,
   type character varying,
   recommendation text,
   severity character varying,
-  artifact_id integer,
-  mitigation text,
-  summary text,
-  class character varying,
-  id integer NOT NULL DEFAULT nextval('findings_id_seq'::regclass),
-  created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT findings_pkey PRIMARY KEY (id),
-  CONSTRAINT findings_artifact_id_fkey FOREIGN KEY (artifact_id) REFERENCES public.artifacts(id)
+  attack_type_code text,
+  state USER-DEFINED NOT NULL DEFAULT 'AUTOMATED'::finding_state,
+  eal_low bigint,
+  eal_ml integer,
+  eal_high bigint,
+  eal_daily integer,
+  CONSTRAINT findings_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.findings_sev_backup (
+  id integer,
+  severity_level text
 );
 CREATE TABLE public.reports (
   id character varying NOT NULL,
-  user_id uuid NOT NULL,
+  user_id uuid,
   json_url text,
   pdf_url text,
   created_at timestamp without time zone DEFAULT now(),
-  CONSTRAINT reports_pkey PRIMARY KEY (id)
+  company_name text,
+  domain text,
+  scan_id text,
+  content text,
+  findings_count integer DEFAULT 0,
+  status text DEFAULT 'pending'::text,
+  CONSTRAINT reports_pkey PRIMARY KEY (id),
+  CONSTRAINT fk_reports_scan_id FOREIGN KEY (scan_id) REFERENCES public.scan_status(scan_id)
+);
+CREATE TABLE public.risk_constants (
+  key text NOT NULL,
+  value numeric,
+  CONSTRAINT risk_constants_pkey PRIMARY KEY (key)
+);
+CREATE TABLE public.scan_financials_cache (
+  scan_id text NOT NULL,
+  finding_id bigint NOT NULL,
+  asset text,
+  category text,
+  severity text,
+  eal_low numeric,
+  eal_ml numeric,
+  eal_high numeric,
+  CONSTRAINT scan_financials_cache_pkey PRIMARY KEY (finding_id)
 );
 CREATE TABLE public.scan_status (
-  total_artifacts_count integer DEFAULT 0,
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
   scan_id text NOT NULL UNIQUE,
   company_name text NOT NULL,
   domain text NOT NULL,
   status text NOT NULL,
-  current_module text,
-  completed_at timestamp with time zone,
-  error_message text,
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
   progress integer DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+  current_module text,
   total_modules integer DEFAULT 10,
   started_at timestamp with time zone NOT NULL DEFAULT now(),
   last_updated timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  error_message text,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  total_artifacts_count integer DEFAULT 0,
   max_severity character varying,
   total_findings_count integer DEFAULT 0,
   CONSTRAINT scan_status_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.search_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
   name text NOT NULL,
   organization text NOT NULL,
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT search_events_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.security_reports (
-  report_url text,
+  id integer NOT NULL DEFAULT nextval('security_reports_id_seq'::regclass),
   scan_id character varying NOT NULL UNIQUE,
   company_name character varying NOT NULL,
   report_content text NOT NULL,
   executive_summary text,
   generated_at timestamp with time zone,
-  id integer NOT NULL DEFAULT nextval('security_reports_id_seq'::regclass),
   created_at timestamp with time zone DEFAULT now(),
+  report_url text,
   CONSTRAINT security_reports_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.session (
   id text NOT NULL,
   expiresAt timestamp without time zone NOT NULL,
   token text NOT NULL UNIQUE,
+  createdAt timestamp without time zone NOT NULL DEFAULT now(),
+  updatedAt timestamp without time zone NOT NULL DEFAULT now(),
   ipAddress text,
   userAgent text,
   userId text NOT NULL,
-  createdAt timestamp without time zone NOT NULL DEFAULT now(),
-  updatedAt timestamp without time zone NOT NULL DEFAULT now(),
   CONSTRAINT session_pkey PRIMARY KEY (id),
   CONSTRAINT session_userId_fkey FOREIGN KEY (userId) REFERENCES public.user(id)
+);
+CREATE TABLE public.severity_weight (
+  severity text NOT NULL,
+  multiplier numeric,
+  CONSTRAINT severity_weight_pkey PRIMARY KEY (severity)
 );
 CREATE TABLE public.subscription (
   id text NOT NULL,
@@ -123,9 +216,9 @@ CREATE TABLE public.subscription (
 CREATE TABLE public.user (
   id text NOT NULL,
   email text NOT NULL UNIQUE,
+  emailVerified boolean NOT NULL DEFAULT false,
   name text,
   image text,
-  emailVerified boolean NOT NULL DEFAULT false,
   createdAt timestamp without time zone NOT NULL DEFAULT now(),
   updatedAt timestamp without time zone NOT NULL DEFAULT now(),
   stripeCustomerId text,
@@ -141,11 +234,11 @@ CREATE TABLE public.user_brief_counts (
   CONSTRAINT user_brief_counts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user(id)
 );
 CREATE TABLE public.user_briefs (
+  id integer NOT NULL DEFAULT nextval('user_briefs_id_seq'::regclass),
   user_id text NOT NULL,
   name text NOT NULL,
   organization text NOT NULL,
   brief_content text NOT NULL,
-  id integer NOT NULL DEFAULT nextval('user_briefs_id_seq'::regclass),
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_briefs_pkey PRIMARY KEY (id),
   CONSTRAINT user_briefs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user(id)
