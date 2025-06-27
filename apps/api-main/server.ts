@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { UpstashQueue } from '../workers/core/queue.js';
 import { nanoid } from 'nanoid';
 import { pool } from '../workers/core/artifactStore.js';
+import { normalizeDomain } from '../workers/util/domainNormalizer.js';
 
 config();
 
@@ -48,14 +49,28 @@ fastify.get('/health', async (request, reply) => {
 // Create a new scan (main endpoint)
 fastify.post('/scan', async (request, reply) => {
   try {
-    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
     
-    if (!companyName || !domain) {
+    if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
       reply.status(400);
       return { error: 'Company name and domain are required' };
     }
 
+    // Normalize and validate domain
+    const validation = normalizeDomain(rawDomain);
+    
+    if (!validation.isValid) {
+      log(`[api] Domain validation failed for ${rawDomain}: ${validation.validationErrors.join(', ')}`);
+      reply.status(400);
+      return { 
+        error: 'Invalid domain format', 
+        details: validation.validationErrors,
+        suggestion: `Provided: "${rawDomain}", Expected format: "example.com"`
+      };
+    }
+
+    const normalizedDomain = validation.normalizedDomain;
     const scanId = nanoid(11);
     
     // Validate scanId is a non-empty string
@@ -68,11 +83,12 @@ fastify.post('/scan', async (request, reply) => {
     const job = {
       id: scanId,
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       createdAt: new Date().toISOString()
     };
 
-    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain})`);
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${normalizedDomain}) [original: ${rawDomain}]`);
     
     try {
       await queue.addJob(scanId, job);
@@ -91,7 +107,8 @@ fastify.post('/scan', async (request, reply) => {
       scanId,
       status: 'queued',
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       message: 'Scan started successfully'
     };
 
@@ -110,13 +127,28 @@ fastify.post('/scan', async (request, reply) => {
 // Create a new scan (alias for frontend compatibility)
 fastify.post('/scans', async (request, reply) => {
   try {
-    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
     
-    if (!companyName || !domain) {
+    if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
       reply.status(400);
       return { error: 'Company name and domain are required' };
     }
+
+    // Normalize and validate domain
+    const validation = normalizeDomain(rawDomain);
+    
+    if (!validation.isValid) {
+      log(`[api] Domain validation failed for ${rawDomain}: ${validation.validationErrors.join(', ')}`);
+      reply.status(400);
+      return { 
+        error: 'Invalid domain format', 
+        details: validation.validationErrors,
+        suggestion: `Provided: "${rawDomain}", Expected format: "example.com"`
+      };
+    }
+
+    const normalizedDomain = validation.normalizedDomain;
 
     const scanId = nanoid(11);
     
@@ -130,11 +162,12 @@ fastify.post('/scans', async (request, reply) => {
     const job = {
       id: scanId,
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       createdAt: new Date().toISOString()
     };
 
-    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain})`);
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${normalizedDomain}) [original: ${rawDomain}]`);
     
     try {
       await queue.addJob(scanId, job);
@@ -153,7 +186,8 @@ fastify.post('/scans', async (request, reply) => {
       scanId,
       status: 'queued',
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       message: 'Scan started successfully'
     };
 
@@ -259,13 +293,28 @@ fastify.get('/scan/:scanId/findings', async (request, reply) => {
 // API endpoint alias for frontend compatibility (/api/scans)
 fastify.post('/api/scans', async (request, reply) => {
   try {
-    const { companyName, domain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
     
-    if (!companyName || !domain) {
+    if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
       reply.status(400);
       return { error: 'Company name and domain are required' };
     }
+
+    // Normalize and validate domain
+    const validation = normalizeDomain(rawDomain);
+    
+    if (!validation.isValid) {
+      log(`[api] Domain validation failed for ${rawDomain}: ${validation.validationErrors.join(', ')}`);
+      reply.status(400);
+      return { 
+        error: 'Invalid domain format', 
+        details: validation.validationErrors,
+        suggestion: `Provided: "${rawDomain}", Expected format: "example.com"`
+      };
+    }
+
+    const normalizedDomain = validation.normalizedDomain;
 
     const scanId = nanoid(11);
     
@@ -278,7 +327,8 @@ fastify.post('/api/scans', async (request, reply) => {
     const job = {
       id: scanId,
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       createdAt: new Date().toISOString()
     };
 
@@ -301,7 +351,8 @@ fastify.post('/api/scans', async (request, reply) => {
       scanId,
       status: 'queued',
       companyName,
-      domain,
+      domain: normalizedDomain,
+      originalDomain: rawDomain,
       message: 'Scan started successfully'
     };
 
