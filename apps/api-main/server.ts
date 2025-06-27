@@ -332,7 +332,7 @@ fastify.post('/api/scans', async (request, reply) => {
       createdAt: new Date().toISOString()
     };
 
-    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${domain}) via /api/scans`);
+    log(`[api] Attempting to create scan job ${scanId} for ${companyName} (${normalizedDomain}) [original: ${rawDomain}] via /api/scans`);
     
     try {
       await queue.addJob(scanId, job);
