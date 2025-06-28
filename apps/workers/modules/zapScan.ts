@@ -153,10 +153,15 @@ async function isZAPAvailable(): Promise<boolean> {
       return stdout.trim().length > 0;
     } catch {
       try {
-        await execAsync('/opt/zaproxy/zap.sh -version', { timeout: 10000 });
+        await execAsync('/opt/zap/zap.sh -version', { timeout: 10000 });
         return true;
       } catch {
-        return false;
+        try {
+          await execAsync('/opt/zaproxy/zap.sh -version', { timeout: 10000 });
+          return true;
+        } catch {
+          return false;
+        }
       }
     }
   }
@@ -212,6 +217,8 @@ async function executeZAPBaseline(target: string, scanId: string): Promise<numbe
     if (!await isCommandAvailable('zap')) {
       if (await isCommandAvailable('zap.sh')) {
         zapCommand = 'zap.sh';
+      } else if (existsSync('/opt/zap/zap.sh')) {
+        zapCommand = '/opt/zap/zap.sh';
       } else if (existsSync('/opt/zaproxy/zap.sh')) {
         zapCommand = '/opt/zaproxy/zap.sh';
       } else {

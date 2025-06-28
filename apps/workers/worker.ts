@@ -22,7 +22,7 @@ import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
 import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
 import { runCensysScan } from './modules/censysPlatformScan.js';
 // import { runOpenVASScan } from './modules/openvasScan.js';  // Available but disabled until needed
-import { runZAPScan } from './modules/zapScan.js';
+// import { runZAPScan } from './modules/zapScan.js';  // Available but disabled due to build issues
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -60,7 +60,7 @@ const ALL_MODULES_IN_ORDER = [
   'accessibility_scan',
   'denial_wallet_scan',
   'tls_scan',
-  'zap_scan',    // Web application security testing
+  // 'zap_scan',    // Web application security testing (disabled due to build issues)
   'nuclei',      // Primary vulnerability scanner (upgraded to v3.4.5)
   // 'openvas_scan',  // Available but disabled until needed for deeper vulnerability assessment
   'rate_limit_scan',
@@ -484,11 +484,11 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] COMPLETED TLS scan: ${moduleFindings} TLS issues found`);
             break;
             
-          case 'zap_scan':
-            log(`[${scanId}] STARTING OWASP ZAP web application security scan for ${domain}`);
-            moduleFindings = await runZAPScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED ZAP scan: ${moduleFindings} web application vulnerabilities found`);
-            break;
+          // case 'zap_scan':  // Disabled due to build issues
+          //   log(`[${scanId}] STARTING OWASP ZAP web application security scan for ${domain}`);
+          //   moduleFindings = await runZAPScan({ domain, scanId });
+          //   log(`[${scanId}] COMPLETED ZAP scan: ${moduleFindings} web application vulnerabilities found`);
+          //   break;
             
           // case 'openvas_scan':  // Available but disabled
           //   log(`[${scanId}] STARTING OpenVAS enterprise vulnerability scan for ${domain}`);
