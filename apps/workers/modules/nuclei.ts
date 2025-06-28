@@ -86,7 +86,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 
         if (Date.now() - lastUpdateTime > oneDay) {
             log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            const result = await exec('nuclei', ['-update-templates', '-td', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
+            const result = await exec('nuclei', ['-update-templates', '-ut', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
             if (result.stderr) {
                 log('[nuclei] Template update stderr:', result.stderr);
             }

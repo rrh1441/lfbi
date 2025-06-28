@@ -178,10 +178,10 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
     
     // Add TLS bypass flag if needed (consistent with other modules)
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      args.push('-dca');  // Use -dca for disable certificate verification
+      args.push('-disable-ssl-verification');  // Full flag name for v3.4.5
     }
     
-    const { stdout, stderr } = await execFileAsync('nuclei', [...args, '-td', '/opt/nuclei-templates'], {
+    const { stdout, stderr } = await execFileAsync('nuclei', [...args, '-t', '/opt/nuclei-templates/'], {
       timeout: NUCLEI_TIMEOUT_MS,
       maxBuffer: 50 * 1024 * 1024, // 50MB buffer
       env: { ...process.env, NO_COLOR: '1' }
