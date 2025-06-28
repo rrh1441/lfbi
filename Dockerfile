@@ -62,6 +62,9 @@ RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
 # sslscan - reliable TLS/SSL scanner
 RUN apk add --no-cache sslscan
 
+# OpenVAS/Greenbone CE - Enterprise vulnerability scanner
+RUN pip3 install --break-system-packages python-gvm gvm-tools
+
 # ------------------------------------------------------------------------
 # Node-level tooling
 # ------------------------------------------------------------------------

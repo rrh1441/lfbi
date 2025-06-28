@@ -51,6 +51,13 @@ declare global {
       
       // Testing
       PUPPETEER_E2E?: '1';
+      
+      // OpenVAS/Greenbone Configuration
+      OPENVAS_HOST?: string;
+      OPENVAS_PORT?: string;
+      OPENVAS_USERNAME?: string;
+      OPENVAS_PASSWORD?: string;
+      OPENVAS_TIMEOUT?: string;
     }
   }
 }

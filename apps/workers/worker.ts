@@ -21,6 +21,7 @@ import { runBreachDirectoryProbe } from './modules/breachDirectoryProbe.js';
 import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
 import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
 import { runCensysScan } from './modules/censysPlatformScan.js';
+import { runOpenVASScan } from './modules/openvasScan.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -58,6 +59,7 @@ const ALL_MODULES_IN_ORDER = [
   'accessibility_scan',
   'denial_wallet_scan',
   'tls_scan',
+  'openvas_scan',  // Add OpenVAS as primary vulnerability scanner
   'nuclei',
   'rate_limit_scan',
   'spf_dmarc',
@@ -478,6 +480,12 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] STARTING TLS security scan for ${domain}`);
             moduleFindings = await runTlsScan({ domain, scanId });
             log(`[${scanId}] COMPLETED TLS scan: ${moduleFindings} TLS issues found`);
+            break;
+            
+          case 'openvas_scan':
+            log(`[${scanId}] STARTING OpenVAS enterprise vulnerability scan for ${domain}`);
+            moduleFindings = await runOpenVASScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED OpenVAS scan: ${moduleFindings} vulnerabilities found`);
             break;
             
           case 'nuclei':
