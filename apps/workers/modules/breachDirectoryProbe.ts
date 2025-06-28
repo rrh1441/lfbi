@@ -442,9 +442,30 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
     
     log(`Combined breach analysis complete: BD=${analysis.breached_total}, LC=${analysis.leakcheck_total}, Total=${analysis.combined_total}`);
     
-    // Create summary artifact
-    const severity = analysis.combined_total >= 100 ? 'HIGH' : 
-                    analysis.combined_total > 0 ? 'MEDIUM' : 'INFO';
+    // Determine artifact severity based on highest risk finding that will be created
+    let severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' = 'INFO';
+    if (analysis.leakcheck_results && analysis.leakcheck_results.length > 0) {
+      const hasInfostealer = analysis.leakcheck_results.some(cred => 
+        cred.source?.name?.toLowerCase().includes('stealer') ||
+        cred.source?.name?.toLowerCase().includes('redline') ||
+        cred.source?.name?.toLowerCase().includes('raccoon') ||
+        cred.source?.name?.toLowerCase().includes('vidar'));
+      const hasCookies = analysis.leakcheck_results.some(cred => 
+        cred.has_password && (cred.has_cookies || cred.has_autofill || cred.has_browser_data));
+      const hasPasswords = analysis.leakcheck_results.some(cred => cred.has_password);
+      
+      if (hasInfostealer || hasCookies) {
+        severity = 'CRITICAL';
+      } else if (hasPasswords) {
+        severity = 'MEDIUM';
+      } else {
+        severity = 'INFO';
+      }
+    } else if (analysis.combined_total >= 100) {
+      severity = 'HIGH';
+    } else if (analysis.combined_total > 0) {
+      severity = 'MEDIUM';
+    }
     
     const artifactId = await insertArtifact({
       type: 'breach_directory_summary',
@@ -523,52 +544,60 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         }
       });
       
-      // Create one comprehensive breach finding with highest severity found
-      const totalFindings = credentialAnalysis.critical_infostealer + credentialAnalysis.critical_cookies + credentialAnalysis.medium_password;
+      // Also track username-only entries for INFO findings
+      const usernameOnlyUsers: string[] = [];
+      analysis.leakcheck_results.forEach(credential => {
+        // Include username-only entries (email-only with no additional data)
+        if (!credential.has_password && !credential.has_cookies && !credential.has_autofill && 
+            !credential.has_browser_data && !credential.source?.name?.toLowerCase().includes('stealer')) {
+          if (credential.username) {
+            usernameOnlyUsers.push(credential.username);
+          }
+        }
+      });
       
-      if (totalFindings > 0) {
-        let severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' = 'MEDIUM';
-        let description = '';
-        let evidenceParts: string[] = [];
-        
-        // Determine overall severity (highest risk level found)
-        if (credentialAnalysis.critical_infostealer > 0 || credentialAnalysis.critical_cookies > 0) {
-          severity = 'CRITICAL';
-        } else {
-          severity = 'MEDIUM';
-        }
-        
-        // Build comprehensive description
-        const parts: string[] = [];
-        if (credentialAnalysis.critical_infostealer > 0) {
-          parts.push(`${credentialAnalysis.critical_infostealer} infostealer victims`);
-        }
-        if (credentialAnalysis.critical_cookies > 0) {
-          parts.push(`${credentialAnalysis.critical_cookies} with passwords+session data`);
-        }
-        if (credentialAnalysis.medium_password > 0) {
-          parts.push(`${credentialAnalysis.medium_password} with passwords only`);
-        }
-        
-        description = `${totalFindings} employees found in breach databases: ${parts.join(', ')}`;
-        
-        // Build detailed evidence
-        if (credentialAnalysis.critical_infostealer > 0) {
-          evidenceParts.push(`CRITICAL - Infostealer victims: ${credentialAnalysis.infostealer_users.join(', ')} | Sources: ${Array.from(credentialAnalysis.infostealer_sources).join(', ')}`);
-        }
-        if (credentialAnalysis.critical_cookies > 0) {
-          evidenceParts.push(`CRITICAL - Password+session data: ${credentialAnalysis.cookie_users.join(', ')}`);
-        }
-        if (credentialAnalysis.medium_password > 0) {
-          evidenceParts.push(`MEDIUM - Password exposure: ${credentialAnalysis.password_users.join(', ')}`);
-        }
-        evidenceParts.push(`Total breach sources: ${analysis.leakcheck_sources.length} | Corporate emails: ${credentialAnalysis.corporate_emails}, Personal: ${credentialAnalysis.personal_emails}`);
-        
+      // Create separate findings for each breach category
+      
+      // 1. CRITICAL: Infostealer victims 
+      if (credentialAnalysis.critical_infostealer > 0) {
         await insertFinding(
           artifactId,
-          'BREACH_ANALYSIS',
-          description,
-          evidenceParts.join(' | ')
+          'INFOSTEALER_BREACH',
+          `${credentialAnalysis.critical_infostealer} employees compromised by infostealer malware`,
+          `Usernames: ${credentialAnalysis.infostealer_users.join(', ')} | Sources: ${Array.from(credentialAnalysis.infostealer_sources).join(', ')} | Risk: Session hijacking, account takeover`
+        );
+        findingsCount++;
+      }
+      
+      // 2. CRITICAL: Username + password + session/cookie data
+      if (credentialAnalysis.critical_cookies > 0) {
+        await insertFinding(
+          artifactId,
+          'PASSWORD_COOKIE_BREACH', 
+          `${credentialAnalysis.critical_cookies} employees with passwords and session data exposed`,
+          `Usernames: ${credentialAnalysis.cookie_users.join(', ')} | Risk: Immediate account takeover with saved sessions`
+        );
+        findingsCount++;
+      }
+      
+      // 3. MEDIUM: Username + password only
+      if (credentialAnalysis.medium_password > 0) {
+        await insertFinding(
+          artifactId,
+          'PASSWORD_BREACH',
+          `${credentialAnalysis.medium_password} employees with password exposure`,
+          `Usernames: ${credentialAnalysis.password_users.join(', ')} | Risk: Credential stuffing, brute force attacks`
+        );
+        findingsCount++;
+      }
+      
+      // 4. INFO: Username only (email addresses without additional data)
+      if (usernameOnlyUsers.length > 0) {
+        await insertFinding(
+          artifactId,
+          'EMAIL_EXPOSURE',
+          `${usernameOnlyUsers.length} employee email addresses found in breach databases`,
+          `Usernames: ${usernameOnlyUsers.join(', ')} | Risk: Phishing, social engineering targeting`
         );
         findingsCount++;
       }
