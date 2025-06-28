@@ -36,8 +36,8 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0 \
 RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh \
     | sh -s -- -b /usr/local/bin
 
-# nuclei
-RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.2.9/nuclei_3.2.9_linux_amd64.zip \
+# nuclei v3.4.5
+RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.4.5/nuclei_3.4.5_linux_amd64.zip \
         -o nuclei.zip && \
     unzip nuclei.zip && \
     mv nuclei /usr/local/bin/ && \

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Install Nuclei for DealBrief Scanner
 
-echo "📦 Installing Nuclei v3.2.9..."
+echo "📦 Installing Nuclei v3.4.5..."
 
 # Option 1: Install via go (recommended)
 if command -v go &> /dev/null; then
@@ -31,7 +31,7 @@ elif command -v brew &> /dev/null; then
 else
     # Option 5: Manual binary download
     echo "Installing manually..."
-    NUCLEI_VERSION="v3.2.9"
+    NUCLEI_VERSION="v3.4.5"
     ARCH=$(uname -m)
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     
