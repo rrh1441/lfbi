@@ -65,6 +65,14 @@ RUN apk add --no-cache sslscan
 # OpenVAS/Greenbone CE - Enterprise vulnerability scanner
 RUN pip3 install --break-system-packages python-gvm gvm-tools
 
+# OWASP ZAP - Web application security scanner
+RUN wget -q https://github.com/zaproxy/zaproxy/releases/download/v2.14.0/ZAP_2_14_0_unix.sh -O /tmp/zap_installer.sh && \
+    chmod +x /tmp/zap_installer.sh && \
+    /tmp/zap_installer.sh -q && \
+    rm /tmp/zap_installer.sh && \
+    ln -s /opt/zaproxy/zap.sh /usr/local/bin/zap && \
+    mkdir -p /root/.ZAP
+
 # ------------------------------------------------------------------------
 # Node-level tooling
 # ------------------------------------------------------------------------
