@@ -147,7 +147,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     }
     const tags = Array.from(baseTags).join(',');
 
-    // Build command arguments (Fixed for Nuclei v3.2.9+)
+    // Build command arguments (Fixed for Nuclei v3.4.5)
     const nucleiArgs = [
         '-u', target.url,
         '-tags', tags,
@@ -156,12 +156,12 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         '-timeout', '10',
         '-retries', '2',
         '-headless',
-        '-td', '/opt/nuclei-templates'  // Use -td for template directory, not -t
+        '-t', '/opt/nuclei-templates/'  // Use -t for template directory
     ];
     
-    // Add disable SSL verification flag if TLS bypass is enabled (Fixed flag name)
+    // Add disable SSL verification flag if TLS bypass is enabled
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-        nucleiArgs.push('-dca');  // -disable-certificate-verification abbreviated to -dca
+        nucleiArgs.push('-disable-ssl-verification');  // Full flag name
     }
     
     log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
@@ -204,12 +204,12 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             '-json',
             '-silent',
             '-timeout', '15',
-            '-td', '/opt/nuclei-templates'  // Use -td for template directory
+            '-t', '/opt/nuclei-templates/'  // Use -t for template directory
         ];
         
-        // Add disable SSL verification flag if TLS bypass is enabled (Fixed flag name)
+        // Add disable SSL verification flag if TLS bypass is enabled
         if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiWorkflowArgs.push('-dca');  // Use -dca instead of -disable-ssl-verification
+            nucleiWorkflowArgs.push('-disable-ssl-verification');  // Full flag name
         }
         
         const { stdout, stderr } = await exec('nuclei', nucleiWorkflowArgs, { timeout: 900000 });

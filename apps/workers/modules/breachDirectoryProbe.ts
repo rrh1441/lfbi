@@ -572,6 +572,7 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         );
         findingsCount++;
       }
+    }
     
     const duration = Date.now() - startTime;
     log(`Breach probe completed: ${findingsCount} findings in ${duration}ms`);
