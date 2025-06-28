@@ -842,7 +842,7 @@ async function runNucleiCVETests(
   }
   
   try {
-    // Run nuclei with specific CVE templates (Fixed for v3.2.9+)
+    // Run nuclei with specific CVE templates (Fixed for v3.4.5)
     const nucleiArgs = [
       '-u', target,
       '-id', cveIds.join(','), // Target specific CVE IDs
@@ -850,12 +850,12 @@ async function runNucleiCVETests(
       '-silent',
       '-timeout', '20',
       '-retries', '1',
-      '-td', '/opt/nuclei-templates'  // Use -td for template directory
+      '-t', '/opt/nuclei-templates/'  // Use -t for template directory
     ];
     
-    // Add TLS bypass if environment variable is set (consistent flag)
+    // Add TLS bypass if environment variable is set
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      nucleiArgs.push('-dca');  // Use -dca for consistency
+      nucleiArgs.push('-disable-ssl-verification');  // Full flag name for v3.4.5
     }
     
     log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
@@ -1344,12 +1344,12 @@ export async function runTechStackScan(job: {
             '-timeout', '20',
             '-retries', '2',
             '-headless',
-            '-td', '/opt/nuclei-templates'  // Use -td for template directory, not -t
+            '-t', '/opt/nuclei-templates/'  // Use -t for template directory
           ];
           
-          // Add disable certificate verification flag if TLS bypass is enabled (consistent with nuclei.ts)
+          // Add disable certificate verification flag if TLS bypass is enabled
           if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiArgs.push('-dca');  // Use -dca instead of -insecure for consistency
+            nucleiArgs.push('-disable-ssl-verification');  // Full flag name for v3.4.5
           }
           
           const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
