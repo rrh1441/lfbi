@@ -850,6 +850,8 @@ async function runNucleiCVETests(
       '-silent',
       '-timeout', '20',
       '-retries', '1',
+      '-sc',      // Use system chrome  
+      '-headless',
       '-t', '/opt/nuclei-templates/'  // Use -t for template directory
     ];
     
@@ -860,9 +862,25 @@ async function runNucleiCVETests(
     
     log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
     
-    const { stdout, stderr } = await exec('nuclei', nucleiArgs, { 
-      timeout: 60000 // 1 minute timeout for CVE tests
-    });
+    let stdout = '';
+    let stderr = '';
+    
+    try {
+      const result = await exec('nuclei', nucleiArgs, { 
+        timeout: 60000 // 1 minute timeout for CVE tests
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (error) {
+      // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
+      if ((error as any).code === 2) {
+        log(`nucleiCVE=no_vulns target="${target}" cves_tested=${cveIds.length}`);
+        stdout = (error as any).stdout || '';
+        stderr = (error as any).stderr || '';
+      } else {
+        throw error; // Re-throw actual errors
+      }
+    }
     
     if (stderr) {
       log(`nucleiCVE=stderr`, stderr);
@@ -1343,6 +1361,7 @@ export async function runTechStackScan(job: {
             '-silent',
             '-timeout', '20',
             '-retries', '2',
+            '-sc',      // Use system chrome
             '-headless',
             '-t', '/opt/nuclei-templates/'  // Use -t for template directory
           ];
@@ -1352,7 +1371,23 @@ export async function runTechStackScan(job: {
             nucleiArgs.push('-disable-ssl-verification');  // Full flag name for v3.4.5
           }
           
-          const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          let stdout = '';
+          let stderr = '';
+          
+          try {
+            const result = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+            stdout = result.stdout;
+            stderr = result.stderr;
+          } catch (error) {
+            // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
+            if ((error as any).code === 2) {
+              log(`techstack=nuclei_success url="${url}" no_findings=true`);
+              stdout = (error as any).stdout || '';
+              stderr = (error as any).stderr || '';
+            } else {
+              throw error; // Re-throw actual errors
+            }
+          }
           
           if (stderr) {
             log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);

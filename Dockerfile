@@ -12,17 +12,23 @@ RUN node -v
 # ----- Working directory -------------------------------------------------
 WORKDIR /app
 
-# ----- System packages & headless Chrome for Puppeteer -------------------
+# ----- System packages & headless Chrome for Puppeteer + Nuclei -------------------
 RUN apk add --no-cache \
     bash curl wget git openssl bind-tools \
     nmap nmap-scripts \
     python3 py3-pip unzip \
     chromium nss freetype freetype-dev harfbuzz \
-    ca-certificates ttf-freefont coreutils procps
+    ca-certificates ttf-freefont coreutils procps \
+    libx11 libxcomposite libxdamage libxext libxrandr libxfixes \
+    libxkbcommon libdrm libxcb libxrender pango cairo alsa-lib udev
 
 # Puppeteer points to system Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+# Make Rod/Nuclei pick up the system browser
+ENV NUCLEI_PREFERRED_CHROME_PATH=/usr/bin/chromium-browser
+RUN ln -sf /usr/bin/chromium-browser /usr/bin/chrome
 
 # Security scanner environment variables
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0 \

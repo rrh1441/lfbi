@@ -173,6 +173,7 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
       '-timeout', '30',
       '-retries', '2',
       `-c`, CONCURRENCY.toString(),
+      '-sc',      // Use system chrome
       '-headless'
     ];
     
@@ -181,11 +182,27 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
       args.push('-disable-ssl-verification');  // Full flag name for v3.4.5
     }
     
-    const { stdout, stderr } = await execFileAsync('nuclei', [...args, '-t', '/opt/nuclei-templates/'], {
-      timeout: NUCLEI_TIMEOUT_MS,
-      maxBuffer: 50 * 1024 * 1024, // 50MB buffer
-      env: { ...process.env, NO_COLOR: '1' }
-    });
+    let stdout = '';
+    let stderr = '';
+    
+    try {
+      const result = await execFileAsync('nuclei', [...args, '-t', '/opt/nuclei-templates/'], {
+        timeout: NUCLEI_TIMEOUT_MS,
+        maxBuffer: 50 * 1024 * 1024, // 50MB buffer
+        env: { ...process.env, NO_COLOR: '1' }
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (error) {
+      // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
+      if ((error as any).code === 2) {
+        log(`Nuclei scan completed with no vulnerabilities found (exit code 2)`);
+        stdout = (error as any).stdout || '';
+        stderr = (error as any).stderr || '';
+      } else {
+        throw error; // Re-throw actual errors
+      }
+    }
     
     // Enhanced stderr logging - capture full output for better debugging
     if (stderr) {

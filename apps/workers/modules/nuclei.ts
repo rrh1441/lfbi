@@ -155,6 +155,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         '-silent',
         '-timeout', '10',
         '-retries', '2',
+        '-sc',      // Use system chrome
         '-headless',
         '-t', '/opt/nuclei-templates/'  // Use -t for template directory
     ];
@@ -175,6 +176,14 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
 
         return await processNucleiOutput(stdout, scanId!, 'tags');
     } catch (error) {
+        // Nuclei exit code 2 means "no templates matched" or "no vulnerabilities found" - this is success, not failure
+        if ((error as any).code === 2) {
+            log(`[nuclei] [Tag Scan] No vulnerabilities found for ${target.url} (exit code 2 - success)`);
+            // Still process any stdout output that might exist
+            const stdout = (error as any).stdout || '';
+            return await processNucleiOutput(stdout, scanId!, 'tags');
+        }
+        
         log(`[nuclei] [Tag Scan] Failed for ${target.url}:`, (error as Error).message);
         if ((error as any).stderr) {
             log(`[nuclei] [Tag Scan] Full stderr for ${target.url}:`, (error as any).stderr);
@@ -204,6 +213,8 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             '-json',
             '-silent',
             '-timeout', '15',
+            '-sc',      // Use system chrome
+            '-headless',
             '-t', '/opt/nuclei-templates/'  // Use -t for template directory
         ];
         
@@ -220,6 +231,14 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
 
         return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
     } catch (error) {
+        // Nuclei exit code 2 means "no templates matched" or "no vulnerabilities found" - this is success, not failure
+        if ((error as any).code === 2) {
+            log(`[nuclei] [Workflow Scan] No vulnerabilities found for ${target.url} with workflow ${workflowPath} (exit code 2 - success)`);
+            // Still process any stdout output that might exist
+            const stdout = (error as any).stdout || '';
+            return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
+        }
+        
         log(`[nuclei] [Workflow Scan] Failed for ${target.url} with workflow ${workflowPath}:`, (error as Error).message);
         if ((error as any).stderr) {
             log(`[nuclei] [Workflow Scan] Full stderr for ${target.url}:`, (error as any).stderr);
