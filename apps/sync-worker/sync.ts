@@ -306,13 +306,29 @@ async function syncCompromisedCredentialsTable() {
                             emailType = 'CORPORATE_EMAIL';
                         }
                         
+                        // Parse breach date properly (handle "2019-01" format)
+                        let parsedBreachDate = null;
+                        if (credential.source?.breach_date) {
+                            const dateStr = credential.source.breach_date;
+                            if (dateStr.match(/^\d{4}-\d{2}$/)) {
+                                // Handle "YYYY-MM" format -> "YYYY-MM-01"
+                                parsedBreachDate = dateStr + '-01';
+                            } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                                // Already full date
+                                parsedBreachDate = dateStr;
+                            } else if (dateStr.match(/^\d{4}$/)) {
+                                // Handle "YYYY" format -> "YYYY-01-01"
+                                parsedBreachDate = dateStr + '-01-01';
+                            }
+                        }
+
                         credentialsToInsert.push({
                             scan_id: scanId,
                             company_domain: domain,
                             username: credential.username,
                             email: credential.email,
                             breach_source: credential.source?.name || 'Unknown',
-                            breach_date: credential.source?.breach_date || null,
+                            breach_date: parsedBreachDate,
                             has_password: credential.has_password || false,
                             has_cookies: credential.has_cookies || false,
                             has_autofill: credential.has_autofill || false,
@@ -371,22 +387,24 @@ async function syncCompromisedCredentialsTable() {
 
 async function syncScanTotalsAutomated() {
     try {
-        // Query for completed scans that need totals calculated
-        const scanQuery = `
-            SELECT DISTINCT s.scan_id, s.domain, s.completed_at
-            FROM scan_status s
-            WHERE s.status = 'completed'
-            AND s.completed_at > $1
-            AND NOT EXISTS (
-                SELECT 1 FROM scan_totals_automated sta 
-                WHERE sta.scan_id = s.scan_id
+        // Query Supabase for completed scans that need totals calculated
+        const { data: scans, error: scanError } = await supabase
+            .from('scan_status')
+            .select('scan_id, domain, completed_at')
+            .eq('status', 'completed')
+            .gt('completed_at', lastSuccessfulTotalsSync.toISOString())
+            .not('scan_id', 'in', 
+                `(SELECT scan_id FROM scan_totals_automated)`
             )
-            ORDER BY s.completed_at ASC
-            LIMIT 20`;
-        
-        const { rows: scans } = await flyPostgresPool.query(scanQuery, [lastSuccessfulTotalsSync]);
+            .order('completed_at', { ascending: true })
+            .limit(20);
+            
+        if (scanError) {
+            logError('Error querying completed scans from Supabase', scanError);
+            return;
+        }
 
-        if (scans.length > 0) {
+        if (scans && scans.length > 0) {
             for (const scan of scans) {
                 // Get all findings for this scan with EAL values
                 const findingsQuery = `

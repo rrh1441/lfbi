@@ -842,24 +842,25 @@ async function runNucleiCVETests(
   }
   
   try {
-    // Run nuclei with specific CVE templates
+    // Run nuclei with specific CVE templates (Fixed for v3.2.9+)
     const nucleiArgs = [
       '-u', target,
       '-id', cveIds.join(','), // Target specific CVE IDs
       '-json',
       '-silent',
       '-timeout', '20',
-      '-retries', '1'
+      '-retries', '1',
+      '-td', '/opt/nuclei-templates'  // Use -td for template directory
     ];
     
-    // Add TLS bypass if environment variable is set
+    // Add TLS bypass if environment variable is set (consistent flag)
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      nucleiArgs.push('-insecure');
+      nucleiArgs.push('-dca');  // Use -dca for consistency
     }
     
     log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
     
-    const { stdout, stderr } = await exec('nuclei', [...nucleiArgs, '-t', '/opt/nuclei-templates'], { 
+    const { stdout, stderr } = await exec('nuclei', nucleiArgs, { 
       timeout: 60000 // 1 minute timeout for CVE tests
     });
     
@@ -1319,6 +1320,20 @@ export async function runTechStackScan(job: {
       // Primary: Nuclei-based detection
       await Promise.all(allTargets.map(url => limit(async () => {
         if (cb.isTripped()) return;
+        
+        // Validate URL before processing (prevent "null" and malformed URLs)
+        if (!url || url === 'null' || url === 'undefined' || typeof url !== 'string') {
+          log(`techstack=nuclei_skip url="${url}" reason="invalid_url"`);
+          return;
+        }
+        
+        try {
+          new URL(url); // Validate URL format
+        } catch {
+          log(`techstack=nuclei_skip url="${url}" reason="malformed_url"`);
+          return;
+        }
+        
         try {
           log(`techstack=nuclei url="${url}"`);
           const nucleiArgs = [
@@ -1328,15 +1343,16 @@ export async function runTechStackScan(job: {
             '-silent',
             '-timeout', '20',
             '-retries', '2',
-            '-headless'
+            '-headless',
+            '-td', '/opt/nuclei-templates'  // Use -td for template directory, not -t
           ];
           
-          // Add -insecure flag if TLS bypass is enabled (same as working nuclei module)
+          // Add disable certificate verification flag if TLS bypass is enabled (consistent with nuclei.ts)
           if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiArgs.push('-insecure');
+            nucleiArgs.push('-dca');  // Use -dca instead of -insecure for consistency
           }
           
-          const { stdout, stderr } = await exec('nuclei', [...nucleiArgs, '-t', '/opt/nuclei-templates'], { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
+          const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
           
           if (stderr) {
             log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);

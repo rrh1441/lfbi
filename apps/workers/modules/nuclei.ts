@@ -86,7 +86,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 
         if (Date.now() - lastUpdateTime > oneDay) {
             log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            const result = await exec('nuclei', ['-update-templates', '-ut', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
+            const result = await exec('nuclei', ['-update-templates', '-td', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
             if (result.stderr) {
                 log('[nuclei] Template update stderr:', result.stderr);
             }
@@ -147,7 +147,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     }
     const tags = Array.from(baseTags).join(',');
 
-    // Build command arguments
+    // Build command arguments (Fixed for Nuclei v3.2.9+)
     const nucleiArgs = [
         '-u', target.url,
         '-tags', tags,
@@ -156,12 +156,12 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         '-timeout', '10',
         '-retries', '2',
         '-headless',
-        '-t', '/opt/nuclei-templates'
+        '-td', '/opt/nuclei-templates'  // Use -td for template directory, not -t
     ];
     
-    // Add disable SSL verification flag if TLS bypass is enabled
+    // Add disable SSL verification flag if TLS bypass is enabled (Fixed flag name)
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-        nucleiArgs.push('-disable-ssl-verification');
+        nucleiArgs.push('-dca');  // -disable-certificate-verification abbreviated to -dca
     }
     
     log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
@@ -204,12 +204,12 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             '-json',
             '-silent',
             '-timeout', '15',
-            '-t', '/opt/nuclei-templates'
+            '-td', '/opt/nuclei-templates'  // Use -td for template directory
         ];
         
-        // Add disable SSL verification flag if TLS bypass is enabled
+        // Add disable SSL verification flag if TLS bypass is enabled (Fixed flag name)
         if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiWorkflowArgs.push('-disable-ssl-verification');
+            nucleiWorkflowArgs.push('-dca');  // Use -dca instead of -disable-ssl-verification
         }
         
         const { stdout, stderr } = await exec('nuclei', nucleiWorkflowArgs, { timeout: 900000 });

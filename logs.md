@@ -1,907 +1,971 @@
-		2025-06-26 14:25:00.575	
-}
-2025-06-26 14:25:00.575	
-"RATE_LIMIT_BYPASS": 1
-2025-06-26 14:25:00.575	
-[2025-06-26T21:25:00.574Z] [SyncWorker] ✅ New findings synced: 1 {
-2025-06-26 14:24:14.400	
-[2025-06-26T21:24:14.399Z] [worker] ✅ COMPREHENSIVE SCAN COMPLETED for Lodging Source: 20 verified findings, 25 artifacts across 20 security modules
-2025-06-26 14:24:14.399	
-[queue] Updated job 1rmpDAqZOKl status: done - Comprehensive security scan completed - 20 verified findings across 20 security modules. Findings ready for processing.
-2025-06-26 14:24:13.969	
-[2025-06-26T21:24:13.969Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, progress, completed_at, total_findings_count, max_severity, total_artifacts_count
-2025-06-26 14:24:13.966	
-[2025-06-26T21:24:13.965Z] [worker] [processScan] Counted 25 artifacts for scan 1rmpDAqZOKl
-2025-06-26 14:24:13.964	
-[2025-06-26T21:24:13.964Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:24:13.963	
-[2025-06-26T21:24:13.963Z] [worker] [1rmpDAqZOKl] COMPLETED secret detection: 0 secrets found
-2025-06-26 14:24:13.963	
+		2025-06-27 14:34:12.652	
+[2025-06-27T21:34:12.650Z] [worker] ✅ COMPREHENSIVE SCAN COMPLETED for Lodging Source: 22 verified findings, 24 artifacts across 20 security modules
+2025-06-27 14:34:12.652	
+[queue] Updated job 9B4x4CU9ED5 status: done - Comprehensive security scan completed - 22 verified findings across 20 security modules. Findings ready for processing.
+2025-06-27 14:34:11.708	
+[2025-06-27T21:34:11.707Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, progress, completed_at, total_findings_count, max_severity, total_artifacts_count
+2025-06-27 14:34:11.702	
+[2025-06-27T21:34:11.702Z] [worker] [processScan] Counted 24 artifacts for scan 9B4x4CU9ED5
+2025-06-27 14:34:11.699	
+[2025-06-27T21:34:11.699Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:34:11.690	
+[2025-06-27T21:34:11.689Z] [worker] [9B4x4CU9ED5] COMPLETED secret detection: 0 secrets found
+2025-06-27 14:34:11.689	
 [artifactStore] Inserted scan_summary artifact: TruffleHog scan completed: 0 potential secrets found...
-2025-06-26 14:24:13.961	
-[2025-06-26T21:24:13.961Z] [trufflehog] Finished secret scan for lodging-source.com Total secrets found: 0
-2025-06-26 14:24:13.961	
-[2025-06-26T21:24:13.960Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-1rmpDAqZOKl.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-1rmpDAqZOKl.json'
-2025-06-26 14:24:13.960	
-[2025-06-26T21:24:13.960Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-1rmpDAqZOKl.json
-2025-06-26 14:24:13.960	
-[2025-06-26T21:24:13.960Z] [trufflehog] [File Scan] Scanning local artifacts...
-2025-06-26 14:24:13.960	
-[2025-06-26T21:24:13.960Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
-2025-06-26 14:24:13.960	
-[2025-06-26T21:24:13.960Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-1rmpDAqZOKl.json'
-2025-06-26 14:24:13.959	
-[2025-06-26T21:24:13.959Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-1rmpDAqZOKl.json
-2025-06-26 14:24:13.959	
-[2025-06-26T21:24:13.959Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
-2025-06-26 14:24:10.823	
-[2025-06-26T21:24:10.823Z] [trufflehog] [Targeted Scan] Found accessible file: https://lodging-source.com/main.js
-2025-06-26 14:24:05.883	
-[2025-06-26T21:24:05.883Z] [trufflehog] [Targeted Scan] Found accessible file: https://lodging-source.com/bundle.js
-2025-06-26 14:24:04.970	
-[2025-06-26T21:24:04.969Z] [trufflehog] [Targeted Scan] Testing 12 high-value paths for secrets
-2025-06-26 14:24:04.970	
-[2025-06-26T21:24:04.969Z] [trufflehog] Skipping website crawl - relying on endpoint discovery from other modules
-2025-06-26 14:24:04.970	
-[2025-06-26T21:24:04.969Z] [trufflehog] Starting targeted secret scan for domain: lodging-source.com
-2025-06-26 14:24:04.968	
-[2025-06-26T21:24:04.968Z] [worker] [1rmpDAqZOKl] STARTING TruffleHog secret detection for lodging-source.com
-2025-06-26 14:24:04.968	
-[2025-06-26T21:24:04.968Z] [worker] === Running module: trufflehog (20/20) ===
-2025-06-26 14:24:04.968	
-[2025-06-26T21:24:04.968Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:24:04.967	
-[2025-06-26T21:24:04.967Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:24:04.966	
-[2025-06-26T21:24:04.965Z] [worker] [1rmpDAqZOKl] COMPLETED rate limiting tests: 1 rate limit issues found
-2025-06-26 14:24:04.965	
+2025-06-27 14:34:11.538	
+[2025-06-27T21:34:11.538Z] [trufflehog] Finished secret scan for lodging-source.com Total secrets found: 0
+2025-06-27 14:34:11.538	
+[2025-06-27T21:34:11.538Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-9B4x4CU9ED5.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-9B4x4CU9ED5.json'
+2025-06-27 14:34:11.538	
+[2025-06-27T21:34:11.538Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-9B4x4CU9ED5.json
+2025-06-27 14:34:11.538	
+[2025-06-27T21:34:11.538Z] [trufflehog] [File Scan] Scanning local artifacts...
+2025-06-27 14:34:11.537	
+[2025-06-27T21:34:11.537Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
+2025-06-27 14:34:11.537	
+[2025-06-27T21:34:11.537Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-9B4x4CU9ED5.json'
+2025-06-27 14:34:11.536	
+[2025-06-27T21:34:11.535Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-9B4x4CU9ED5.json
+2025-06-27 14:34:11.536	
+[2025-06-27T21:34:11.535Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
+2025-06-27 14:33:11.215	
+[2025-06-27T21:33:11.213Z] [trufflehog] [Targeted Scan] Found accessible file: https://lodging-source.com/main.js
+2025-06-27 14:32:48.063	
+}
+2025-06-27 14:32:48.063	
+"RATE_LIMIT_BYPASS": 1
+2025-06-27 14:32:48.063	
+[2025-06-27T21:32:48.062Z] [SyncWorker] ✅ New findings synced: 1 {
+2025-06-27 14:32:12.001	
+[2025-06-27T21:32:12.001Z] [trufflehog] [Targeted Scan] Found accessible file: https://lodging-source.com/bundle.js
+2025-06-27 14:32:11.094	
+[2025-06-27T21:32:11.093Z] [trufflehog] [Targeted Scan] Testing 12 high-value paths for secrets
+2025-06-27 14:32:11.094	
+[2025-06-27T21:32:11.093Z] [trufflehog] Skipping website crawl - relying on endpoint discovery from other modules
+2025-06-27 14:32:11.094	
+[2025-06-27T21:32:11.093Z] [trufflehog] Starting targeted secret scan for domain: lodging-source.com
+2025-06-27 14:32:11.093	
+[2025-06-27T21:32:11.093Z] [worker] [9B4x4CU9ED5] STARTING TruffleHog secret detection for lodging-source.com
+2025-06-27 14:32:11.093	
+[2025-06-27T21:32:11.092Z] [worker] === Running module: trufflehog (20/20) ===
+2025-06-27 14:32:11.093	
+[2025-06-27T21:32:11.092Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:32:11.091	
+[2025-06-27T21:32:11.091Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:32:11.090	
+[2025-06-27T21:32:11.090Z] [worker] [9B4x4CU9ED5] COMPLETED rate limiting tests: 1 rate limit issues found
+2025-06-27 14:32:11.090	
 [artifactStore] Inserted scan_summary artifact: Rate limit scan completed: 1 issues found...
-2025-06-26 14:24:04.964	
-[artifactStore] Inserted finding RATE_LIMIT_BYPASS for artifact 3350
-2025-06-26 14:24:04.963	
+2025-06-27 14:32:11.083	
+[artifactStore] Inserted finding RATE_LIMIT_BYPASS for artifact 3465
+2025-06-27 14:32:11.081	
 [artifactStore] Inserted rate_limit_bypass artifact: Rate limit bypass possible on endpoint: //www.youtube.com/pl...
-2025-06-26 14:24:04.961	
-[2025-06-26T21:24:04.960Z] [rateLimitScan] [VULNERABLE] Found 12 bypass techniques for https://lodging-source.com//www.youtube.com/player_api
-2025-06-26 14:24:00.765	
-}
-2025-06-26 14:24:00.765	
-"ACCESSIBILITY_VIOLATION": 6
-2025-06-26 14:24:00.765	
-[2025-06-26T21:24:00.764Z] [SyncWorker] ✅ New findings synced: 6 {
-2025-06-26 14:23:59.816	
-[2025-06-26T21:23:59.815Z] [rateLimitScan] Baseline rate limit detected on https://lodging-source.com//www.youtube.com/player_api. Testing for bypasses...
-2025-06-26 14:23:59.810	
-[2025-06-26T21:23:59.809Z] [rateLimitScan] Response distribution for https://lodging-source.com//www.youtube.com/player_api: { '404': 25 }
-2025-06-26 14:23:58.899	
-[2025-06-26T21:23:58.899Z] [rateLimitScan] Establishing baseline for https://lodging-source.com//www.youtube.com/player_api...
-2025-06-26 14:23:58.899	
-[2025-06-26T21:23:58.899Z] [rateLimitScan] Found 1 endpoints to test.
-2025-06-26 14:23:58.897	
-[2025-06-26T21:23:58.897Z] [rateLimitScan] Starting comprehensive rate limit scan for lodging-source.com
-2025-06-26 14:23:58.897	
-[2025-06-26T21:23:58.897Z] [worker] [1rmpDAqZOKl] STARTING rate-limit tests for lodging-source.com
-2025-06-26 14:23:58.897	
-[2025-06-26T21:23:58.897Z] [worker] === Running module: rate_limit_scan (19/20) ===
-2025-06-26 14:23:58.897	
-[2025-06-26T21:23:58.896Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:58.895	
-[2025-06-26T21:23:58.895Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:23:58.894	
-[2025-06-26T21:23:58.894Z] [worker] [1rmpDAqZOKl] COMPLETED Nuclei scan: 0 vulnerabilities found
-2025-06-26 14:23:58.894	
+2025-06-27 14:32:11.080	
+[2025-06-27T21:32:11.079Z] [rateLimitScan] [VULNERABLE] Found 12 bypass techniques for https://lodging-source.com//www.youtube.com/player_api
+2025-06-27 14:32:05.934	
+[2025-06-27T21:32:05.934Z] [rateLimitScan] Baseline rate limit detected on https://lodging-source.com//www.youtube.com/player_api. Testing for bypasses...
+2025-06-27 14:32:05.934	
+[2025-06-27T21:32:05.932Z] [rateLimitScan] Response distribution for https://lodging-source.com//www.youtube.com/player_api: { '404': 25 }
+2025-06-27 14:32:04.736	
+[2025-06-27T21:32:04.736Z] [rateLimitScan] Establishing baseline for https://lodging-source.com//www.youtube.com/player_api...
+2025-06-27 14:32:04.736	
+[2025-06-27T21:32:04.736Z] [rateLimitScan] Found 1 endpoints to test.
+2025-06-27 14:32:04.734	
+[2025-06-27T21:32:04.734Z] [rateLimitScan] Starting comprehensive rate limit scan for lodging-source.com
+2025-06-27 14:32:04.734	
+[2025-06-27T21:32:04.734Z] [worker] [9B4x4CU9ED5] STARTING rate-limit tests for lodging-source.com
+2025-06-27 14:32:04.734	
+[2025-06-27T21:32:04.733Z] [worker] === Running module: rate_limit_scan (19/20) ===
+2025-06-27 14:32:04.733	
+[2025-06-27T21:32:04.733Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:32:04.732	
+[2025-06-27T21:32:04.732Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:32:04.731	
+[2025-06-27T21:32:04.731Z] [worker] [9B4x4CU9ED5] COMPLETED Nuclei scan: 0 vulnerabilities found
+2025-06-27 14:32:04.731	
 [artifactStore] Inserted scan_summary artifact: Nuclei scan completed: 0 vulnerabilities found...
-2025-06-26 14:23:58.891	
-[2025-06-26T21:23:58.891Z] [nuclei] Completed vulnerability scan. Total findings: 0
-2025-06-26 14:23:58.891	
-[2025-06-26T21:23:58.891Z] [nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---
-2025-06-26 14:23:58.891	
-[2025-06-26T21:23:58.891Z] [nuclei] [Tag Scan] Failed for https://lodging-source.com: Command failed: nuclei -u https://lodging-source.com -tags misconfiguration,default-logins,exposed-panels,exposure,tech -json -silent -timeout 10 -retries 2 -headless -t /opt/nuclei-templates -insecure
-2025-06-26 14:23:58.776	
-[2025-06-26T21:23:58.776Z] [nuclei] [Tag Scan] Running on https://lodging-source.com with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
-2025-06-26 14:23:58.775	
-[2025-06-26T21:23:58.775Z] [nuclei] --- Starting Phase 1: Tag-based scans on 1 targets ---
-2025-06-26 14:23:58.775	
-[2025-06-26T21:23:58.775Z] [nuclei] Template update complete.
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:04.729	
+[2025-06-27T21:32:04.729Z] [nuclei] Completed vulnerability scan. Total findings: 0
+2025-06-27 14:32:04.663	
+[2025-06-27T21:32:04.663Z] [nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---
+2025-06-27 14:32:04.663	
+[2025-06-27T21:32:04.663Z] [nuclei] [Tag Scan] Failed for https://lodging-source.com: Command failed: nuclei -u https://lodging-source.com -tags misconfiguration,default-logins,exposed-panels,exposure,tech -json -silent -timeout 10 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:32:03.289	
+[2025-06-27T21:32:03.228Z] [nuclei] [Tag Scan] Running on https://lodging-source.com with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
+2025-06-27 14:32:03.227	
+[2025-06-27T21:32:03.227Z] [nuclei] --- Starting Phase 1: Tag-based scans on 1 targets ---
+2025-06-27 14:32:03.227	
+[2025-06-27T21:32:03.227Z] [nuclei] Template update complete.
+2025-06-27 14:32:03.227	
 [INF] No new updates found for nuclei templates
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 projectdiscovery.io
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 /_/ /_/\__,_/\___/_/\___/_/   v3.2.9
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 / / / / /_/ / /__/ /  __/ /
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 / __ \/ / / / ___/ / _ \/ /
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 ____  __  _______/ /__  (_)
-2025-06-26 14:23:58.775	
+2025-06-27 14:32:03.227	
 __     _
-2025-06-26 14:23:58.775	
-[2025-06-26T21:23:58.775Z] [nuclei] Template update stderr:
-2025-06-26 14:23:58.296	
-[2025-06-26T21:23:58.296Z] [nuclei] Templates are outdated (> 24 hours). Updating...
-2025-06-26 14:23:58.295	
+2025-06-27 14:32:03.227	
+[2025-06-27T21:32:03.226Z] [nuclei] Template update stderr:
+2025-06-27 14:32:01.856	
+[2025-06-27T21:32:01.855Z] [nuclei] Templates are outdated (> 24 hours). Updating...
+2025-06-27 14:32:01.855	
 [INF] PDCP Directory: /root/.pdcp
-2025-06-26 14:23:58.295	
+2025-06-27 14:32:01.855	
 [INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-06-26 14:23:58.295	
+2025-06-27 14:32:01.855	
 [INF] Nuclei Config Directory: /root/.config/nuclei
-2025-06-26 14:23:58.295	
-[2025-06-26T21:23:58.294Z] [nuclei] Version check stderr: [INF] Nuclei Engine Version: v3.2.9
-2025-06-26 14:23:58.294	
-[2025-06-26T21:23:58.294Z] [nuclei] Nuclei binary found.
-2025-06-26 14:23:58.183	
-[2025-06-26T21:23:58.183Z] [nuclei] Starting enhanced vulnerability scan for lodging-source.com
-2025-06-26 14:23:58.183	
-[2025-06-26T21:23:58.183Z] [worker] [1rmpDAqZOKl] STARTING Nuclei vulnerability scan for lodging-source.com
-2025-06-26 14:23:58.183	
-[2025-06-26T21:23:58.183Z] [worker] === Running module: nuclei (18/20) ===
-2025-06-26 14:23:58.183	
-[2025-06-26T21:23:58.183Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:58.179	
-[2025-06-26T21:23:58.179Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:23:58.178	
-[2025-06-26T21:23:58.178Z] [worker] [1rmpDAqZOKl] COMPLETED database scan: 0 database issues found
-2025-06-26 14:23:58.178	
+2025-06-27 14:32:01.855	
+[2025-06-27T21:32:01.854Z] [nuclei] Version check stderr: [INF] Nuclei Engine Version: v3.2.9
+2025-06-27 14:32:01.854	
+[2025-06-27T21:32:01.854Z] [nuclei] Nuclei binary found.
+2025-06-27 14:32:00.578	
+[2025-06-27T21:32:00.578Z] [nuclei] Starting enhanced vulnerability scan for lodging-source.com
+2025-06-27 14:32:00.577	
+[2025-06-27T21:32:00.577Z] [worker] [9B4x4CU9ED5] STARTING Nuclei vulnerability scan for lodging-source.com
+2025-06-27 14:32:00.577	
+[2025-06-27T21:32:00.577Z] [worker] === Running module: nuclei (18/20) ===
+2025-06-27 14:32:00.577	
+[2025-06-27T21:32:00.577Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:32:00.575	
+[2025-06-27T21:32:00.575Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:32:00.570	
+[2025-06-27T21:32:00.570Z] [worker] [9B4x4CU9ED5] COMPLETED database scan: 0 database issues found
+2025-06-27 14:32:00.569	
 [artifactStore] Inserted scan_summary artifact: Database port scan completed: 0 exposed services found...
-2025-06-26 14:23:58.175	
-[2025-06-26T21:23:58.174Z] [dbPortScan] Completed database scan, found 0 exposed services
-2025-06-26 14:23:54.026	
-[2025-06-26T21:23:54.024Z] [dbPortScan] [1/8] Scanning lodging-source.com:27017...
-2025-06-26 14:23:54.017	
-[2025-06-26T21:23:54.016Z] [dbPortScan] [1/8] Scanning lodging-source.com:11211...
-2025-06-26 14:23:54.008	
-[2025-06-26T21:23:54.008Z] [dbPortScan] [1/8] Scanning lodging-source.com:9200...
-2025-06-26 14:23:54.001	
-[2025-06-26T21:23:54.001Z] [dbPortScan] [1/8] Scanning lodging-source.com:8086...
-2025-06-26 14:23:50.115	
-[2025-06-26T21:23:50.115Z] [dbPortScan] [1/8] Scanning lodging-source.com:6379...
-2025-06-26 14:23:50.108	
-[2025-06-26T21:23:50.107Z] [dbPortScan] [1/8] Scanning lodging-source.com:5432...
-2025-06-26 14:23:50.104	
-[2025-06-26T21:23:50.103Z] [dbPortScan] [1/8] Scanning lodging-source.com:3306...
-2025-06-26 14:23:50.101	
-[2025-06-26T21:23:50.100Z] [dbPortScan] [1/8] Scanning lodging-source.com:1433...
-2025-06-26 14:23:49.979	
-[2025-06-26T21:23:49.978Z] [dbPortScan] Validating dependencies...
-2025-06-26 14:23:49.979	
-[2025-06-26T21:23:49.978Z] [dbPortScan] Starting enhanced database security scan for lodging-source.com
-2025-06-26 14:23:49.978	
-[2025-06-26T21:23:49.978Z] [worker] [1rmpDAqZOKl] STARTING database port scan for lodging-source.com
-2025-06-26 14:23:49.978	
-[2025-06-26T21:23:49.978Z] [worker] === Running module: db_port_scan (17/20) ===
-2025-06-26 14:23:49.978	
-[2025-06-26T21:23:49.978Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:49.976	
-[2025-06-26T21:23:49.976Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:23:49.974	
-[2025-06-26T21:23:49.974Z] [worker] [1rmpDAqZOKl] COMPLETED typosquat analysis: 0 active typosquats detected
-2025-06-26 14:23:49.974	
-[2025-06-26T21:23:49.974Z] [worker] Skipping removed typosquatScorer module - functionality merged into dnsTwist
-2025-06-26 14:23:49.974	
-[2025-06-26T21:23:49.974Z] [worker] [1rmpDAqZOKl] STARTING typosquat analysis for lodging-source.com
-2025-06-26 14:23:49.974	
-[2025-06-26T21:23:49.974Z] [worker] === Running module: typosquat_scorer (16/20) ===
-2025-06-26 14:23:49.974	
-[2025-06-26T21:23:49.974Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:49.973	
-[2025-06-26T21:23:49.973Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:23:49.971	
-[2025-06-26T21:23:49.971Z] [worker] [1rmpDAqZOKl] COMPLETED email bruteforce surface scan: 0 email attack vectors found
-2025-06-26 14:23:49.971	
-[2025-06-26T21:23:49.970Z] [emailBruteforceSurface] No email services detected
-2025-06-26 14:23:49.971	
-[2025-06-26T21:23:49.970Z] [emailBruteforceSurface] Nuclei email scan failed: Command failed: nuclei -list /tmp/nuclei-email-targets-1750973029863.txt -t technologies/microsoft-exchange-server-detect.yaml -t technologies/outlook-web-access-detect.yaml -t technologies/owa-detect.yaml -t network/smtp-detect.yaml -t network/imap-detect.yaml -t network/pop3-detect.yaml -t technologies/exchange-autodiscover.yaml -t technologies/activesync-detect.yaml -t misconfiguration/exchange-server-login.yaml -t misconfiguration/owa-login-portal.yaml -json -silent -timeout 30 -retries 2 -c 6 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:23:49.864	
-[2025-06-26T21:23:49.864Z] [emailBruteforceSurface] Running Nuclei with 10 email templates against 50 targets
-2025-06-26 14:23:49.863	
-[2025-06-26T21:23:49.862Z] [emailBruteforceSurface] Generated 408 email service targets
-2025-06-26 14:23:49.859	
-[2025-06-26T21:23:49.859Z] [emailBruteforceSurface] Starting email bruteforce surface scan for domain="lodging-source.com"
-2025-06-26 14:23:49.859	
-[2025-06-26T21:23:49.858Z] [worker] [1rmpDAqZOKl] STARTING email bruteforce surface scan for lodging-source.com
-2025-06-26 14:23:49.859	
-[2025-06-26T21:23:49.858Z] [worker] === Running module: email_bruteforce_surface (15/20) ===
-2025-06-26 14:23:49.859	
-[2025-06-26T21:23:49.858Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:49.857	
-[2025-06-26T21:23:49.857Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: progress
-2025-06-26 14:23:49.856	
-[2025-06-26T21:23:49.855Z] [worker] [1rmpDAqZOKl] COMPLETED RDP/VPN templates scan: 0 remote access vulnerabilities found
-2025-06-26 14:23:49.855	
-[2025-06-26T21:23:49.855Z] [rdpVpnTemplates] No RDP/VPN vulnerabilities detected
-2025-06-26 14:23:49.855	
-[2025-06-26T21:23:49.855Z] [rdpVpnTemplates] Nuclei RDP/VPN scan failed: Command failed: nuclei -list /tmp/nuclei-rdpvpn-targets-1750973029740.txt -t network/rdp-detect.yaml -t network/rdp-bluekeep-detect.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2018-13379.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2019-5591.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2020-12812.yaml -t vulnerabilities/paloalto/paloalto-globalprotect-cve-2019-1579.yaml -t vulnerabilities/paloalto/paloalto-globalprotect-cve-2020-2021.yaml -t vulnerabilities/citrix/citrix-adc-cve-2019-19781.yaml -t vulnerabilities/pulse/pulse-connect-secure-cve-2019-11510.yaml -t technologies/rdp-detect.yaml -t technologies/vpn-detect.yaml -json -silent -timeout 30 -retries 2 -c 6 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:23:49.742	
-[2025-06-26T21:23:49.742Z] [rdpVpnTemplates] Running Nuclei with 11 RDP/VPN templates against 22 targets
-2025-06-26 14:23:49.740	
-[2025-06-26T21:23:49.740Z] [rdpVpnTemplates] Generated 22 target URLs for RDP/VPN scanning
-2025-06-26 14:23:49.737	
-[2025-06-26T21:23:49.737Z] [rdpVpnTemplates] Starting RDP/VPN templates scan for domain="lodging-source.com"
-2025-06-26 14:23:49.736	
-[2025-06-26T21:23:49.736Z] [worker] [1rmpDAqZOKl] STARTING RDP/VPN vulnerability templates for lodging-source.com
-2025-06-26 14:23:49.736	
-[2025-06-26T21:23:49.736Z] [worker] === Running module: rdp_vpn_templates (14/20) ===
-2025-06-26 14:23:49.736	
-[2025-06-26T21:23:49.736Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:23:49.729	
-[2025-06-26T21:23:49.729Z] [worker] [1rmpDAqZOKl] COMPLETED accessibility scan: 6 WCAG violations found
-2025-06-26 14:23:49.729	
-[2025-06-26T21:23:49.729Z] [accessibilityScan] Accessibility scan completed: 6 findings from 4/15 pages in 120105ms
-2025-06-26 14:23:49.729	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.727	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.725	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.724	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.720	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.718	
-[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3347
-2025-06-26 14:23:49.714	
-[artifactStore] Inserted accessibility_summary artifact: Accessibility scan: 24 violations across 4 pages (8 critical...
-2025-06-26 14:23:49.689	
-[2025-06-26T21:23:49.688Z] [accessibilityScan] Accessibility analysis complete: 24 violations (8 critical, 16 serious)
-2025-06-26 14:23:48.669	
-[2025-06-26T21:23:48.668Z] [dynamicBrowser] Page operation completed in 2090ms
-2025-06-26 14:23:46.579	
-[2025-06-26T21:23:46.578Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/help
-2025-06-26 14:23:45.416	
-[2025-06-26T21:23:45.415Z] [dynamicBrowser] Page operation completed in 2087ms
-2025-06-26 14:23:43.328	
-[2025-06-26T21:23:43.328Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/search
-2025-06-26 14:23:42.192	
-[2025-06-26T21:23:42.191Z] [dynamicBrowser] Page operation completed in 2195ms
-2025-06-26 14:23:39.996	
-[2025-06-26T21:23:39.996Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/join
-2025-06-26 14:23:38.840	
-[2025-06-26T21:23:38.839Z] [dynamicBrowser] Page operation completed in 2093ms
-2025-06-26 14:23:36.746	
-[2025-06-26T21:23:36.746Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/register
-2025-06-26 14:23:35.588	
-[2025-06-26T21:23:35.587Z] [dynamicBrowser] Page operation completed in 2097ms
-2025-06-26 14:23:33.491	
-[2025-06-26T21:23:33.490Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/login
-2025-06-26 14:23:32.286	
-[2025-06-26T21:23:32.286Z] [dynamicBrowser] Page operation completed in 2105ms
-2025-06-26 14:23:30.181	
-[2025-06-26T21:23:30.180Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/signup
-2025-06-26 14:23:29.033	
-[2025-06-26T21:23:29.032Z] [dynamicBrowser] Page operation completed in 2095ms
-2025-06-26 14:23:26.937	
-[2025-06-26T21:23:26.937Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/pricing
-2025-06-26 14:23:25.795	
-[2025-06-26T21:23:25.794Z] [dynamicBrowser] Page operation completed in 2083ms
-2025-06-26 14:23:23.712	
-[2025-06-26T21:23:23.711Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/products
-2025-06-26 14:23:22.572	
-[2025-06-26T21:23:22.571Z] [dynamicBrowser] Page operation completed in 2083ms
-2025-06-26 14:23:20.489	
-[2025-06-26T21:23:20.488Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/services
-2025-06-26 14:23:19.351	
-[2025-06-26T21:23:19.350Z] [dynamicBrowser] Page operation completed in 2088ms
-2025-06-26 14:23:17.264	
-[2025-06-26T21:23:17.262Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/about
-2025-06-26 14:23:16.113	
-[2025-06-26T21:23:16.113Z] [dynamicBrowser] Page operation completed in 2202ms
-2025-06-26 14:23:13.911	
-[2025-06-26T21:23:13.911Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/contact
-2025-06-26 14:23:12.756	
-[2025-06-26T21:23:12.756Z] [dynamicBrowser] Page operation completed in 15086ms
-2025-06-26 14:23:12.756	
-[2025-06-26T21:23:12.755Z] [accessibilityScan] Accessibility test complete for https://www.lodging-source.com/: 6 violations, 22 passes
-2025-06-26 14:22:57.671	
-[2025-06-26T21:22:57.670Z] [accessibilityScan] Testing accessibility for: https://www.lodging-source.com/
-2025-06-26 14:22:56.471	
-[2025-06-26T21:22:56.471Z] [dynamicBrowser] Page operation completed in 14806ms
-2025-06-26 14:22:56.471	
-[2025-06-26T21:22:56.470Z] [accessibilityScan] Accessibility test complete for https://www.lodging-source.com: 6 violations, 22 passes
-2025-06-26 14:22:49.949	
-[2025-06-26T21:22:49.949Z] [dynamicBrowser] Metrics: browser_rss_mb=120, heap_used_mb=63, pages_open=1
-2025-06-26 14:22:48.330	
-[2025-06-26T21:22:48.330Z] [dynamicBrowser] Page script error: undefined
-2025-06-26 14:22:41.667	
-[2025-06-26T21:22:41.665Z] [accessibilityScan] Testing accessibility for: https://www.lodging-source.com
-2025-06-26 14:22:40.482	
-[2025-06-26T21:22:40.481Z] [dynamicBrowser] Page operation completed in 14627ms
-2025-06-26 14:22:40.482	
-[2025-06-26T21:22:40.478Z] [accessibilityScan] Accessibility test complete for https://lodging-source.com/: 6 violations, 22 passes
-2025-06-26 14:22:35.700	
-[2025-06-26T21:22:35.700Z] [dynamicBrowser] Page script error: undefined
-2025-06-26 14:22:26.511	
-[2025-06-26T21:22:26.511Z] [worker] [1rmpDAqZOKl] COMPLETED tech stack scan: 0 technologies detected
-2025-06-26 14:22:26.511	
-[2025-06-26T21:22:26.511Z] [techStackScan] techstack=complete arts=0 time=36928ms
-2025-06-26 14:22:26.511	
+2025-06-27 14:32:00.493	
+[2025-06-27T21:32:00.491Z] [dbPortScan] Completed database scan, found 0 exposed services
+2025-06-27 14:31:47.861	
+}
+2025-06-27 14:31:47.861	
+"ACCESSIBILITY_VIOLATION": 6
+2025-06-27 14:31:47.861	
+[2025-06-27T21:31:47.861Z] [SyncWorker] ✅ New findings synced: 6 {
+2025-06-27 14:31:47.678	
+}
+2025-06-27 14:31:47.678	
+]
+2025-06-27 14:31:47.678	
+"Lodging Source: db_port_scan (80%)"
+2025-06-27 14:31:47.678	
+"progress": [
+2025-06-27 14:31:47.678	
+[2025-06-27T21:31:47.678Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:31:46.653	
+[2025-06-27T21:31:46.652Z] [dbPortScan] [1/8] Scanning lodging-source.com:27017...
+2025-06-27 14:31:46.569	
+[2025-06-27T21:31:46.568Z] [dbPortScan] [1/8] Scanning lodging-source.com:11211...
+2025-06-27 14:31:46.409	
+[2025-06-27T21:31:46.409Z] [dbPortScan] [1/8] Scanning lodging-source.com:9200...
+2025-06-27 14:31:46.341	
+[2025-06-27T21:31:46.340Z] [dbPortScan] [1/8] Scanning lodging-source.com:8086...
+2025-06-27 14:31:30.334	
+[2025-06-27T21:31:30.334Z] [dbPortScan] [1/8] Scanning lodging-source.com:6379...
+2025-06-27 14:31:30.260	
+[2025-06-27T21:31:30.258Z] [dbPortScan] [1/8] Scanning lodging-source.com:5432...
+2025-06-27 14:31:30.254	
+[2025-06-27T21:31:30.252Z] [dbPortScan] [1/8] Scanning lodging-source.com:3306...
+2025-06-27 14:31:30.180	
+[2025-06-27T21:31:30.179Z] [dbPortScan] [1/8] Scanning lodging-source.com:1433...
+2025-06-27 14:31:29.140	
+[2025-06-27T21:31:29.139Z] [dbPortScan] Validating dependencies...
+2025-06-27 14:31:29.139	
+[2025-06-27T21:31:29.139Z] [dbPortScan] Starting enhanced database security scan for lodging-source.com
+2025-06-27 14:31:29.139	
+[2025-06-27T21:31:29.138Z] [worker] [9B4x4CU9ED5] STARTING database port scan for lodging-source.com
+2025-06-27 14:31:29.139	
+[2025-06-27T21:31:29.138Z] [worker] === Running module: db_port_scan (17/20) ===
+2025-06-27 14:31:29.139	
+[2025-06-27T21:31:29.138Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:31:29.137	
+[2025-06-27T21:31:29.137Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:31:29.136	
+[2025-06-27T21:31:29.136Z] [worker] [9B4x4CU9ED5] COMPLETED typosquat analysis: 0 active typosquats detected
+2025-06-27 14:31:29.136	
+[2025-06-27T21:31:29.136Z] [worker] Skipping removed typosquatScorer module - functionality merged into dnsTwist
+2025-06-27 14:31:29.136	
+[2025-06-27T21:31:29.136Z] [worker] [9B4x4CU9ED5] STARTING typosquat analysis for lodging-source.com
+2025-06-27 14:31:29.136	
+[2025-06-27T21:31:29.136Z] [worker] === Running module: typosquat_scorer (16/20) ===
+2025-06-27 14:31:29.136	
+[2025-06-27T21:31:29.135Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:31:29.134	
+[2025-06-27T21:31:29.134Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:31:29.132	
+[2025-06-27T21:31:29.132Z] [worker] [9B4x4CU9ED5] COMPLETED email bruteforce surface scan: 0 email attack vectors found
+2025-06-27 14:31:29.132	
+[2025-06-27T21:31:29.132Z] [emailBruteforceSurface] No email services detected
+2025-06-27 14:31:29.132	
+[2025-06-27T21:31:29.132Z] [emailBruteforceSurface] Nuclei email scan failed: Command failed: nuclei -list /tmp/nuclei-email-targets-1751059887949.txt -t technologies/microsoft-exchange-server-detect.yaml -t technologies/outlook-web-access-detect.yaml -t technologies/owa-detect.yaml -t network/smtp-detect.yaml -t network/imap-detect.yaml -t network/pop3-detect.yaml -t technologies/exchange-autodiscover.yaml -t technologies/activesync-detect.yaml -t misconfiguration/exchange-server-login.yaml -t misconfiguration/owa-login-portal.yaml -json -silent -timeout 30 -retries 2 -c 6 -headless -dca -td /opt/nuclei-templates
+2025-06-27 14:31:27.949	
+[2025-06-27T21:31:27.949Z] [emailBruteforceSurface] Running Nuclei with 10 email templates against 50 targets
+2025-06-27 14:31:27.949	
+[2025-06-27T21:31:27.948Z] [emailBruteforceSurface] Generated 408 email service targets
+2025-06-27 14:31:27.945	
+[2025-06-27T21:31:27.945Z] [emailBruteforceSurface] Starting email bruteforce surface scan for domain="lodging-source.com"
+2025-06-27 14:31:27.945	
+[2025-06-27T21:31:27.944Z] [worker] [9B4x4CU9ED5] STARTING email bruteforce surface scan for lodging-source.com
+2025-06-27 14:31:27.945	
+[2025-06-27T21:31:27.944Z] [worker] === Running module: email_bruteforce_surface (15/20) ===
+2025-06-27 14:31:27.945	
+[2025-06-27T21:31:27.944Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:31:27.943	
+[2025-06-27T21:31:27.943Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: progress
+2025-06-27 14:31:27.941	
+[2025-06-27T21:31:27.941Z] [worker] [9B4x4CU9ED5] COMPLETED RDP/VPN templates scan: 0 remote access vulnerabilities found
+2025-06-27 14:31:27.941	
+[2025-06-27T21:31:27.941Z] [rdpVpnTemplates] No RDP/VPN vulnerabilities detected
+2025-06-27 14:31:27.941	
+[2025-06-27T21:31:27.940Z] [rdpVpnTemplates] Nuclei RDP/VPN scan failed: Command failed: nuclei -list /tmp/nuclei-rdpvpn-targets-1751059887658.txt -t network/rdp-detect.yaml -t network/rdp-bluekeep-detect.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2018-13379.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2019-5591.yaml -t vulnerabilities/fortinet/fortinet-fortigate-cve-2020-12812.yaml -t vulnerabilities/paloalto/paloalto-globalprotect-cve-2019-1579.yaml -t vulnerabilities/paloalto/paloalto-globalprotect-cve-2020-2021.yaml -t vulnerabilities/citrix/citrix-adc-cve-2019-19781.yaml -t vulnerabilities/pulse/pulse-connect-secure-cve-2019-11510.yaml -t technologies/rdp-detect.yaml -t technologies/vpn-detect.yaml -json -silent -timeout 30 -retries 2 -c 6 -headless -dca -td /opt/nuclei-templates
+2025-06-27 14:31:27.660	
+[2025-06-27T21:31:27.659Z] [rdpVpnTemplates] Running Nuclei with 11 RDP/VPN templates against 22 targets
+2025-06-27 14:31:27.658	
+[2025-06-27T21:31:27.657Z] [rdpVpnTemplates] Generated 22 target URLs for RDP/VPN scanning
+2025-06-27 14:31:27.654	
+[2025-06-27T21:31:27.654Z] [rdpVpnTemplates] Starting RDP/VPN templates scan for domain="lodging-source.com"
+2025-06-27 14:31:27.654	
+[2025-06-27T21:31:27.654Z] [worker] [9B4x4CU9ED5] STARTING RDP/VPN vulnerability templates for lodging-source.com
+2025-06-27 14:31:27.654	
+[2025-06-27T21:31:27.654Z] [worker] === Running module: rdp_vpn_templates (14/20) ===
+2025-06-27 14:31:27.654	
+[2025-06-27T21:31:27.654Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:31:27.647	
+[2025-06-27T21:31:27.646Z] [worker] [9B4x4CU9ED5] COMPLETED accessibility scan: 6 WCAG violations found
+2025-06-27 14:31:27.647	
+[2025-06-27T21:31:27.646Z] [accessibilityScan] Accessibility scan completed: 6 findings from 1/15 pages in 224734ms
+2025-06-27 14:31:27.646	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.645	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.643	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.642	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.640	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.639	
+[artifactStore] Inserted finding ACCESSIBILITY_VIOLATION for artifact 3462
+2025-06-27 14:31:27.637	
+[artifactStore] Inserted accessibility_summary artifact: Accessibility scan: 6 violations across 1 pages (2 critical,...
+2025-06-27 14:31:27.612	
+[2025-06-27T21:31:27.612Z] [accessibilityScan] Accessibility analysis complete: 6 violations (2 critical, 4 serious)
+2025-06-27 14:31:26.595	
+[2025-06-27T21:31:26.594Z] [dynamicBrowser] Page operation completed in 2097ms
+2025-06-27 14:31:24.498	
+[2025-06-27T21:31:24.497Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/help
+2025-06-27 14:31:23.335	
+[2025-06-27T21:31:23.334Z] [dynamicBrowser] Page operation completed in 2111ms
+2025-06-27 14:31:21.225	
+[2025-06-27T21:31:21.223Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/search
+2025-06-27 14:31:20.014	
+[2025-06-27T21:31:20.013Z] [dynamicBrowser] Page operation completed in 2148ms
+2025-06-27 14:31:17.866	
+[2025-06-27T21:31:17.865Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/join
+2025-06-27 14:31:16.499	
+[2025-06-27T21:31:16.498Z] [dynamicBrowser] Page operation completed in 2384ms
+2025-06-27 14:31:14.115	
+[2025-06-27T21:31:14.114Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/register
+2025-06-27 14:31:12.901	
+[2025-06-27T21:31:12.900Z] [dynamicBrowser] Page operation completed in 3203ms
+2025-06-27 14:31:09.697	
+[2025-06-27T21:31:09.697Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/login
+2025-06-27 14:31:07.216	
+[2025-06-27T21:31:07.214Z] [dynamicBrowser] Page operation completed in 2800ms
+2025-06-27 14:31:04.414	
+[2025-06-27T21:31:04.414Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/signup
+2025-06-27 14:31:02.412	
+[2025-06-27T21:31:02.411Z] [dynamicBrowser] Page operation completed in 2879ms
+2025-06-27 14:30:59.532	
+[2025-06-27T21:30:59.532Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/pricing
+2025-06-27 14:30:57.615	
+[2025-06-27T21:30:57.613Z] [dynamicBrowser] Page operation completed in 2884ms
+2025-06-27 14:30:54.730	
+[2025-06-27T21:30:54.729Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/products
+2025-06-27 14:30:52.329	
+[2025-06-27T21:30:52.329Z] [dynamicBrowser] Page operation completed in 1439ms
+2025-06-27 14:30:50.892	
+[2025-06-27T21:30:50.890Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/services
+2025-06-27 14:30:46.653	
+[2025-06-27T21:30:46.653Z] [dynamicBrowser] Page operation completed in 1430ms
+2025-06-27 14:30:45.223	
+[2025-06-27T21:30:45.223Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/about
+2025-06-27 14:30:41.052	
+[2025-06-27T21:30:41.051Z] [dynamicBrowser] Page operation completed in 1439ms
+2025-06-27 14:30:39.613	
+[2025-06-27T21:30:39.612Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/contact
+2025-06-27 14:30:34.252	
+[2025-06-27T21:30:34.251Z] [accessibilityScan] Accessibility test error for https://www.lodging-source.com/: Navigation timeout of 30000 ms exceeded
+2025-06-27 14:30:13.296	
+[2025-06-27T21:30:13.296Z] [dynamicBrowser] Metrics: browser_rss_mb=120, heap_used_mb=63, pages_open=1
+2025-06-27 14:30:03.215	
+[2025-06-27T21:30:03.215Z] [accessibilityScan] Testing accessibility for: https://www.lodging-source.com/
+2025-06-27 14:29:57.531	
+[2025-06-27T21:29:57.530Z] [accessibilityScan] Accessibility test error for https://www.lodging-source.com: Navigation timeout of 30000 ms exceeded
+2025-06-27 14:29:43.295	
+[2025-06-27T21:29:43.294Z] [dynamicBrowser] Metrics: browser_rss_mb=120, heap_used_mb=62, pages_open=1
+2025-06-27 14:29:26.733	
+[2025-06-27T21:29:26.733Z] [accessibilityScan] Testing accessibility for: https://www.lodging-source.com
+2025-06-27 14:29:22.169	
+[2025-06-27T21:29:22.168Z] [accessibilityScan] Accessibility test error for https://lodging-source.com/: Navigation timeout of 30000 ms exceeded
+2025-06-27 14:29:13.294	
+[2025-06-27T21:29:13.290Z] [dynamicBrowser] Metrics: browser_rss_mb=120, heap_used_mb=61, pages_open=1
+2025-06-27 14:28:51.209	
+[2025-06-27T21:28:51.136Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/
+2025-06-27 14:28:42.095	
+[2025-06-27T21:28:42.095Z] [dynamicBrowser] Page operation completed in 43353ms
+2025-06-27 14:28:42.095	
+[2025-06-27T21:28:42.094Z] [accessibilityScan] Accessibility test complete for https://lodging-source.com: 6 violations, 22 passes
+2025-06-27 14:28:13.270	
+[2025-06-27T21:28:13.270Z] [dynamicBrowser] Metrics: browser_rss_mb=117, heap_used_mb=59, pages_open=1
+2025-06-27 14:28:08.525	
+[2025-06-27T21:28:08.525Z] [worker] [9B4x4CU9ED5] COMPLETED tech stack scan: 0 technologies detected
+2025-06-27 14:28:08.525	
+[2025-06-27T21:28:08.525Z] [techStackScan] techstack=complete arts=0 time=25648ms
+2025-06-27 14:28:08.525	
 [artifactStore] Inserted techscan_metrics artifact: Technology scan metrics: 0 technologies, 0 supply chain risk...
-2025-06-26 14:22:26.508	
+2025-06-27 14:28:08.523	
 [artifactStore] Inserted sbom_cyclonedx artifact: Software Bill of Materials (CycloneDX 1.5) - 0 components...
-2025-06-26 14:22:26.466	
+2025-06-27 14:28:08.489	
 " code="2"
-2025-06-26 14:22:26.466	
-[2025-06-26T21:22:26.465Z] [techStackScan] techstack=nuclei_error url="https://maxcdn.bootstrapcdn.com" error="Command failed: nuclei -u https://maxcdn.bootstrapcdn.com -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:26.456	
+2025-06-27 14:28:08.489	
+[2025-06-27T21:28:08.489Z] [techStackScan] techstack=nuclei_error url="https://maxcdn.bootstrapcdn.com" error="Command failed: nuclei -u https://maxcdn.bootstrapcdn.com -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.489	
 " code="2"
-2025-06-26 14:22:26.456	
-[2025-06-26T21:22:26.456Z] [techStackScan] techstack=nuclei_error url="null" error="Command failed: nuclei -u null -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:26.450	
+2025-06-27 14:28:08.489	
+[2025-06-27T21:28:08.488Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/direct//" error="Command failed: nuclei -u https://lodging-source.com/direct// -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.288	
 " code="2"
-2025-06-26 14:22:26.450	
-[2025-06-26T21:22:26.450Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/direct//" error="Command failed: nuclei -u https://lodging-source.com/direct// -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:26.426	
+2025-06-27 14:28:08.288	
+[2025-06-27T21:28:08.287Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com//www.youtube.com/player_api" error="Command failed: nuclei -u https://lodging-source.com//www.youtube.com/player_api -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.287	
 " code="2"
-2025-06-26 14:22:26.426	
-[2025-06-26T21:22:26.426Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com//www.youtube.com/player_api" error="Command failed: nuclei -u https://lodging-source.com//www.youtube.com/player_api -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.855	
-[2025-06-26T21:22:25.854Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com/
-2025-06-26 14:22:25.851	
+2025-06-27 14:28:08.287	
+[2025-06-27T21:28:08.287Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com" error="Command failed: nuclei -u https://lodging-source.com -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.286	
 " code="2"
-2025-06-26 14:22:25.851	
-[2025-06-26T21:22:25.849Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/direct/index.php" error="Command failed: nuclei -u https://lodging-source.com/direct/index.php -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.845	
+2025-06-27 14:28:08.286	
+[2025-06-27T21:28:08.285Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/" error="Command failed: nuclei -u https://lodging-source.com/ -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.286	
+[2025-06-27T21:28:08.285Z] [techStackScan] techstack=nuclei_skip url="null" reason="invalid_url"
+2025-06-27 14:28:08.278	
 " code="2"
-2025-06-26 14:22:25.845	
-[2025-06-26T21:22:25.844Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/home.html" error="Command failed: nuclei -u https://lodging-source.com/home.html -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.832	
-[2025-06-26T21:22:25.832Z] [techStackScan] techstack=nuclei url="null"
-2025-06-26 14:22:25.831	
+2025-06-27 14:28:08.278	
+[2025-06-27T21:28:08.277Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/direct/index.php" error="Command failed: nuclei -u https://lodging-source.com/direct/index.php -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.134	
+[2025-06-27T21:28:08.134Z] [techStackScan] techstack=nuclei url="https://maxcdn.bootstrapcdn.com"
+2025-06-27 14:28:08.134	
 " code="2"
-2025-06-26 14:22:25.831	
-[2025-06-26T21:22:25.831Z] [techStackScan] techstack=nuclei_error url="https://www.lodging-source.com" error="Command failed: nuclei -u https://www.lodging-source.com -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.824	
-[2025-06-26T21:22:25.823Z] [techStackScan] techstack=nuclei url="https://maxcdn.bootstrapcdn.com"
-2025-06-26 14:22:25.822	
+2025-06-27 14:28:08.134	
+[2025-06-27T21:28:08.134Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/index.html" error="Command failed: nuclei -u https://lodging-source.com/index.html -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:08.126	
+[2025-06-27T21:28:08.125Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/direct//"
+2025-06-27 14:28:08.126	
 " code="2"
-2025-06-26 14:22:25.822	
-[2025-06-26T21:22:25.821Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com" error="Command failed: nuclei -u https://lodging-source.com -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.813	
-[2025-06-26T21:22:25.812Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/direct//"
-2025-06-26 14:22:25.808	
+2025-06-27 14:28:08.126	
+[2025-06-27T21:28:08.125Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/home.html" error="Command failed: nuclei -u https://lodging-source.com/home.html -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:07.999	
+[2025-06-27T21:28:07.998Z] [techStackScan] techstack=nuclei url="https://lodging-source.com//www.youtube.com/player_api"
+2025-06-27 14:28:07.998	
 " code="2"
-2025-06-26 14:22:25.808	
-[2025-06-26T21:22:25.808Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/" error="Command failed: nuclei -u https://lodging-source.com/ -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:25.799	
-[2025-06-26T21:22:25.798Z] [techStackScan] techstack=nuclei url="https://lodging-source.com//www.youtube.com/player_api"
-2025-06-26 14:22:25.794	
-" code="2"
-2025-06-26 14:22:25.794	
-[2025-06-26T21:22:25.793Z] [techStackScan] techstack=nuclei_error url="https://lodging-source.com/index.html" error="Command failed: nuclei -u https://lodging-source.com/index.html -tags tech -json -silent -timeout 20 -retries 2 -headless -insecure -t /opt/nuclei-templates
-2025-06-26 14:22:23.677	
-[2025-06-26T21:22:23.676Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/home.html"
-2025-06-26 14:22:23.671	
-[2025-06-26T21:22:23.670Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/direct/index.php"
-2025-06-26 14:22:23.665	
-[2025-06-26T21:22:23.665Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/"
-2025-06-26 14:22:23.661	
-[2025-06-26T21:22:23.660Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/index.html"
-2025-06-26 14:22:23.652	
-[2025-06-26T21:22:23.651Z] [techStackScan] techstack=nuclei url="https://www.lodging-source.com"
-2025-06-26 14:22:23.643	
-[2025-06-26T21:22:23.643Z] [techStackScan] techstack=nuclei url="https://lodging-source.com"
-2025-06-26 14:22:23.639	
-[2025-06-26T21:22:23.639Z] [techStackScan] techstack=targets primary=8 thirdParty=2 total=10
-2025-06-26 14:22:23.331	
-[2025-06-26T21:22:23.330Z] [dynamicBrowser] Page operation completed in 18098ms
-2025-06-26 14:22:23.331	
-[2025-06-26T21:22:23.330Z] [techStackScan] thirdParty=discovered domain=lodging-source.com origins=2
-2025-06-26 14:22:19.949	
-[2025-06-26T21:22:19.949Z] [dynamicBrowser] Metrics: browser_rss_mb=115, heap_used_mb=58, pages_open=1
-2025-06-26 14:22:18.652	
-[2025-06-26T21:22:18.652Z] [dynamicBrowser] Page operation completed in 13424ms
-2025-06-26 14:22:18.652	
-[2025-06-26T21:22:18.647Z] [accessibilityScan] Accessibility test complete for https://lodging-source.com: 6 violations, 22 passes
-2025-06-26 14:22:05.231	
-[2025-06-26T21:22:05.228Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com
-2025-06-26 14:22:03.024	
-[2025-06-26T21:22:03.023Z] [dynamicBrowser] Browser launched successfully
-2025-06-26 14:22:00.675	
+2025-06-27 14:28:07.998	
+[2025-06-27T21:28:07.998Z] [techStackScan] techstack=nuclei_error url="https://www.lodging-source.com" error="Command failed: nuclei -u https://www.lodging-source.com -tags tech -json -silent -timeout 20 -retries 2 -headless -td /opt/nuclei-templates -dca
+2025-06-27 14:28:05.571	
+[2025-06-27T21:28:05.571Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/home.html"
+2025-06-27 14:28:05.565	
+[2025-06-27T21:28:05.565Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/direct/index.php"
+2025-06-27 14:28:05.550	
+[2025-06-27T21:28:05.549Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/"
+2025-06-27 14:28:05.540	
+[2025-06-27T21:28:05.540Z] [techStackScan] techstack=nuclei url="https://lodging-source.com/index.html"
+2025-06-27 14:28:05.532	
+[2025-06-27T21:28:05.531Z] [techStackScan] techstack=nuclei url="https://www.lodging-source.com"
+2025-06-27 14:28:05.524	
+[2025-06-27T21:28:05.523Z] [techStackScan] techstack=nuclei url="https://lodging-source.com"
+2025-06-27 14:28:05.520	
+[2025-06-27T21:28:05.520Z] [techStackScan] techstack=targets primary=8 thirdParty=2 total=10
+2025-06-27 14:28:05.478	
+[2025-06-27T21:28:05.478Z] [dynamicBrowser] Page operation completed in 6719ms
+2025-06-27 14:28:05.478	
+[2025-06-27T21:28:05.478Z] [techStackScan] thirdParty=discovered domain=lodging-source.com origins=2
+2025-06-27 14:27:58.744	
+[2025-06-27T21:27:58.742Z] [accessibilityScan] Testing accessibility for: https://lodging-source.com
+2025-06-27 14:27:56.541	
+[2025-06-27T21:27:56.539Z] [dynamicBrowser] Browser launched successfully
+2025-06-27 14:27:47.868	
 }
-2025-06-26 14:22:00.675	
+2025-06-27 14:27:47.868	
 "TYPOSQUAT_REDIRECT": 1
-2025-06-26 14:22:00.675	
-[2025-06-26T21:22:00.674Z] [SyncWorker] ✅ New findings synced: 1 {
-2025-06-26 14:21:52.397	
-[2025-06-26T21:21:52.396Z] [techStackScan] buildTargets discovered=6 total=8
-2025-06-26 14:21:52.392	
-[2025-06-26T21:21:52.392Z] [techStackScan] techstack=nuclei confirmed available
-2025-06-26 14:21:49.948	
-[2025-06-26T21:21:49.947Z] [dynamicBrowser] Launching new browser instance
-2025-06-26 14:21:49.947	
-[2025-06-26T21:21:49.947Z] [dynamicBrowser] Initializing page semaphore with max 1 concurrent pages
-2025-06-26 14:21:49.946	
-[2025-06-26T21:21:49.946Z] [dynamicBrowser] Initializing page semaphore with max 1 concurrent pages
-2025-06-26 14:21:49.946	
-[2025-06-26T21:21:49.945Z] [accessibilityScan] Discovered 15 pages to test for accessibility
-2025-06-26 14:21:49.640	
-[2025-06-26T21:21:49.640Z] [worker] [1rmpDAqZOKl] COMPLETED AbuseIPDB scan: 0 malicious/suspicious IPs found
-2025-06-26 14:21:49.640	
-[2025-06-26T21:21:49.640Z] [abuseIntelScan] No IP artifacts found for this scan
-2025-06-26 14:21:49.640	
-[2025-06-26T21:21:49.640Z] [abuseIntelScan] Found 0 IP artifacts for scan 1rmpDAqZOKl
-2025-06-26 14:21:49.639	
-[2025-06-26T21:21:49.639Z] [worker] [1rmpDAqZOKl] COMPLETED denial-of-wallet scan: 0 cost amplification vulnerabilities found
-2025-06-26 14:21:49.639	
-[2025-06-26T21:21:49.639Z] [denialWalletScan] Denial-of-wallet scan completed: 0 findings in 6ms
-2025-06-26 14:21:49.639	
-[2025-06-26T21:21:49.639Z] [denialWalletScan] Filtered to 0 potential cost-amplification endpoints
-2025-06-26 14:21:49.639	
-[2025-06-26T21:21:49.638Z] [denialWalletScan] Found 6 endpoints from endpoint discovery
-2025-06-26 14:21:49.637	
-[2025-06-26T21:21:49.637Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=1rmpDAqZOKl
-2025-06-26 14:21:49.637	
-[2025-06-26T21:21:49.636Z] [worker] [1rmpDAqZOKl] STARTING AbuseIPDB intelligence scan for IPs
-2025-06-26 14:21:49.636	
-[2025-06-26T21:21:49.636Z] [worker] === Running module (Phase 2C): abuse_intel_scan ===
-2025-06-26 14:21:49.636	
-[2025-06-26T21:21:49.636Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:21:49.634	
-[2025-06-26T21:21:49.633Z] [denialWalletScan] Starting denial-of-wallet scan for domain="lodging-source.com"
-2025-06-26 14:21:49.633	
-[2025-06-26T21:21:49.633Z] [worker] [1rmpDAqZOKl] STARTING denial-of-wallet vulnerability scan for lodging-source.com
-2025-06-26 14:21:49.633	
-[2025-06-26T21:21:49.632Z] [worker] === Running module (Phase 2C): denial_wallet_scan ===
-2025-06-26 14:21:49.632	
-[2025-06-26T21:21:49.632Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:21:49.623	
-[2025-06-26T21:21:49.623Z] [accessibilityScan] Starting accessibility scan for domain="lodging-source.com"
-2025-06-26 14:21:49.623	
-[2025-06-26T21:21:49.622Z] [worker] [1rmpDAqZOKl] STARTING accessibility compliance scan for lodging-source.com
-2025-06-26 14:21:49.623	
-[2025-06-26T21:21:49.622Z] [worker] === Running module (Phase 2C): accessibility_scan ===
-2025-06-26 14:21:49.623	
-[2025-06-26T21:21:49.622Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:21:49.583	
-[2025-06-26T21:21:49.583Z] [techStackScan] techstack=start domain=lodging-source.com
-2025-06-26 14:21:49.582	
-[2025-06-26T21:21:49.582Z] [worker] [1rmpDAqZOKl] STARTING tech stack scan for lodging-source.com
-2025-06-26 14:21:49.582	
-[2025-06-26T21:21:49.582Z] [worker] === Running module (Phase 2C): tech_stack_scan ===
-2025-06-26 14:21:49.582	
-[2025-06-26T21:21:49.582Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:21:49.579	
-[2025-06-26T21:21:49.578Z] [worker] [1rmpDAqZOKl] COMPLETED endpoint discovery: 6 endpoint collections found
-2025-06-26 14:21:49.579	
-[2025-06-26T21:21:49.578Z] [endpointDiscovery] ⇢ done – 6 endpoints
-2025-06-26 14:21:49.579	
+2025-06-27 14:27:47.868	
+[2025-06-27T21:27:47.868Z] [SyncWorker] ✅ New findings synced: 1 {
+2025-06-27 14:27:45.606	
+[2025-06-27T21:27:45.606Z] [techStackScan] buildTargets discovered=6 total=8
+2025-06-27 14:27:45.602	
+[2025-06-27T21:27:45.602Z] [techStackScan] techstack=nuclei confirmed available
+2025-06-27 14:27:43.265	
+[2025-06-27T21:27:43.264Z] [dynamicBrowser] Launching new browser instance
+2025-06-27 14:27:43.264	
+[2025-06-27T21:27:43.264Z] [dynamicBrowser] Initializing page semaphore with max 1 concurrent pages
+2025-06-27 14:27:43.263	
+[2025-06-27T21:27:43.263Z] [dynamicBrowser] Initializing page semaphore with max 1 concurrent pages
+2025-06-27 14:27:43.262	
+[2025-06-27T21:27:43.262Z] [accessibilityScan] Discovered 15 pages to test for accessibility
+2025-06-27 14:27:42.934	
+[2025-06-27T21:27:42.933Z] [worker] [9B4x4CU9ED5] COMPLETED denial-of-wallet scan: 0 cost amplification vulnerabilities found
+2025-06-27 14:27:42.933	
+[2025-06-27T21:27:42.933Z] [denialWalletScan] Denial-of-wallet scan completed: 0 findings in 4ms
+2025-06-27 14:27:42.933	
+[2025-06-27T21:27:42.933Z] [denialWalletScan] Filtered to 0 potential cost-amplification endpoints
+2025-06-27 14:27:42.933	
+[2025-06-27T21:27:42.932Z] [denialWalletScan] Found 6 endpoints from endpoint discovery
+2025-06-27 14:27:42.931	
+[2025-06-27T21:27:42.930Z] [worker] [9B4x4CU9ED5] COMPLETED AbuseIPDB scan: 0 malicious/suspicious IPs found
+2025-06-27 14:27:42.931	
+[2025-06-27T21:27:42.930Z] [abuseIntelScan] No IP artifacts found for this scan
+2025-06-27 14:27:42.930	
+[2025-06-27T21:27:42.930Z] [abuseIntelScan] Found 0 IP artifacts for scan 9B4x4CU9ED5
+2025-06-27 14:27:42.929	
+[2025-06-27T21:27:42.929Z] [denialWalletScan] Starting denial-of-wallet scan for domain="lodging-source.com"
+2025-06-27 14:27:42.929	
+[2025-06-27T21:27:42.929Z] [worker] [9B4x4CU9ED5] STARTING denial-of-wallet vulnerability scan for lodging-source.com
+2025-06-27 14:27:42.929	
+[2025-06-27T21:27:42.927Z] [worker] === Running module (Phase 2C): denial_wallet_scan ===
+2025-06-27 14:27:42.927	
+[2025-06-27T21:27:42.927Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:27:42.924	
+[2025-06-27T21:27:42.923Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=9B4x4CU9ED5
+2025-06-27 14:27:42.924	
+[2025-06-27T21:27:42.921Z] [worker] [9B4x4CU9ED5] STARTING AbuseIPDB intelligence scan for IPs
+2025-06-27 14:27:42.924	
+[2025-06-27T21:27:42.921Z] [worker] === Running module (Phase 2C): abuse_intel_scan ===
+2025-06-27 14:27:42.924	
+[2025-06-27T21:27:42.921Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:27:42.914	
+[2025-06-27T21:27:42.912Z] [accessibilityScan] Starting accessibility scan for domain="lodging-source.com"
+2025-06-27 14:27:42.912	
+[2025-06-27T21:27:42.912Z] [worker] [9B4x4CU9ED5] STARTING accessibility compliance scan for lodging-source.com
+2025-06-27 14:27:42.912	
+[2025-06-27T21:27:42.912Z] [worker] === Running module (Phase 2C): accessibility_scan ===
+2025-06-27 14:27:42.912	
+[2025-06-27T21:27:42.911Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:27:42.877	
+[2025-06-27T21:27:42.877Z] [techStackScan] techstack=start domain=lodging-source.com
+2025-06-27 14:27:42.876	
+[2025-06-27T21:27:42.876Z] [worker] [9B4x4CU9ED5] STARTING tech stack scan for lodging-source.com
+2025-06-27 14:27:42.876	
+[2025-06-27T21:27:42.876Z] [worker] === Running module (Phase 2C): tech_stack_scan ===
+2025-06-27 14:27:42.876	
+[2025-06-27T21:27:42.876Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:27:42.870	
+[2025-06-27T21:27:42.869Z] [worker] [9B4x4CU9ED5] COMPLETED endpoint discovery: 6 endpoint collections found
+2025-06-27 14:27:42.870	
+[2025-06-27T21:27:42.869Z] [endpointDiscovery] ⇢ done – 6 endpoints
+2025-06-27 14:27:42.870	
 [artifactStore] Inserted discovered_endpoints artifact: Discovered 6 unique endpoints for lodging-source.com...
-2025-06-26 14:21:13.997	
-[2025-06-26T21:21:13.994Z] [endpointDiscovery] +crawl_link /direct// (-)
-2025-06-26 14:21:12.515	
-[2025-06-26T21:21:12.515Z] [endpointDiscovery] +js_analysis //www.youtube.com/player_api (-)
-2025-06-26 14:21:12.165	
-[2025-06-26T21:21:12.165Z] [endpointDiscovery] +crawl_link /home.html (-)
-2025-06-26 14:21:12.165	
-[2025-06-26T21:21:12.165Z] [endpointDiscovery] +crawl_link /direct/index.php (-)
-2025-06-26 14:21:12.165	
-[2025-06-26T21:21:12.164Z] [endpointDiscovery] +crawl_link / (-)
-2025-06-26 14:21:12.164	
-[2025-06-26T21:21:12.164Z] [endpointDiscovery] +crawl_link /index.html (-)
-2025-06-26 14:21:11.785	
-[2025-06-26T21:21:11.785Z] [endpointDiscovery] ⇢ start lodging-source.com
-2025-06-26 14:21:11.785	
-[2025-06-26T21:21:11.785Z] [worker] [1rmpDAqZOKl] STARTING endpoint discovery for lodging-source.com
-2025-06-26 14:21:11.785	
-[2025-06-26T21:21:11.785Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:21:11.779	
-[2025-06-26T21:21:11.779Z] [worker] === Running endpoint discovery ===
-2025-06-26 14:21:11.779	
-[2025-06-26T21:21:11.779Z] [worker] [1rmpDAqZOKl] COMPLETED DNS Twist: 5 typo-domains found
-2025-06-26 14:21:11.779	
-[2025-06-26T21:21:11.779Z] [dnstwist] Scan completed – 5 domains analysed
-2025-06-26 14:21:11.779	
-[artifactStore] Inserted finding TYPOSQUAT_REDIRECT for artifact 3343
-2025-06-26 14:21:11.777	
+2025-06-27 14:27:07.272	
+[2025-06-27T21:27:07.272Z] [endpointDiscovery] +crawl_link /direct// (-)
+2025-06-27 14:27:06.061	
+[2025-06-27T21:27:06.061Z] [endpointDiscovery] +js_analysis //www.youtube.com/player_api (-)
+2025-06-27 14:27:05.718	
+[2025-06-27T21:27:05.718Z] [endpointDiscovery] +crawl_link /home.html (-)
+2025-06-27 14:27:05.718	
+[2025-06-27T21:27:05.718Z] [endpointDiscovery] +crawl_link /direct/index.php (-)
+2025-06-27 14:27:05.718	
+[2025-06-27T21:27:05.717Z] [endpointDiscovery] +crawl_link / (-)
+2025-06-27 14:27:05.717	
+[2025-06-27T21:27:05.717Z] [endpointDiscovery] +crawl_link /index.html (-)
+2025-06-27 14:27:05.280	
+[2025-06-27T21:27:05.278Z] [endpointDiscovery] ⇢ start lodging-source.com
+2025-06-27 14:27:05.278	
+[2025-06-27T21:27:05.278Z] [worker] [9B4x4CU9ED5] STARTING endpoint discovery for lodging-source.com
+2025-06-27 14:27:05.278	
+[2025-06-27T21:27:05.278Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:27:05.271	
+[2025-06-27T21:27:05.271Z] [worker] === Running endpoint discovery ===
+2025-06-27 14:27:05.271	
+[2025-06-27T21:27:05.270Z] [worker] [9B4x4CU9ED5] COMPLETED DNS Twist: 5 typo-domains found
+2025-06-27 14:27:05.270	
+[2025-06-27T21:27:05.270Z] [dnstwist] Scan completed – 5 domains analysed
+2025-06-27 14:27:05.270	
+[artifactStore] Inserted finding TYPOSQUAT_REDIRECT for artifact 3458
+2025-06-27 14:27:05.268	
 [artifactStore] Inserted typo_domain artifact: Potentially malicious typosquatted domain detected: lodgings...
-2025-06-26 14:21:00.389	
+2025-06-27 14:26:47.747	
 }
-2025-06-26 14:21:00.389	
+2025-06-27 14:26:47.747	
 ]
-2025-06-26 14:21:00.389	
-"Lodging Source: tls_scan_phase2a (20%)"
-2025-06-26 14:21:00.389	
+2025-06-27 14:26:47.747	
+"Lodging Source: dns_twist_phase2a (20%)"
+2025-06-27 14:26:47.747	
 "progress": [
-2025-06-26 14:21:00.389	
-[2025-06-26T21:21:00.388Z] [SyncWorker] ✅ Active scans progress: 1 {
-2025-06-26 14:20:00.491	
+2025-06-27 14:26:47.747	
+[2025-06-27T21:26:47.747Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:25:47.865	
 }
-2025-06-26 14:20:00.491	
-]
-2025-06-26 14:20:00.491	
-"Lodging Source: tls_scan_phase2a (20%)"
-2025-06-26 14:20:00.491	
-"progress": [
-2025-06-26 14:20:00.491	
-[2025-06-26T21:20:00.491Z] [SyncWorker] ✅ Active scans progress: 1 {
-2025-06-26 14:19:23.313	
-[2025-06-26T21:19:23.312Z] [worker] [1rmpDAqZOKl] COMPLETED document exposure: 0 discoveries
-2025-06-26 14:19:23.313	
-[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
-2025-06-26 14:19:23.293	
-[2025-06-26T21:19:23.292Z] [documentExposure] Completed: 0 files found, 10 Serper calls (~$0.030)
-2025-06-26 14:19:23.293	
-[2025-06-26T21:19:23.292Z] [documentExposure] Reached search query limit (10) - stopping to control costs
-2025-06-26 14:19:21.791	
-[2025-06-26T21:19:21.791Z] [documentExposure] Serper returned 0 results for query 10
-2025-06-26 14:19:21.003	
-[2025-06-26T21:19:21.001Z] [documentExposure] Serper API call 10: ""Lodging Source" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
-2025-06-26 14:19:17.850	
-[2025-06-26T21:19:17.849Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:19:15.787	
-[2025-06-26T21:19:15.787Z] [documentExposure] Serper returned 7 results for query 9
-2025-06-26 14:19:14.956	
-[2025-06-26T21:19:14.955Z] [documentExposure] Serper API call 9: ""Lodging Source" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
-2025-06-26 14:19:13.299	
-[2025-06-26T21:19:13.298Z] [documentExposure] Serper returned 4 results for query 8
-2025-06-26 14:19:11.979	
-[2025-06-26T21:19:11.977Z] [documentExposure] Serper API call 8: ""Lodging Source" (intitle:"index of" OR intitle:"directory listing")"
-2025-06-26 14:19:10.476	
-[2025-06-26T21:19:10.475Z] [documentExposure] Serper returned 10 results for query 7
-2025-06-26 14:19:09.298	
-[2025-06-26T21:19:09.297Z] [documentExposure] Serper API call 7: ""Lodging Source" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
-2025-06-26 14:19:07.338	
-[2025-06-26T21:19:07.337Z] [documentExposure] Serper returned 1 results for query 6
-2025-06-26 14:19:06.659	
-[2025-06-26T21:19:06.657Z] [documentExposure] Serper API call 6: ""Lodging Source" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
-2025-06-26 14:19:05.156	
-[2025-06-26T21:19:05.155Z] [documentExposure] Serper returned 2 results for query 5
-2025-06-26 14:19:04.431	
-[2025-06-26T21:19:04.430Z] [documentExposure] Serper API call 5: ""Lodging Source" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
-2025-06-26 14:19:02.929	
-[2025-06-26T21:19:02.929Z] [documentExposure] Serper returned 10 results for query 4
-2025-06-26 14:19:01.574	
-[2025-06-26T21:19:01.573Z] [documentExposure] Serper API call 4: ""Lodging Source" ("database" OR "backup" OR "dump") filetype:sql"
-2025-06-26 14:19:00.549	
+2025-06-27 14:25:47.865	
 }
-2025-06-26 14:19:00.549	
+2025-06-27 14:25:47.865	
 "PHISHING_SETUP": 4
-2025-06-26 14:19:00.549	
-"MISSING_TLS_CERTIFICATE": 1,
-2025-06-26 14:19:00.549	
-"TLS_CONFIGURATION_ISSUE": 2,
-2025-06-26 14:19:00.549	
-"EXPOSED_SERVICE": 2,
-2025-06-26 14:19:00.549	
-[2025-06-26T21:19:00.549Z] [SyncWorker] ✅ New findings synced: 9 {
-2025-06-26 14:19:00.403	
+2025-06-27 14:25:47.865	
+"PHISHING_SETUP": 4
+2025-06-27 14:25:47.865	
+[2025-06-27T21:25:47.864Z] [SyncWorker] ✅ New findings synced: 4 {
+2025-06-27 14:25:47.865	
+[2025-06-27T21:25:47.864Z] [SyncWorker] ✅ New findings synced: 4 {
+2025-06-27 14:25:47.643	
 }
-2025-06-26 14:19:00.403	
+2025-06-27 14:25:47.643	
+}
+2025-06-27 14:25:47.643	
 ]
-2025-06-26 14:19:00.403	
-"Lodging Source: tls_scan_phase2a (20%)"
-2025-06-26 14:19:00.403	
+2025-06-27 14:25:47.643	
+]
+2025-06-27 14:25:47.643	
+"Lodging Source: dns_twist_phase2a (20%)"
+2025-06-27 14:25:47.643	
+"Lodging Source: dns_twist_phase2a (20%)"
+2025-06-27 14:25:47.643	
 "progress": [
-2025-06-26 14:19:00.403	
-[2025-06-26T21:19:00.403Z] [SyncWorker] ✅ Active scans progress: 1 {
-2025-06-26 14:19:00.073	
-[2025-06-26T21:19:00.072Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:59.348	
-[2025-06-26T21:18:59.348Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:58.097	
-[artifactStore] Inserted finding PHISHING_SETUP for artifact 3341
-2025-06-26 14:18:58.096	
+2025-06-27 14:25:47.643	
+"progress": [
+2025-06-27 14:25:47.643	
+[2025-06-27T21:25:47.642Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:25:47.643	
+[2025-06-27T21:25:47.642Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:25:30.015	
+[2025-06-27T21:25:30.015Z] [worker] [9B4x4CU9ED5] COMPLETED document exposure: 0 discoveries
+2025-06-27 14:25:30.015	
+[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
+2025-06-27 14:25:29.996	
+[2025-06-27T21:25:29.995Z] [documentExposure] Completed: 0 files found, 10 Serper calls (~$0.030)
+2025-06-27 14:25:29.996	
+[2025-06-27T21:25:29.995Z] [documentExposure] Reached search query limit (10) - stopping to control costs
+2025-06-27 14:25:28.495	
+[2025-06-27T21:25:28.494Z] [documentExposure] Serper returned 0 results for query 10
+2025-06-27 14:25:27.710	
+[2025-06-27T21:25:27.709Z] [documentExposure] Serper API call 10: ""Lodging Source" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
+2025-06-27 14:25:25.423	
+[2025-06-27T21:25:25.423Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:25:22.754	
+[2025-06-27T21:25:22.754Z] [documentExposure] Serper returned 7 results for query 9
+2025-06-27 14:25:22.101	
+[2025-06-27T21:25:22.100Z] [documentExposure] Serper API call 9: ""Lodging Source" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
+2025-06-27 14:25:19.707	
+[2025-06-27T21:25:19.707Z] [documentExposure] Serper returned 8 results for query 8
+2025-06-27 14:25:18.044	
+[2025-06-27T21:25:18.043Z] [documentExposure] Serper API call 8: ""Lodging Source" (intitle:"index of" OR intitle:"directory listing")"
+2025-06-27 14:25:16.542	
+[2025-06-27T21:25:16.542Z] [documentExposure] Serper returned 20 results for query 7
+2025-06-27 14:25:14.691	
+[2025-06-27T21:25:14.690Z] [documentExposure] Serper API call 7: ""Lodging Source" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
+2025-06-27 14:25:12.583	
+[2025-06-27T21:25:12.583Z] [documentExposure] Serper returned 1 results for query 6
+2025-06-27 14:25:11.523	
+[2025-06-27T21:25:11.522Z] [documentExposure] Serper API call 6: ""Lodging Source" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
+2025-06-27 14:25:10.020	
+[2025-06-27T21:25:10.020Z] [documentExposure] Serper returned 2 results for query 5
+2025-06-27 14:25:09.195	
+[2025-06-27T21:25:09.194Z] [documentExposure] Serper API call 5: ""Lodging Source" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
+2025-06-27 14:25:07.692	
+[2025-06-27T21:25:07.692Z] [documentExposure] Serper returned 10 results for query 4
+2025-06-27 14:25:04.190	
+[2025-06-27T21:25:04.187Z] [documentExposure] Serper API call 4: ""Lodging Source" ("database" OR "backup" OR "dump") filetype:sql"
+2025-06-27 14:25:02.686	
+[2025-06-27T21:25:02.686Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:59.557	
+[2025-06-27T21:24:59.554Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:58.217	
+[2025-06-27T21:24:58.217Z] [documentExposure] Serper returned 10 results for query 3
+2025-06-27 14:24:57.186	
+[2025-06-27T21:24:57.183Z] [documentExposure] Serper API call 3: ""Lodging Source" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
+2025-06-27 14:24:55.683	
+[2025-06-27T21:24:55.683Z] [documentExposure] process error: Request failed with status code 403
+2025-06-27 14:24:54.813	
+[2025-06-27T21:24:54.812Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:52.945	
+[2025-06-27T21:24:52.942Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:52.178	
+[2025-06-27T21:24:52.178Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:51.872	
+[artifactStore] Inserted finding PHISHING_SETUP for artifact 3456
+2025-06-27 14:24:51.870	
 [artifactStore] Inserted typo_domain artifact: Potentially malicious typosquatted domain detected: lodgin.g...
-2025-06-26 14:18:57.403	
-[artifactStore] Inserted finding PHISHING_SETUP for artifact 3340
-2025-06-26 14:18:57.402	
+2025-06-27 14:24:51.656	
+[artifactStore] Inserted finding PHISHING_SETUP for artifact 3455
+2025-06-27 14:24:51.655	
 [artifactStore] Inserted typo_domain artifact: Potentially malicious typosquatted domain detected: lodging-...
-2025-06-26 14:18:57.233	
-[artifactStore] Inserted finding PHISHING_SETUP for artifact 3339
-2025-06-26 14:18:57.231	
+2025-06-27 14:24:51.459	
+[artifactStore] Inserted finding PHISHING_SETUP for artifact 3454
+2025-06-27 14:24:51.458	
 [artifactStore] Inserted typo_domain artifact: Potentially malicious typosquatted domain detected: lodging-...
-2025-06-26 14:18:56.810	
-[artifactStore] Inserted finding PHISHING_SETUP for artifact 3338
-2025-06-26 14:18:56.808	
+2025-06-27 14:24:51.002	
+[artifactStore] Inserted finding PHISHING_SETUP for artifact 3453
+2025-06-27 14:24:51.000	
 [artifactStore] Inserted typo_domain artifact: Potentially malicious typosquatted domain detected: lodging-...
-2025-06-26 14:18:56.513	
-[2025-06-26T21:18:56.508Z] [documentExposure] Serper returned 20 results for query 3
-2025-06-26 14:18:56.466	
-[2025-06-26T21:18:56.466Z] [dnstwist] Batch 1/1
-2025-06-26 14:18:56.466	
-[2025-06-26T21:18:56.465Z] [dnstwist] Found 5 registered typosquat candidates to analyze
-2025-06-26 14:18:55.482	
-[2025-06-26T21:18:55.481Z] [documentExposure] Serper API call 3: ""Lodging Source" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
-2025-06-26 14:18:52.810	
-[2025-06-26T21:18:52.810Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:52.025	
-[2025-06-26T21:18:52.025Z] [documentExposure] process error: Request failed with status code 403
-2025-06-26 14:18:50.691	
-[2025-06-26T21:18:50.691Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:50.022	
-[2025-06-26T21:18:50.022Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:49.371	
-[2025-06-26T21:18:49.371Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:48.201	
-[2025-06-26T21:18:48.201Z] [documentExposure] process error: Request failed with status code 403
-2025-06-26 14:18:47.115	
-[2025-06-26T21:18:47.115Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:46.030	
-[2025-06-26T21:18:46.029Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-06-26 14:18:44.793	
-[2025-06-26T21:18:44.792Z] [documentExposure] process error: timeout of 30000ms exceeded
-2025-06-26 14:18:22.133	
-[2025-06-26T21:18:22.133Z] [worker] [1rmpDAqZOKl] COMPLETED TLS scan: 3 TLS issues found
-2025-06-26 14:18:22.133	
-[2025-06-26T21:18:22.133Z] [tlsScan] Scan complete. Hosts: lodging-source.com, www.lodging-source.com. Findings: 3
-2025-06-26 14:18:22.133	
-[artifactStore] Inserted scan_summary artifact: TLS scan complete - 3 issue(s) found...
-2025-06-26 14:18:22.131	
-[artifactStore] Inserted finding MISSING_TLS_CERTIFICATE for artifact 3336
-2025-06-26 14:18:22.129	
-[artifactStore] Inserted tls_no_certificate artifact: lodging-source.com - no valid SSL/TLS certificate on any hos...
-2025-06-26 14:18:22.127	
-[artifactStore] Inserted finding TLS_CONFIGURATION_ISSUE for artifact 3335
-2025-06-26 14:18:22.124	
-[artifactStore] Inserted tls_configuration artifact: www.lodging-source.com - Incomplete SSL certificate chain (m...
-2025-06-26 14:18:22.101	
-[2025-06-26T21:18:22.100Z] [tlsScan] Converting "No SSL certificate" to "Incomplete certificate chain" based on Python validation
-2025-06-26 14:18:21.827	
-[2025-06-26T21:18:21.826Z] [tlsScan] Cross-validation complete for www.lodging-source.com: 0 additional findings
-2025-06-26 14:18:11.251	
-[2025-06-26T21:18:11.251Z] [tlsScan] Python validator: www.lodging-source.com - INVALID
-2025-06-26 14:18:11.014	
-[2025-06-26T21:18:11.012Z] [tlsScan] Scanning www.lodging-source.com with hybrid validation (sslscan + Python)...
-2025-06-26 14:18:11.014	
-[artifactStore] Inserted finding TLS_CONFIGURATION_ISSUE for artifact 3334
-2025-06-26 14:18:11.008	
-[artifactStore] Inserted tls_configuration artifact: lodging-source.com - Incomplete SSL certificate chain (missi...
-2025-06-26 14:18:10.976	
-[2025-06-26T21:18:10.976Z] [tlsScan] Converting "No SSL certificate" to "Incomplete certificate chain" based on Python validation
-2025-06-26 14:18:10.704	
-[2025-06-26T21:18:10.702Z] [tlsScan] Cross-validation complete for lodging-source.com: 0 additional findings
-2025-06-26 14:18:06.913	
-[2025-06-26T21:18:06.913Z] [worker] [1rmpDAqZOKl] COMPLETED Shodan infrastructure scan: 4 services found
-2025-06-26 14:18:06.913	
-[2025-06-26T21:18:06.913Z] [Shodan] Done — 4 rows persisted, 1 API calls used for 1 targets
-2025-06-26 14:18:06.913	
-[artifactStore] Inserted scan_summary artifact: Shodan scan: 4 items...
-2025-06-26 14:18:06.912	
-[artifactStore] Inserted finding EXPOSED_SERVICE for artifact 3332
-2025-06-26 14:18:06.910	
-[artifactStore] Inserted shodan_service artifact: 74.208.42.246:443 Apache httpd 2.4.62...
-2025-06-26 14:18:06.908	
-[artifactStore] Inserted finding EXPOSED_SERVICE for artifact 3331
-2025-06-26 14:18:06.907	
-[artifactStore] Inserted shodan_service artifact: 70.35.206.233:443 Apache httpd 2.4.62...
-2025-06-26 14:18:06.902	
-[2025-06-26T21:18:06.901Z] [Shodan] API call 1 - search query
-2025-06-26 14:18:04.752	
-[2025-06-26T21:18:04.750Z] [documentExposure] Serper returned 20 results for query 2
-2025-06-26 14:18:03.479	
-[2025-06-26T21:18:03.479Z] [documentExposure] Serper API call 2: ""Lodging Source" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
-2025-06-26 14:18:01.977	
-[2025-06-26T21:18:01.976Z] [documentExposure] Serper returned 0 results for query 1
-2025-06-26 14:18:01.461	
-[2025-06-26T21:18:01.460Z] [documentExposure] Serper API call 1: "site:lodging-source.com (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
-2025-06-26 14:18:00.533	
+2025-06-27 14:24:50.979	
+[2025-06-27T21:24:50.979Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
+2025-06-27 14:24:50.693	
+[2025-06-27T21:24:50.693Z] [dnstwist] Batch 1/1
+2025-06-27 14:24:50.693	
+[2025-06-27T21:24:50.692Z] [dnstwist] Found 5 registered typosquat candidates to analyze
+2025-06-27 14:24:50.359	
+[2025-06-27T21:24:50.358Z] [documentExposure] process error: timeout of 30000ms exceeded
+2025-06-27 14:24:48.050	
 }
-2025-06-26 14:18:00.533	
-"EMAIL_SECURITY_WEAKNESS": 1
-2025-06-26 14:18:00.533	
+2025-06-27 14:24:48.050	
+}
+2025-06-27 14:24:48.050	
+"CRITICAL_INFOSTEALER": 1
+2025-06-27 14:24:48.050	
+"CRITICAL_INFOSTEALER": 1
+2025-06-27 14:24:48.050	
+"MEDIUM_EMAIL_EXPOSED": 56,
+2025-06-27 14:24:48.050	
+"MEDIUM_EMAIL_EXPOSED": 56,
+2025-06-27 14:24:48.050	
+"HIGH_PASSWORD_EXPOSED": 6,
+2025-06-27 14:24:48.050	
+"HIGH_PASSWORD_EXPOSED": 6,
+2025-06-27 14:24:48.050	
+[2025-06-27T21:24:48.050Z] [SyncWorker] ✅ New compromised credentials synced: 63 {
+2025-06-27 14:24:48.050	
+[2025-06-27T21:24:48.050Z] [SyncWorker] ✅ New compromised credentials synced: 63 {
+2025-06-27 14:24:47.931	
+}
+2025-06-27 14:24:47.931	
+}
+2025-06-27 14:24:47.931	
+"MISSING_TLS_CERTIFICATE": 1
+2025-06-27 14:24:47.931	
+"MISSING_TLS_CERTIFICATE": 1
+2025-06-27 14:24:47.931	
+"TLS_CONFIGURATION_ISSUE": 2,
+2025-06-27 14:24:47.931	
+"TLS_CONFIGURATION_ISSUE": 2,
+2025-06-27 14:24:47.931	
+"EXPOSED_SERVICE": 1,
+2025-06-27 14:24:47.931	
+"EXPOSED_SERVICE": 1,
+2025-06-27 14:24:47.931	
+"EMAIL_SECURITY_WEAKNESS": 1,
+2025-06-27 14:24:47.931	
+"EMAIL_SECURITY_WEAKNESS": 1,
+2025-06-27 14:24:47.931	
 "MULTIPLE_BREACH_SOURCES": 1,
-2025-06-26 14:18:00.533	
-"DOMAIN_BREACH_COUNT": 1,
-2025-06-26 14:18:00.533	
-[2025-06-26T21:18:00.533Z] [SyncWorker] ✅ New findings synced: 3 {
-2025-06-26 14:18:00.374	
+2025-06-27 14:24:47.931	
+"MULTIPLE_BREACH_SOURCES": 1,
+2025-06-27 14:24:47.931	
+"BREACH_SUMMARY": 1,
+2025-06-27 14:24:47.931	
+"BREACH_SUMMARY": 1,
+2025-06-27 14:24:47.931	
+"EMAIL_EXPOSURE": 1,
+2025-06-27 14:24:47.931	
+"EMAIL_EXPOSURE": 1,
+2025-06-27 14:24:47.931	
+"PASSWORD_EXPOSURE": 1,
+2025-06-27 14:24:47.931	
+"PASSWORD_EXPOSURE": 1,
+2025-06-27 14:24:47.931	
+"INFOSTEALER_COMPROMISE": 1,
+2025-06-27 14:24:47.931	
+"INFOSTEALER_COMPROMISE": 1,
+2025-06-27 14:24:47.931	
+[2025-06-27T21:24:47.931Z] [SyncWorker] ✅ New findings synced: 10 {
+2025-06-27 14:24:47.931	
+[2025-06-27T21:24:47.931Z] [SyncWorker] ✅ New findings synced: 10 {
+2025-06-27 14:24:47.767	
 }
-2025-06-26 14:18:00.374	
+2025-06-27 14:24:47.767	
+}
+2025-06-27 14:24:47.767	
 ]
-2025-06-26 14:18:00.374	
-"Lodging Source: tls_scan_phase2a (20%)"
-2025-06-26 14:18:00.374	
+2025-06-27 14:24:47.767	
+]
+2025-06-27 14:24:47.767	
+"Lodging Source: dns_twist_phase2a (20%)"
+2025-06-27 14:24:47.767	
+"Lodging Source: dns_twist_phase2a (20%)"
+2025-06-27 14:24:47.767	
 "progress": [
-2025-06-26 14:18:00.374	
-[2025-06-26T21:18:00.373Z] [SyncWorker] ✅ Active scans progress: 1 {
-2025-06-26 14:18:00.339	
-[2025-06-26T21:18:00.339Z] [tlsScan] Python validator: lodging-source.com - INVALID
-2025-06-26 14:18:00.307	
-[2025-06-26T21:18:00.307Z] [worker] [1rmpDAqZOKl] COMPLETED email security scan: 1 email issues found
-2025-06-26 14:18:00.307	
-[2025-06-26T21:18:00.306Z] [spfDmarc] Completed email security scan, found 1 issues
-2025-06-26 14:18:00.304	
+2025-06-27 14:24:47.767	
+"progress": [
+2025-06-27 14:24:47.767	
+[2025-06-27T21:24:47.767Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:24:47.767	
+[2025-06-27T21:24:47.767Z] [SyncWorker] ✅ Active scans progress: 1 {
+2025-06-27 14:24:27.728	
+[2025-06-27T21:24:27.728Z] [worker] [9B4x4CU9ED5] COMPLETED TLS scan: 3 TLS issues found
+2025-06-27 14:24:27.728	
+[2025-06-27T21:24:27.728Z] [tlsScan] Scan complete. Hosts: lodging-source.com, www.lodging-source.com. Findings: 3
+2025-06-27 14:24:27.728	
+[artifactStore] Inserted scan_summary artifact: TLS scan complete - 3 issue(s) found...
+2025-06-27 14:24:27.726	
+[artifactStore] Inserted finding MISSING_TLS_CERTIFICATE for artifact 3451
+2025-06-27 14:24:27.724	
+[artifactStore] Inserted tls_no_certificate artifact: lodging-source.com - no valid SSL/TLS certificate on any hos...
+2025-06-27 14:24:27.722	
+[artifactStore] Inserted finding TLS_CONFIGURATION_ISSUE for artifact 3450
+2025-06-27 14:24:27.720	
+[artifactStore] Inserted tls_configuration artifact: www.lodging-source.com - Incomplete SSL certificate chain (m...
+2025-06-27 14:24:27.698	
+[2025-06-27T21:24:27.696Z] [tlsScan] Converting "No SSL certificate" to "Incomplete certificate chain" based on Python validation
+2025-06-27 14:24:27.417	
+[2025-06-27T21:24:27.414Z] [tlsScan] Cross-validation complete for www.lodging-source.com: 0 additional findings
+2025-06-27 14:24:16.618	
+[2025-06-27T21:24:16.618Z] [tlsScan] Python validator: www.lodging-source.com - INVALID
+2025-06-27 14:24:16.353	
+[2025-06-27T21:24:16.353Z] [tlsScan] Scanning www.lodging-source.com with hybrid validation (sslscan + Python)...
+2025-06-27 14:24:16.353	
+[artifactStore] Inserted finding TLS_CONFIGURATION_ISSUE for artifact 3449
+2025-06-27 14:24:16.351	
+[artifactStore] Inserted tls_configuration artifact: lodging-source.com - Incomplete SSL certificate chain (missi...
+2025-06-27 14:24:16.349	
+[2025-06-27T21:24:16.349Z] [tlsScan] Converting "No SSL certificate" to "Incomplete certificate chain" based on Python validation
+2025-06-27 14:24:16.068	
+[2025-06-27T21:24:16.068Z] [tlsScan] Cross-validation complete for lodging-source.com: 0 additional findings
+2025-06-27 14:24:10.312	
+[2025-06-27T21:24:10.311Z] [documentExposure] Serper returned 19 results for query 2
+2025-06-27 14:24:09.096	
+[2025-06-27T21:24:09.095Z] [documentExposure] Serper API call 2: ""Lodging Source" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
+2025-06-27 14:24:07.594	
+[2025-06-27T21:24:07.593Z] [documentExposure] Serper returned 0 results for query 1
+2025-06-27 14:24:07.119	
+[2025-06-27T21:24:07.118Z] [documentExposure] Serper API call 1: "site:lodging-source.com (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
+2025-06-27 14:24:06.357	
+[2025-06-27T21:24:06.357Z] [worker] [9B4x4CU9ED5] COMPLETED Shodan infrastructure scan: 2 services found
+2025-06-27 14:24:06.357	
+[2025-06-27T21:24:06.357Z] [Shodan] Done — 2 rows persisted, 1 API calls used for 1 targets
+2025-06-27 14:24:06.357	
+[artifactStore] Inserted scan_summary artifact: Shodan scan: 2 items...
+2025-06-27 14:24:06.356	
+[artifactStore] Inserted finding EXPOSED_SERVICE for artifact 3447
+2025-06-27 14:24:06.349	
+[artifactStore] Inserted shodan_service artifact: 70.35.206.233:443 Apache httpd 2.4.62...
+2025-06-27 14:24:06.346	
+[2025-06-27T21:24:06.346Z] [Shodan] API call 1 - search query
+2025-06-27 14:24:05.626	
+[2025-06-27T21:24:05.626Z] [worker] [9B4x4CU9ED5] COMPLETED email security scan: 1 email issues found
+2025-06-27 14:24:05.626	
+[2025-06-27T21:24:05.625Z] [spfDmarc] Completed email security scan, found 1 issues
+2025-06-27 14:24:05.626	
 [artifactStore] Inserted bimi_missing artifact: BIMI record not found...
-2025-06-26 14:18:00.267	
-[2025-06-26T21:18:00.267Z] [spfDmarc] Checking for BIMI record...
-2025-06-26 14:18:00.267	
-[2025-06-26T21:18:00.267Z] [spfDmarc] Found DKIM record with selector: default
-2025-06-26 14:18:00.231	
-[2025-06-26T21:18:00.231Z] [spfDmarc] Probing for common DKIM selectors...
-2025-06-26 14:18:00.023	
-[2025-06-26T21:18:00.022Z] [spfDmarc] Performing recursive SPF check...
-2025-06-26 14:18:00.023	
-[artifactStore] Inserted finding EMAIL_SECURITY_WEAKNESS for artifact 3329
-2025-06-26 14:18:00.018	
+2025-06-27 14:24:05.598	
+[2025-06-27T21:24:05.598Z] [tlsScan] Python validator: lodging-source.com - INVALID
+2025-06-27 14:24:05.591	
+[2025-06-27T21:24:05.590Z] [spfDmarc] Checking for BIMI record...
+2025-06-27 14:24:05.590	
+[2025-06-27T21:24:05.589Z] [spfDmarc] Found DKIM record with selector: default
+2025-06-27 14:24:05.542	
+[2025-06-27T21:24:05.542Z] [spfDmarc] Probing for common DKIM selectors...
+2025-06-27 14:24:05.302	
+[2025-06-27T21:24:05.301Z] [spfDmarc] Performing recursive SPF check...
+2025-06-27 14:24:05.301	
+[artifactStore] Inserted finding EMAIL_SECURITY_WEAKNESS for artifact 3445
+2025-06-27 14:24:05.298	
 [artifactStore] Inserted dmarc_weak artifact: DMARC policy is not enforcing...
-2025-06-26 14:17:59.937	
-[2025-06-26T21:17:59.936Z] [tlsScan] Scanning lodging-source.com with hybrid validation (sslscan + Python)...
-2025-06-26 14:17:59.936	
+2025-06-27 14:24:05.181	
+[2025-06-27T21:24:05.180Z] [tlsScan] Scanning lodging-source.com with hybrid validation (sslscan + Python)...
+2025-06-27 14:24:05.178	
 
-2025-06-26 14:17:59.936	
+2025-06-27 14:24:05.178	
 OpenSSL 3.5.0 8 Apr 2025
-2025-06-26 14:17:59.935	
-[2025-06-26T21:17:59.935Z] [tlsScan] sslscan found: [1;34m		2.1.6
-2025-06-26 14:17:59.909	
-[2025-06-26T21:17:59.907Z] [worker] [1rmpDAqZOKl] STARTING TLS security scan for lodging-source.com
-2025-06-26 14:17:59.909	
-[2025-06-26T21:17:59.907Z] [worker] === Running module (Phase 2A): tls_scan ===
-2025-06-26 14:17:59.909	
-[2025-06-26T21:17:59.907Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.900	
-[2025-06-26T21:17:59.898Z] [spfDmarc] Checking DMARC record...
-2025-06-26 14:17:59.895	
-[2025-06-26T21:17:59.895Z] [spfDmarc] Starting email security scan for lodging-source.com
-2025-06-26 14:17:59.894	
-[2025-06-26T21:17:59.894Z] [worker] [1rmpDAqZOKl] STARTING SPF/DMARC email security scan for lodging-source.com
-2025-06-26 14:17:59.894	
-[2025-06-26T21:17:59.894Z] [worker] === Running module (Phase 2A): spf_dmarc ===
-2025-06-26 14:17:59.894	
-[2025-06-26T21:17:59.893Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.890	
-[2025-06-26T21:17:59.890Z] [dnstwist] WHOIS enrichment disabled (saves ~$0.30-0.75 per scan) - set ENABLE_WHOIS_ENRICHMENT=true to enable
-2025-06-26 14:17:59.890	
-[2025-06-26T21:17:59.890Z] [dnstwist] Starting typosquat scan for lodging-source.com
-2025-06-26 14:17:59.889	
-[2025-06-26T21:17:59.889Z] [worker] [1rmpDAqZOKl] STARTING DNS Twist scan for lodging-source.com
-2025-06-26 14:17:59.889	
-[2025-06-26T21:17:59.889Z] [worker] === Running module (Phase 2A): dns_twist ===
-2025-06-26 14:17:59.889	
-[2025-06-26T21:17:59.889Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.885	
-[2025-06-26T21:17:59.885Z] [documentExposure] Cost control: limiting to 10 search queries max
-2025-06-26 14:17:59.884	
-[2025-06-26T21:17:59.884Z] [worker] [1rmpDAqZOKl] STARTING document exposure scan for Lodging Source
-2025-06-26 14:17:59.884	
-[2025-06-26T21:17:59.884Z] [worker] === Running module (Phase 2A): document_exposure ===
-2025-06-26 14:17:59.884	
-[2025-06-26T21:17:59.884Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.833	
-[2025-06-26T21:17:59.833Z] [Shodan] Querying 1 targets (PAGE_LIMIT=10)
-2025-06-26 14:17:59.832	
-[2025-06-26T21:17:59.832Z] [worker] [1rmpDAqZOKl] COMPLETED Censys platform scan: 0 services found
-2025-06-26 14:17:59.832	
-[1rmpDAqZOKl] Censys scan skipped - CENSYS_PAT and CENSYS_ORG_ID not configured (saves ~$2-10 per scan)
-2025-06-26 14:17:59.832	
-[2025-06-26T21:17:59.832Z] [worker] [1rmpDAqZOKl] STARTING Censys platform scan for lodging-source.com
-2025-06-26 14:17:59.832	
-[2025-06-26T21:17:59.832Z] [worker] === Running module (Phase 2A): censys ===
-2025-06-26 14:17:59.832	
-[2025-06-26T21:17:59.831Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.831	
-[2025-06-26T21:17:59.831Z] [Shodan] Start scan for lodging-source.com
-2025-06-26 14:17:59.831	
-[2025-06-26T21:17:59.830Z] [worker] [1rmpDAqZOKl] STARTING Shodan scan for lodging-source.com
-2025-06-26 14:17:59.830	
-[2025-06-26T21:17:59.830Z] [worker] === Running module (Phase 2A): shodan ===
-2025-06-26 14:17:59.830	
-[2025-06-26T21:17:59.830Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:59.826	
-[2025-06-26T21:17:59.826Z] [worker] [1rmpDAqZOKl] COMPLETED SpiderFoot discovery: 7 targets found
-2025-06-26 14:17:59.826	
-[2025-06-26T21:17:59.825Z] [SpiderFoot] ✔️ Completed – 7 artifacts
-2025-06-26 14:17:59.826	
+2025-06-27 14:24:05.178	
+[2025-06-27T21:24:05.178Z] [tlsScan] sslscan found: [1;34m		2.1.6
+2025-06-27 14:24:05.169	
+[2025-06-27T21:24:05.169Z] [dnstwist] WHOIS enrichment disabled (saves ~$0.30-0.75 per scan) - set ENABLE_WHOIS_ENRICHMENT=true to enable
+2025-06-27 14:24:05.168	
+[2025-06-27T21:24:05.167Z] [dnstwist] Starting typosquat scan for lodging-source.com
+2025-06-27 14:24:05.167	
+[2025-06-27T21:24:05.166Z] [worker] [9B4x4CU9ED5] STARTING DNS Twist scan for lodging-source.com
+2025-06-27 14:24:05.167	
+[2025-06-27T21:24:05.166Z] [worker] === Running module (Phase 2A): dns_twist ===
+2025-06-27 14:24:05.166	
+[2025-06-27T21:24:05.166Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.163	
+[2025-06-27T21:24:05.163Z] [documentExposure] Cost control: limiting to 10 search queries max
+2025-06-27 14:24:05.163	
+[2025-06-27T21:24:05.162Z] [worker] [9B4x4CU9ED5] STARTING document exposure scan for Lodging Source
+2025-06-27 14:24:05.162	
+[2025-06-27T21:24:05.162Z] [worker] === Running module (Phase 2A): document_exposure ===
+2025-06-27 14:24:05.162	
+[2025-06-27T21:24:05.162Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.157	
+[2025-06-27T21:24:05.153Z] [spfDmarc] Checking DMARC record...
+2025-06-27 14:24:05.157	
+[2025-06-27T21:24:05.153Z] [spfDmarc] Starting email security scan for lodging-source.com
+2025-06-27 14:24:05.157	
+[2025-06-27T21:24:05.152Z] [worker] [9B4x4CU9ED5] STARTING SPF/DMARC email security scan for lodging-source.com
+2025-06-27 14:24:05.157	
+[2025-06-27T21:24:05.152Z] [worker] === Running module (Phase 2A): spf_dmarc ===
+2025-06-27 14:24:05.157	
+[2025-06-27T21:24:05.152Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.147	
+[2025-06-27T21:24:05.147Z] [worker] [9B4x4CU9ED5] STARTING TLS security scan for lodging-source.com
+2025-06-27 14:24:05.147	
+[2025-06-27T21:24:05.146Z] [worker] === Running module (Phase 2A): tls_scan ===
+2025-06-27 14:24:05.146	
+[2025-06-27T21:24:05.146Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.089	
+[2025-06-27T21:24:05.089Z] [Shodan] Querying 1 targets (PAGE_LIMIT=10)
+2025-06-27 14:24:05.089	
+[2025-06-27T21:24:05.089Z] [worker] [9B4x4CU9ED5] COMPLETED Censys platform scan: 0 services found
+2025-06-27 14:24:05.089	
+[9B4x4CU9ED5] Censys scan skipped - CENSYS_PAT and CENSYS_ORG_ID not configured (saves ~$2-10 per scan)
+2025-06-27 14:24:05.088	
+[2025-06-27T21:24:05.088Z] [worker] [9B4x4CU9ED5] STARTING Censys platform scan for lodging-source.com
+2025-06-27 14:24:05.088	
+[2025-06-27T21:24:05.088Z] [worker] === Running module (Phase 2A): censys ===
+2025-06-27 14:24:05.088	
+[2025-06-27T21:24:05.088Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.087	
+[2025-06-27T21:24:05.087Z] [Shodan] Start scan for lodging-source.com
+2025-06-27 14:24:05.087	
+[2025-06-27T21:24:05.086Z] [worker] [9B4x4CU9ED5] STARTING Shodan scan for lodging-source.com
+2025-06-27 14:24:05.087	
+[2025-06-27T21:24:05.086Z] [worker] === Running module (Phase 2A): shodan ===
+2025-06-27 14:24:05.086	
+[2025-06-27T21:24:05.086Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:24:05.081	
+[2025-06-27T21:24:05.081Z] [worker] [9B4x4CU9ED5] COMPLETED SpiderFoot discovery: 7 targets found
+2025-06-27 14:24:05.081	
+[2025-06-27T21:24:05.081Z] [SpiderFoot] ✔️ Completed – 7 artifacts
+2025-06-27 14:24:05.081	
 [artifactStore] Inserted scan_summary artifact: SpiderFoot scan completed: 7 artifacts...
-2025-06-26 14:17:59.824	
-[artifactStore] Inserted intel artifact: support@lodging-source.com...
-2025-06-26 14:17:59.823	
+2025-06-27 14:24:05.080	
 [artifactStore] Inserted intel artifact: GoDaddy.com, LLC...
-2025-06-26 14:17:59.821	
+2025-06-27 14:24:05.078	
 Registry Domain ID: 1...
-2025-06-26 14:17:59.821	
+2025-06-27 14:24:05.078	
 [artifactStore] Inserted intel artifact:    Domain Name: LODGING-SOURCE.COM
-2025-06-26 14:17:59.819	
+2025-06-27 14:24:05.077	
+[artifactStore] Inserted intel artifact: lodging-source.com...
+2025-06-27 14:24:05.075	
 [artifactStore] Inserted intel artifact: 74.208.42.246...
-2025-06-26 14:17:59.818	
+2025-06-27 14:24:05.074	
+[artifactStore] Inserted intel artifact: support@lodging-source.com...
+2025-06-27 14:24:05.072	
 [artifactStore] Inserted intel artifact: lodging-source.com...
-2025-06-26 14:17:59.816	
+2025-06-27 14:24:05.071	
 [artifactStore] Inserted intel artifact: lodging-source.com...
-2025-06-26 14:17:59.815	
-[artifactStore] Inserted intel artifact: lodging-source.com...
-2025-06-26 14:17:59.812	
-[2025-06-26T21:17:59.812Z] [SpiderFoot] Raw output size: 8032 bytes
-2025-06-26 14:17:53.629	
-[2025-06-26T21:17:53.629Z] [worker] [1rmpDAqZOKl] COMPLETED Breach Directory probe: 2 breach findings
-2025-06-26 14:17:53.629	
-[2025-06-26T21:17:53.629Z] [breachDirectoryProbe] Breach probe completed: 2 findings in 2013ms
-2025-06-26 14:17:53.629	
-[artifactStore] Inserted finding MULTIPLE_BREACH_SOURCES for artifact 3320
-2025-06-26 14:17:53.628	
-[artifactStore] Inserted finding DOMAIN_BREACH_COUNT for artifact 3320
-2025-06-26 14:17:53.624	
+2025-06-27 14:24:05.068	
+[2025-06-27T21:24:05.068Z] [SpiderFoot] Raw output size: 8032 bytes
+2025-06-27 14:23:58.783	
+[2025-06-27T21:23:58.783Z] [worker] [9B4x4CU9ED5] COMPLETED Breach Directory probe: 5 breach findings
+2025-06-27 14:23:58.783	
+[2025-06-27T21:23:58.782Z] [breachDirectoryProbe] Breach probe completed: 5 findings in 1827ms
+2025-06-27 14:23:58.783	
+[artifactStore] Inserted finding MULTIPLE_BREACH_SOURCES for artifact 3436
+2025-06-27 14:23:58.781	
+[artifactStore] Inserted finding BREACH_SUMMARY for artifact 3436
+2025-06-27 14:23:58.778	
+[artifactStore] Inserted finding EMAIL_EXPOSURE for artifact 3436
+2025-06-27 14:23:58.776	
+[artifactStore] Inserted finding PASSWORD_EXPOSURE for artifact 3436
+2025-06-27 14:23:58.773	
+[artifactStore] Inserted finding INFOSTEALER_COMPROMISE for artifact 3436
+2025-06-27 14:23:58.767	
 [artifactStore] Inserted breach_directory_summary artifact: Breach probe: 63 total breached accounts (BD: 0, LC: 63) for...
-2025-06-26 14:17:53.618	
-[2025-06-26T21:17:53.618Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=63, Total=63
-2025-06-26 14:17:53.615	
-[2025-06-26T21:17:53.615Z] [breachDirectoryProbe] LeakCheck response for lodging-source.com: 63 breached accounts, quota remaining: 999999
-2025-06-26 14:17:52.855	
-[2025-06-26T21:17:52.853Z] [breachDirectoryProbe] Querying LeakCheck for domain: lodging-source.com
-2025-06-26 14:17:52.501	
-[2025-06-26T21:17:52.501Z] [breachDirectoryProbe] Breach Directory response for lodging-source.com: 0 breached accounts
-2025-06-26 14:17:51.618	
-[2025-06-26T21:17:51.618Z] [breachDirectoryProbe] Querying Breach Directory for domain: lodging-source.com
-2025-06-26 14:17:51.617	
-[2025-06-26T21:17:51.616Z] [breachDirectoryProbe] Starting comprehensive breach probe for domain="lodging-source.com" (BreachDirectory + LeakCheck)
-2025-06-26 14:17:51.616	
-[2025-06-26T21:17:51.616Z] [worker] [1rmpDAqZOKl] STARTING Breach Directory intelligence probe for lodging-source.com
-2025-06-26 14:17:51.616	
-[2025-06-26T21:17:51.616Z] [worker] === Running module (Phase 1): breach_directory_probe ===
-2025-06-26 14:17:51.615	
-[2025-06-26T21:17:51.614Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:51.600	
-[2025-06-26T21:17:51.600Z] [SpiderFoot] Command: python3 /opt/spiderfoot/sf.py -q -s lodging-source.com -m sfp_crtsh,sfp_sublist3r,sfp_chaos,sfp_r7_dns,sfp_haveibeenpwnd,sfp_psbdmp,sfp_skymem,sfp_sslcert,sfp_nuclei,sfp_whois,sfp_dnsresolve -o json
-2025-06-26 14:17:51.598	
-[2025-06-26T21:17:51.598Z] [SpiderFoot] API keys: HIBP ✅, Chaos ✅ (Shodan/Censys handled by dedicated modules)
-2025-06-26 14:17:51.595	
-[2025-06-26T21:17:51.595Z] [SpiderFoot] Starting scan for lodging-source.com (scanId=1rmpDAqZOKl)
-2025-06-26 14:17:51.594	
-[2025-06-26T21:17:51.594Z] [worker] [1rmpDAqZOKl] STARTING SpiderFoot discovery for lodging-source.com
-2025-06-26 14:17:51.594	
-[2025-06-26T21:17:51.594Z] [worker] === Running module (Phase 1): spiderfoot ===
-2025-06-26 14:17:51.594	
-[2025-06-26T21:17:51.594Z] [worker] [updateScanMasterStatus] Updated scan 1rmpDAqZOKl with: status, current_module, progress
-2025-06-26 14:17:51.583	
-[queue] Updated job 1rmpDAqZOKl status: processing - Comprehensive security discovery in progress...
-2025-06-26 14:17:51.430	
-[2025-06-26T21:17:51.427Z] [worker] Processing comprehensive security scan for Lodging Source (lodging-source.com)
-2025-06-26 14:17:51.430	
-[2025-06-26T21:17:51.427Z] [worker] ✅ JOB PICKED UP: Processing scan job 1rmpDAqZOKl for Lodging Source (lodging-source.com)
-2025-06-26 14:17:51.430	
-[2025-06-26T21:17:51.426Z] [worker] Processing scan job: 1rmpDAqZOKl
-2025-06-26 14:17:51.430	
+2025-06-27 14:23:58.761	
+[2025-06-27T21:23:58.760Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=63, Total=63
+2025-06-27 14:23:58.757	
+[2025-06-27T21:23:58.755Z] [breachDirectoryProbe] LeakCheck response for lodging-source.com: 63 breached accounts, quota remaining: 999999
+2025-06-27 14:23:58.043	
+[2025-06-27T21:23:58.042Z] [breachDirectoryProbe] Querying LeakCheck for domain: lodging-source.com
+2025-06-27 14:23:57.690	
+[2025-06-27T21:23:57.690Z] [breachDirectoryProbe] Breach Directory response for lodging-source.com: 0 breached accounts
+2025-06-27 14:23:56.958	
+[2025-06-27T21:23:56.955Z] [breachDirectoryProbe] Querying Breach Directory for domain: lodging-source.com
+2025-06-27 14:23:56.958	
+[2025-06-27T21:23:56.955Z] [breachDirectoryProbe] Starting comprehensive breach probe for domain="lodging-source.com" (BreachDirectory + LeakCheck)
+2025-06-27 14:23:56.958	
+[2025-06-27T21:23:56.954Z] [worker] [9B4x4CU9ED5] STARTING Breach Directory intelligence probe for lodging-source.com
+2025-06-27 14:23:56.958	
+[2025-06-27T21:23:56.954Z] [worker] === Running module (Phase 1): breach_directory_probe ===
+2025-06-27 14:23:56.953	
+[2025-06-27T21:23:56.953Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:23:56.916	
+[2025-06-27T21:23:56.915Z] [SpiderFoot] Command: python3 /opt/spiderfoot/sf.py -q -s lodging-source.com -m sfp_crtsh,sfp_sublist3r,sfp_chaos,sfp_r7_dns,sfp_haveibeenpwnd,sfp_psbdmp,sfp_skymem,sfp_sslcert,sfp_nuclei,sfp_whois,sfp_dnsresolve -o json
+2025-06-27 14:23:56.914	
+[2025-06-27T21:23:56.914Z] [SpiderFoot] API keys: HIBP ✅, Chaos ✅ (Shodan/Censys handled by dedicated modules)
+2025-06-27 14:23:56.911	
+[2025-06-27T21:23:56.911Z] [SpiderFoot] Starting scan for lodging-source.com (scanId=9B4x4CU9ED5)
+2025-06-27 14:23:56.911	
+[2025-06-27T21:23:56.910Z] [worker] [9B4x4CU9ED5] STARTING SpiderFoot discovery for lodging-source.com
+2025-06-27 14:23:56.911	
+[2025-06-27T21:23:56.910Z] [worker] === Running module (Phase 1): spiderfoot ===
+2025-06-27 14:23:56.910	
+[2025-06-27T21:23:56.910Z] [worker] [updateScanMasterStatus] Updated scan 9B4x4CU9ED5 with: status, current_module, progress
+2025-06-27 14:23:56.904	
+[queue] Updated job 9B4x4CU9ED5 status: processing - Comprehensive security discovery in progress...
+2025-06-27 14:23:56.747	
+[2025-06-27T21:23:56.746Z] [worker] Processing comprehensive security scan for Lodging Source (lodging-source.com)
+2025-06-27 14:23:56.747	
+[2025-06-27T21:23:56.746Z] [worker] ✅ JOB PICKED UP: Processing scan job 9B4x4CU9ED5 for Lodging Source (lodging-source.com)
+2025-06-27 14:23:56.747	
+[2025-06-27T21:23:56.745Z] [worker] Processing scan job: 9B4x4CU9ED5
+2025-06-27 14:23:56.747	
 }
-2025-06-26 14:17:51.430	
-createdAt: '2025-06-26T21:17:48.575Z'
-2025-06-26 14:17:51.430	
+2025-06-27 14:23:56.747	
+createdAt: '2025-06-27T21:23:55.297Z'
+2025-06-27 14:23:56.747	
+originalDomain: 'lodging-source.com',
+2025-06-27 14:23:56.747	
 domain: 'lodging-source.com',
-2025-06-26 14:17:51.430	
+2025-06-27 14:23:56.747	
 companyName: 'Lodging Source',
-2025-06-26 14:17:51.430	
-id: '1rmpDAqZOKl',
-2025-06-26 14:17:51.430	
+2025-06-27 14:23:56.747	
+id: '9B4x4CU9ED5',
+2025-06-27 14:23:56.747	
 [queue] Parsed job: {
-2025-06-26 14:17:51.430	
-[queue] Job string to parse: {"id":"1rmpDAqZOKl","companyName":"Lodging Source","domain":"lodging-source.com","createdAt":"2025-06-26T21:17:48.575Z"}
-2025-06-26 14:17:51.426	
+2025-06-27 14:23:56.747	
+[queue] Job string to parse: {"id":"9B4x4CU9ED5","companyName":"Lodging Source","domain":"lodging-source.com","originalDomain":"lodging-source.com","createdAt":"2025-06-27T21:23:55.297Z"}
+2025-06-27 14:23:56.747	
 } Type: object
-2025-06-26 14:17:51.426	
-createdAt: '2025-06-26T21:17:48.575Z'
-2025-06-26 14:17:51.426	
+2025-06-27 14:23:56.747	
+createdAt: '2025-06-27T21:23:55.297Z'
+2025-06-27 14:23:56.747	
+originalDomain: 'lodging-source.com',
+2025-06-27 14:23:56.747	
 domain: 'lodging-source.com',
-2025-06-26 14:17:51.426	
+2025-06-27 14:23:56.747	
 companyName: 'Lodging Source',
-2025-06-26 14:17:51.426	
-id: '1rmpDAqZOKl',
-2025-06-26 14:17:51.426	
+2025-06-27 14:23:56.747	
+id: '9B4x4CU9ED5',
+2025-06-27 14:23:56.747	
 [queue] Raw job data from Redis: {
-2025-06-26 14:17:49.341	
+2025-06-27 14:23:56.142	
 {
   "level": 30,
-  "time": 1750972669341,
-  "pid": 659,
+  "time": 1751059436142,
+  "pid": 658,
   "hostname": "148e21dae24d98",
   "reqId": "req-1",
   "res": {
     "statusCode": 200
   },
-  "responseTime": 771.289982999675,
+  "responseTime": 849.6702070000028,
   "msg": "request completed"
 }
-2025-06-26 14:17:49.338	
-[2025-06-26T21:17:49.337Z] [api] ✅ Successfully created scan job 1rmpDAqZOKl for Lodging Source
-2025-06-26 14:17:49.338	
-[queue] enqueued 1rmpDAqZOKl
-2025-06-26 14:17:48.656	
+2025-06-27 14:23:56.139	
+[2025-06-27T21:23:56.139Z] [api] ✅ Successfully created scan job 9B4x4CU9ED5 for Lodging Source
+2025-06-27 14:23:56.139	
+[queue] enqueued 9B4x4CU9ED5
+2025-06-27 14:23:55.389	
 (Use `node --trace-warnings ...` to show where the warning was created)
-2025-06-26 14:17:48.656	
-(node:659) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
-2025-06-26 14:17:48.575	
-[2025-06-26T21:17:48.575Z] [api] Attempting to create scan job 1rmpDAqZOKl for Lodging Source (lodging-source.com)
-2025-06-26 14:17:48.570	
+2025-06-27 14:23:55.389	
+(node:658) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-06-27 14:23:55.298	
+[2025-06-27T21:23:55.297Z] [api] Attempting to create scan job 9B4x4CU9ED5 for Lodging Source (lodging-source.com) [original: lodging-source.com]
+2025-06-27 14:23:55.292	
 {
   "level": 30,
-  "time": 1750972668569,
-  "pid": 659,
+  "time": 1751059435292,
+  "pid": 658,
   "hostname": "148e21dae24d98",
   "reqId": "req-1",
   "req": {
@@ -909,7 +973,509 @@ id: '1rmpDAqZOKl',
     "url": "/scans",
     "host": "dealbrief-scanner.fly.dev",
     "remoteAddress": "172.16.19.26",
-    "remotePort": 47030
+    "remotePort": 50410
   },
   "msg": "incoming request"
 }
+2025-06-27 14:22:52.373	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-06-27 14:22:52.373	
+(node:660) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-06-27 14:22:52.314	
+[2025-06-27T21:22:52.314Z] [worker] No incomplete scans found to clean up
+2025-06-27 14:22:52.311	
+[2025-06-27T21:22:52.311Z] [worker] Database and scans_master table initialized successfully
+2025-06-27 14:22:52.309	
+[artifactStore] Database initialized successfully
+2025-06-27 14:22:52.309	
+]
+2025-06-27 14:22:52.309	
+'created_at(timestamp without time zone)'
+2025-06-27 14:22:52.309	
+'description(text)',
+2025-06-27 14:22:52.309	
+'recommendation(text)',
+2025-06-27 14:22:52.309	
+'finding_type(character varying)',
+2025-06-27 14:22:52.309	
+'artifact_id(integer)',
+2025-06-27 14:22:52.309	
+'id(integer)',
+2025-06-27 14:22:52.309	
+[artifactStore] findings columns: [
+2025-06-27 14:22:52.309	
+]
+2025-06-27 14:22:52.309	
+'created_at(timestamp without time zone)'
+2025-06-27 14:22:52.309	
+'meta(jsonb)',
+2025-06-27 14:22:52.309	
+'mime(character varying)',
+2025-06-27 14:22:52.309	
+'sha256(character varying)',
+2025-06-27 14:22:52.309	
+'src_url(text)',
+2025-06-27 14:22:52.309	
+'severity(character varying)',
+2025-06-27 14:22:52.309	
+'val_text(text)',
+2025-06-27 14:22:52.309	
+'type(character varying)',
+2025-06-27 14:22:52.309	
+'id(integer)',
+2025-06-27 14:22:52.309	
+[artifactStore] artifacts columns: [
+2025-06-27 14:22:52.308	
+]
+2025-06-27 14:22:52.308	
+'total_artifacts_count(integer)'
+2025-06-27 14:22:52.308	
+'completed_at(timestamp with time zone)',
+2025-06-27 14:22:52.308	
+'updated_at(timestamp with time zone)',
+2025-06-27 14:22:52.308	
+'created_at(timestamp with time zone)',
+2025-06-27 14:22:52.308	
+'max_severity(character varying)',
+2025-06-27 14:22:52.308	
+'total_findings_count(integer)',
+2025-06-27 14:22:52.308	
+'error_message(text)',
+2025-06-27 14:22:52.308	
+'total_modules(integer)',
+2025-06-27 14:22:52.308	
+'current_module(character varying)',
+2025-06-27 14:22:52.308	
+'progress(integer)',
+2025-06-27 14:22:52.308	
+'status(character varying)',
+2025-06-27 14:22:52.308	
+'domain(character varying)',
+2025-06-27 14:22:52.308	
+'company_name(character varying)',
+2025-06-27 14:22:52.308	
+'scan_id(character varying)',
+2025-06-27 14:22:52.308	
+[artifactStore] scans_master columns: [
+2025-06-27 14:22:52.308	
+[artifactStore] Current database schema:
+2025-06-27 14:22:52.290	
+[artifactStore] ✅ Successfully processed total_artifacts_count column check
+2025-06-27 14:22:52.277	
+[artifactStore] Attempting to ensure scans_master.total_artifacts_count column exists...
+2025-06-27 14:22:52.220	
+[2025-06-27T21:22:52.219Z] [worker] Starting security scanning worker [286565eb5406d8]
+2025-06-27 14:22:50.945	
+Warning: Please use the `legacy` build in Node.js environments.
+2025-06-27 14:22:49.875	
+{
+  "level": 30,
+  "time": 1751059369869,
+  "pid": 658,
+  "hostname": "148e21dae24d98",
+  "msg": "Server listening at http://172.19.19.27:3000"
+}
+2025-06-27 14:22:49.875	
+{
+  "level": 30,
+  "time": 1751059369869,
+  "pid": 658,
+  "hostname": "148e21dae24d98",
+  "msg": "Server listening at http://172.19.19.26:3000"
+}
+2025-06-27 14:22:49.875	
+{
+  "level": 30,
+  "time": 1751059369869,
+  "pid": 658,
+  "hostname": "148e21dae24d98",
+  "msg": "Server listening at http://127.0.0.1:3000"
+}
+2025-06-27 14:22:49.874	
+[2025-06-27T21:22:49.869Z] [api] Server listening on port 3000
+2025-06-27 14:22:49.855	
+{
+  "level": 40,
+  "time": 1751059369854,
+  "pid": 658,
+  "hostname": "148e21dae24d98",
+  "msg": "\"root\" path \"/app/apps/public\" must exist"
+}
+2025-06-27 14:22:47.335	
+[2025-06-27T21:22:47.335Z] [SyncWorker] ✅ Sync Worker started - monitoring for module completions and findings
+2025-06-27 14:22:47.149	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-06-27 14:22:47.149	
+(node:649) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-06-27 14:22:46.621	
+> node dist/sync.js
+2025-06-27 14:22:46.621	
+> sync-worker@1.0.0 start
+2025-06-27 14:22:45.533	
+2025/06/27 21:22:45 INFO SSH listening listen_address=[fdaa:16:4003:a7b:2dbb:1ab8:7fa2:2]:22
+2025-06-27 14:22:45.328	
+Machine created and started in 4.599s
+2025-06-27 14:22:45.265	
+ INFO [fly api proxy] listening at /.fly/api
+2025-06-27 14:22:45.252	
+ INFO Preparing to run: `docker-entrypoint.sh npx tsx apps/api-main/server.ts` as root
+2025-06-27 14:22:45.152	
+ INFO Starting init (commit: d0572327e)...
+2025-06-27 14:22:45.133	
+2025/06/27 21:22:45 INFO SSH listening listen_address=[fdaa:16:4003:a7b:f9:7dfe:6c4c:2]:22
+2025-06-27 14:22:44.860	
+Machine created and started in 4.194s
+2025-06-27 14:22:44.847	
+ INFO [fly api proxy] listening at /.fly/api
+2025-06-27 14:22:44.836	
+ INFO Preparing to run: `docker-entrypoint.sh npx tsx apps/workers/worker.ts` as root
+2025-06-27 14:22:44.744	
+ INFO Starting init (commit: d0572327e)...
+2025-06-27 14:22:44.673	
+2025/06/27 21:22:44 INFO SSH listening listen_address=[fdaa:16:4003:a7b:2d30:c80:6e46:2]:22
+2025-06-27 14:22:44.439	
+Machine created and started in 3.767s
+2025-06-27 14:22:44.433	
+ INFO [fly api proxy] listening at /.fly/api
+2025-06-27 14:22:44.424	
+ INFO Preparing to run: `docker-entrypoint.sh npm run start --prefix apps/sync-worker` as root
+2025-06-27 14:22:44.330	
+ INFO Starting init (commit: d0572327e)...
+2025-06-27 14:22:44.286	
+2025-06-27T21:22:44.286633257 [01JYSMATVGGKA64B3RZRA654RT:main] Running Firecracker v1.7.0
+2025-06-27 14:22:43.845	
+2025-06-27T21:22:43.845722998 [01JYSMATWARPPVMGR480STMMDT:main] Running Firecracker v1.7.0
+2025-06-27 14:22:43.769	
+[ 8862.330927] reboot: Restarting system
+2025-06-27 14:22:43.768	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-06-27 14:22:43.766	
+ INFO Starting clean up.
+2025-06-27 14:22:43.749	
+ INFO Main child exited normally with code: 130
+2025-06-27 14:22:43.542	
+2025-06-27T21:22:43.542658200 [01JYSMATWCZZPD4JGQ6597NAMK:main] Running Firecracker v1.7.0
+2025-06-27 14:22:43.259	
+[ 8863.229888] reboot: Restarting system
+2025-06-27 14:22:43.258	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-06-27 14:22:43.257	
+ INFO Starting clean up.
+2025-06-27 14:22:43.241	
+ INFO Main child exited normally with code: 0
+2025-06-27 14:22:43.214	
+ INFO Sending signal SIGINT to main child process w/ PID 630
+2025-06-27 14:22:43.195	
+Configuring firecracker
+2025-06-27 14:22:42.673	
+ INFO Sending signal SIGINT to main child process w/ PID 631
+2025-06-27 14:22:42.671	
+[2025-06-27T21:22:42.671Z] [SyncWorker] ✅ Sync Worker shutting down
+2025-06-27 14:22:42.661	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411 (1.924260771s)
+2025-06-27 14:22:42.656	
+[ 8861.702865] reboot: Restarting system
+2025-06-27 14:22:42.655	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-06-27 14:22:42.654	
+Configuring firecracker
+2025-06-27 14:22:42.651	
+ INFO Starting clean up.
+2025-06-27 14:22:42.634	
+ WARN Reaped child process with pid: 786 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.633	
+ WARN Reaped child process with pid: 759 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.632	
+ WARN Reaped child process with pid: 758 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.631	
+ WARN Reaped child process with pid: 746 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.630	
+ WARN Reaped child process with pid: 810 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.629	
+ WARN Reaped child process with pid: 792 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.628	
+ WARN Reaped child process with pid: 862 and signal: SIGKILL, core dumped? false
+2025-06-27 14:22:42.627	
+ INFO Main child exited normally with code: 130
+2025-06-27 14:22:42.500	
+[2025-06-27T21:22:42.498Z] [worker] Received SIGINT, initiating graceful shutdown...
+2025-06-27 14:22:42.465	
+ INFO Sending signal SIGINT to main child process w/ PID 629
+2025-06-27 14:22:42.450	
+Configuring firecracker
+2025-06-27 14:22:42.138	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411 (1.452536056s)
+2025-06-27 14:22:42.090	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411 (1.384053316s)
+2025-06-27 14:22:40.736	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411
+2025-06-27 14:22:40.705	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411
+2025-06-27 14:22:40.685	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:7a5390b3883a95b56094cb6b37afc7a72e57cf54a39dd8605f177f643e892411
+2025-06-27 14:22:07.908	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:22:07.908	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:22:07.908	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:22:07.908	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:22:07.908	
+error: relation "scan_status" does not exist
+2025-06-27 14:22:07.908	
+[2025-06-27T21:22:07.908Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:22:07.907	
+[2025-06-27T21:22:07.907Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:21:07.827	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:21:07.827	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:21:07.827	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:21:07.827	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:21:07.827	
+error: relation "scan_status" does not exist
+2025-06-27 14:21:07.827	
+[2025-06-27T21:21:07.827Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:21:07.826	
+[2025-06-27T21:21:07.825Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:20:08.057	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:20:08.057	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:20:08.057	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:20:08.057	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:20:08.057	
+error: relation "scan_status" does not exist
+2025-06-27 14:20:08.057	
+[2025-06-27T21:20:08.057Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:20:08.056	
+[2025-06-27T21:20:08.055Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:19:07.780	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:19:07.780	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:19:07.780	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:19:07.780	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:19:07.780	
+error: relation "scan_status" does not exist
+2025-06-27 14:19:07.780	
+[2025-06-27T21:19:07.780Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:19:07.779	
+[2025-06-27T21:19:07.779Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:18:07.824	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:18:07.824	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:18:07.824	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:18:07.824	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:18:07.824	
+error: relation "scan_status" does not exist
+2025-06-27 14:18:07.823	
+[2025-06-27T21:18:07.823Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:18:07.819	
+[2025-06-27T21:18:07.818Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:17:07.758	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:17:07.758	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:17:07.758	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:17:07.758	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:17:07.758	
+error: relation "scan_status" does not exist
+2025-06-27 14:17:07.758	
+[2025-06-27T21:17:07.758Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:17:07.757	
+[2025-06-27T21:17:07.756Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:16:07.699	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:16:07.699	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:16:07.699	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:16:07.699	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:16:07.699	
+error: relation "scan_status" does not exist
+2025-06-27 14:16:07.699	
+[2025-06-27T21:16:07.699Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:16:07.698	
+[2025-06-27T21:16:07.697Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:15:07.592	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:15:07.592	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:15:07.592	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:15:07.592	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:15:07.592	
+error: relation "scan_status" does not exist
+2025-06-27 14:15:07.591	
+[2025-06-27T21:15:07.591Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:15:07.589	
+[2025-06-27T21:15:07.589Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:14:07.613	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:14:07.613	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:14:07.613	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:14:07.613	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:14:07.613	
+error: relation "scan_status" does not exist
+2025-06-27 14:14:07.613	
+[2025-06-27T21:14:07.613Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:14:07.612	
+[2025-06-27T21:14:07.611Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:13:07.628	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:13:07.628	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:13:07.628	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:13:07.628	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:13:07.628	
+error: relation "scan_status" does not exist
+2025-06-27 14:13:07.628	
+[2025-06-27T21:13:07.628Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:13:07.627	
+[2025-06-27T21:13:07.626Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:12:07.783	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:12:07.783	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:12:07.783	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:12:07.783	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:12:07.783	
+error: relation "scan_status" does not exist
+2025-06-27 14:12:07.783	
+[2025-06-27T21:12:07.783Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:12:07.782	
+[2025-06-27T21:12:07.781Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:11:07.683	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:11:07.683	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:11:07.683	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:11:07.683	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:11:07.683	
+error: relation "scan_status" does not exist
+2025-06-27 14:11:07.682	
+[2025-06-27T21:11:07.682Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:11:07.681	
+[2025-06-27T21:11:07.680Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:10:07.587	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:10:07.587	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:10:07.587	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:10:07.587	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:10:07.587	
+error: relation "scan_status" does not exist
+2025-06-27 14:10:07.587	
+[2025-06-27T21:10:07.586Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:10:07.585	
+[2025-06-27T21:10:07.585Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:09:07.752	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:09:07.752	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:09:07.752	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:09:07.752	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:09:07.752	
+error: relation "scan_status" does not exist
+2025-06-27 14:09:07.752	
+[2025-06-27T21:09:07.752Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:09:07.751	
+[2025-06-27T21:09:07.750Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:08:07.566	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:08:07.566	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:08:07.566	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:08:07.566	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:08:07.566	
+error: relation "scan_status" does not exist
+2025-06-27 14:08:07.566	
+[2025-06-27T21:08:07.566Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:08:07.564	
+[2025-06-27T21:08:07.564Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:07:07.647	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:07:07.647	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:07:07.647	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:07:07.647	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:07:07.647	
+error: relation "scan_status" does not exist
+2025-06-27 14:07:07.646	
+[2025-06-27T21:07:07.646Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:07:07.645	
+[2025-06-27T21:07:07.645Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:06:07.509	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:06:07.509	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:06:07.509	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:06:07.509	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:06:07.509	
+error: relation "scan_status" does not exist
+2025-06-27 14:06:07.509	
+[2025-06-27T21:06:07.509Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:06:07.508	
+[2025-06-27T21:06:07.507Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:05:07.513	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:05:07.513	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:05:07.513	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:05:07.513	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:05:07.513	
+error: relation "scan_status" does not exist
+2025-06-27 14:05:07.513	
+[2025-06-27T21:05:07.513Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:05:07.512	
+[2025-06-27T21:05:07.511Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
+2025-06-27 14:04:07.366	
+at async Timeout.runSyncCycle [as _onTimeout] (file:///app/apps/sync-worker/dist/sync.js:463:5)
+2025-06-27 14:04:07.366	
+at async syncScanTotalsAutomated (file:///app/apps/sync-worker/dist/sync.js:331:33)
+2025-06-27 14:04:07.366	
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2025-06-27 14:04:07.366	
+at /app/node_modules/.pnpm/pg-pool@3.10.0_pg@8.16.0/node_modules/pg-pool/index.js:45:11
+2025-06-27 14:04:07.366	
+error: relation "scan_status" does not exist
+2025-06-27 14:04:07.366	
+[2025-06-27T21:04:07.366Z] [SyncWorker] ERROR: Error in syncScanTotalsAutomated relation "scan_status" does not exist
+2025-06-27 14:04:07.365	
+[2025-06-27T21:04:07.364Z] [SyncWorker] ERROR: Error inserting compromised credentials to Supabase invalid input syntax for type date: "2019-01"
