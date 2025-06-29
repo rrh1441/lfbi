@@ -185,7 +185,6 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             jsonl: true,
             silent: true,
             timeout: 15,
-            systemChrome: true,
             headless: true,
             insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
         });

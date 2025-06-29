@@ -855,7 +855,6 @@ async function runNucleiCVETests(
       silent: true,
       timeout: 20,
       retries: 1,
-      systemChrome: true,
       headless: true,
       insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
     });

@@ -16,7 +16,7 @@ DEFAULT_RETRIES="2"
 DEFAULT_CONCURRENCY="6"
 
 # Base flags applied to every Nuclei execution for consistency
-BASE_FLAGS=("-system-chrome" "-headless" "-insecure" "-silent" "-jsonl")
+BASE_FLAGS=("-headless" "-insecure" "-silent" "-jsonl")
 
 # ──────────────────────── Helper Functions ──────────────────────────────────────
 usage() {
@@ -38,7 +38,6 @@ OPTIONS:
     --timeout N                 Request timeout in seconds (default: $DEFAULT_TIMEOUT)
     --retries N                 Number of retries (default: $DEFAULT_RETRIES)
     --headless                 Enable headless browser mode
-    --system-chrome            Use system Chrome browser
     --insecure                 Accept invalid SSL certificates
     --follow-redirects         Follow HTTP redirects
     --max-redirects N          Maximum redirects to follow
@@ -53,13 +52,13 @@ OPTIONS:
 
 EXAMPLES:
     $0 -u https://example.com -tags tech,misconfiguration -j -s
-    $0 -l targets.txt -t cves/ -o results.json -j --headless --system-chrome
+    $0 -l targets.txt -t cves/ -o results.json -j --headless
     $0 -u https://example.com -t network/rdp-detect.yaml --insecure -v
 
 NOTES:
     - Uses JSONL format (-jsonl) for v3.4.5 compatibility
     - Replaces deprecated -disable-ssl-verification with -insecure
-    - System Chrome integration via -system-chrome flag
+    - System Chrome integration via NUCLEI_PREFERRED_CHROME_PATH env var
     - All flags validated for v3.4.5 compatibility
     - Base flags automatically applied: ${BASE_FLAGS[*]}
 EOF
@@ -135,10 +134,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --headless)
             # Headless is already in BASE_FLAGS, but allow explicit specification
-            shift
-            ;;
-        --system-chrome)
-            # System chrome is already in BASE_FLAGS, but allow explicit specification
             shift
             ;;
         --insecure)

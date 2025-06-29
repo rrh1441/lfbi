@@ -13,7 +13,7 @@ import { log as rootLog } from '../core/logger.js';
 const execFileAsync = promisify(execFile);
 
 // Base flags applied to every Nuclei execution for consistency
-export const NUCLEI_BASE_FLAGS = ['-system-chrome', '-headless', '-insecure', '-silent', '-jsonl'];
+export const NUCLEI_BASE_FLAGS = ['-headless', '-insecure', '-silent', '-jsonl'];
 
 interface NucleiOptions {
   // Target specification
@@ -37,7 +37,6 @@ interface NucleiOptions {
   
   // Browser options
   headless?: boolean;
-  systemChrome?: boolean;
   
   // Security options
   insecure?: boolean;
