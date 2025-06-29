@@ -10,9 +10,9 @@ which run_nuclei || echo "❌ run_nuclei not found"
 
 # Test 2: Smoke test with pass-through wrapper
 echo "Test 2: Smoke test with simplified wrapper..."
-echo "Running: run_nuclei -headless -silent -jsonl -insecure -u https://projectdiscovery.io -tags tech -timeout 10"
+echo "Running: run_nuclei -system-chrome -headless -silent -jsonl -u https://projectdiscovery.io -tags tech -timeout 10"
 
-run_nuclei -headless -silent -jsonl -insecure -u https://projectdiscovery.io -tags tech -timeout 10 && echo "✅ SUCCESS: Exit code 0"
+run_nuclei -system-chrome -headless -silent -jsonl -u https://projectdiscovery.io -tags tech -timeout 10 && echo "✅ SUCCESS: Exit code 0"
 
 echo "✅ Nuclei wrapper test completed successfully!"
 echo "   - Simple pass-through wrapper working"

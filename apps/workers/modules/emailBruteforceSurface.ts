@@ -8,7 +8,7 @@
 import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
-import { scanTargetList, createTargetsFile, cleanupFile, runTwoPassScanMultiple } from '../util/nucleiWrapper.js';
+import { scanTargetList, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
 
 // Configuration constants
 const NUCLEI_TIMEOUT_MS = 300_000; // 5 minutes
@@ -169,8 +169,7 @@ async function runNucleiEmailScan(targets: string[]): Promise<NucleiResult[]> {
     const result = await scanTargetList(targetsFile, EMAIL_TEMPLATES, {
       timeout: 30,
       retries: 2,
-      concurrency: CONCURRENCY,
-      insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+      concurrency: CONCURRENCY
     });
     
     // Cleanup targets file

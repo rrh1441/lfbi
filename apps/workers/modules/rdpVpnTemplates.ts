@@ -161,8 +161,7 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
     const result = await scanTargetList(targetsFile, RDP_VPN_TEMPLATES, {
       timeout: 30,
       retries: 2,
-      concurrency: CONCURRENCY,
-      insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+      concurrency: CONCURRENCY
     });
     
     // Cleanup targets file

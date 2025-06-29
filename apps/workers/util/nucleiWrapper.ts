@@ -1,10 +1,13 @@
 /**
- * Enhanced Nuclei v3.4.5 TypeScript Wrapper with Two-Pass Scanning
+ * Enhanced Nuclei v3.4.5 TypeScript Wrapper with Official ProjectDiscovery Two-Pass Scanning
  * 
  * Provides a clean interface for all modules to use the unified nuclei script.
- * Implements ChatGPT-recommended two-pass scanning approach:
- * 1. Baseline scan with core tags for general vulnerabilities
- * 2. Technology-specific scan based on detected technologies
+ * Implements official ProjectDiscovery two-pass scanning approach:
+ * 1. Baseline scan: misconfiguration,default-logins,exposed-panels,exposure,tech
+ * 2. Common vulnerabilities + tech-specific: cve,panel,xss,wordpress,wp-plugin,osint,lfi,rce + detected tech tags
+ * 
+ * Uses -system-chrome flag and NUCLEI_PREFERRED_CHROME_PATH environment variable for Chrome integration.
+ * Reference: https://docs.projectdiscovery.io/templates/introduction
  */
 
 import { execFile } from 'node:child_process';
@@ -15,13 +18,13 @@ import { log as rootLog } from '../core/logger.js';
 const execFileAsync = promisify(execFile);
 
 // Base flags applied to every Nuclei execution for consistency
-export const NUCLEI_BASE_FLAGS = ['-headless', '-silent', '-jsonl'];
+export const NUCLEI_BASE_FLAGS = ['-system-chrome', '-headless', '-silent', '-jsonl'];
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Two-Pass Scanning Configuration (ChatGPT Recommended)
+// Two-Pass Scanning Configuration
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Baseline tags run on EVERY target for general security assessment
+// Baseline tags run on EVERY target for general security assessment (Official ProjectDiscovery)
 export const BASELINE_TAGS = [
   'misconfiguration',
   'default-logins', 
@@ -30,47 +33,43 @@ export const BASELINE_TAGS = [
   'tech'
 ];
 
-// General vulnerability tags for second pass
-export const GENERAL_VULN_TAGS = [
+// Common vulnerability tags for second pass (Official ProjectDiscovery)
+export const COMMON_VULN_TAGS = [
   'cve',
-  'rce', 
-  'sqli',
+  'panel',
   'xss',
+  'wordpress',
+  'wp-plugin',
+  'osint',
   'lfi',
-  'rfi',
-  'dos'
+  'rce'
 ];
 
-// Technology-specific tag mapping (enhanced based on ChatGPT recommendations)
+// Technology-specific tag mapping (Official ProjectDiscovery Documentation)
 export const TECH_TAG_MAPPING: Record<string, string[]> = {
   // Web Servers
   'apache': ['apache'],
   'nginx': ['nginx'],
-  'iis': ['iis'],
   'httpd': ['apache'], // Apache httpd
   
-  // Programming Languages & Frameworks
+  // Programming Languages
   'php': ['php'],
-  'nodejs': ['nodejs', 'express'],
-  'node.js': ['nodejs', 'express'],
-  'express': ['nodejs', 'express'],
-  'laravel': ['laravel', 'symfony'],
-  'symfony': ['laravel', 'symfony'],
-  'django': ['django'],
-  'flask': ['flask'],
-  'ruby': ['ruby', 'rails'],
-  'rails': ['ruby', 'rails'],
   
-  // Content Management Systems
+  // Content Management Systems  
   'wordpress': ['wordpress', 'wp-plugin', 'wp-theme'],
   'drupal': ['drupal'],
   'joomla': ['joomla'],
   'magento': ['magento'],
   
   // Application Servers
-  'tomcat': ['tomcat', 'jboss', 'weblogic'],
-  'jboss': ['tomcat', 'jboss', 'weblogic'],
-  'weblogic': ['tomcat', 'jboss', 'weblogic'],
+  'tomcat': ['tomcat', 'jboss'],
+  'jboss': ['tomcat', 'jboss'],
+  'weblogic': ['tomcat', 'jboss'], // Map to available tags
+  
+  // JavaScript Frameworks
+  'nodejs': ['nodejs', 'express'],
+  'node.js': ['nodejs', 'express'],
+  'express': ['nodejs', 'express'],
   
   // Databases
   'mysql': ['mysql'],
@@ -81,19 +80,7 @@ export const TECH_TAG_MAPPING: Record<string, string[]> = {
   // Search & Analytics
   'elasticsearch': ['elastic', 'kibana'],
   'elastic': ['elastic', 'kibana'],
-  'kibana': ['elastic', 'kibana'],
-  
-  // Network Services
-  'ssh': ['ssh'],
-  'openssh': ['ssh'],
-  'dropbear': ['ssh'],
-  
-  // Other Technologies
-  'docker': ['docker'],
-  'kubernetes': ['kubernetes'],
-  'jenkins': ['jenkins'],
-  'confluence': ['confluence'],
-  'jira': ['jira']
+  'kibana': ['elastic', 'kibana']
 };
 
 interface NucleiOptions {
@@ -120,7 +107,6 @@ interface NucleiOptions {
   headless?: boolean;
   
   // Security options
-  insecure?: boolean;
   followRedirects?: boolean;
   maxRedirects?: number;
   
@@ -198,8 +184,8 @@ const log = (...args: unknown[]) => rootLog('[nucleiWrapper]', ...args);
  * Execute Nuclei using the unified wrapper script
  */
 export async function runNuclei(options: NucleiOptions): Promise<NucleiExecutionResult> {
-  // Build arguments - only include what we need
-  const args: string[] = ['-headless', '-silent', '-jsonl', '-insecure'];
+  // Build arguments using base flags (includes -system-chrome)
+  const args: string[] = [...NUCLEI_BASE_FLAGS];
   
   if (options.url) {
     args.push('-u', options.url);
@@ -224,7 +210,7 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
   }
   
   if (options.verbose) {
-    args.push('-verbose');
+    args.push('-v');
   }
   
   if (options.concurrency) {
@@ -239,9 +225,10 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     args.push('-retries', options.retries.toString());
   }
   
-  if (options.updateTemplates) {
-    args.push('-update-templates');
-  }
+  // Template updates should be run separately, not combined with scanning
+  // if (options.updateTemplates) {
+  //   args.push('-update-templates');
+  // }
   
   log(`Executing unified nuclei: run_nuclei ${args.join(' ')}`);
   
@@ -412,14 +399,17 @@ export function extractTechnologies(baselineResults: NucleiResult[]): string[] {
 
 /**
  * Build technology-specific tags based on detected technologies
+ * Uses official ProjectDiscovery two-pass approach:
+ * 1. Baseline (already run)
+ * 2. Common vulnerabilities + technology-specific (combined)
  */
 export function buildTechSpecificTags(detectedTechnologies: string[]): string[] {
   const techTags = new Set<string>();
   
-  // Add general vulnerability tags
-  GENERAL_VULN_TAGS.forEach(tag => techTags.add(tag));
+  // Add common vulnerability tags (run once per host after baseline)
+  COMMON_VULN_TAGS.forEach(tag => techTags.add(tag));
   
-  // Add technology-specific tags
+  // Add technology-specific tags only for detected technologies
   for (const tech of detectedTechnologies) {
     const tags = TECH_TAG_MAPPING[tech.toLowerCase()];
     if (tags) {
@@ -467,20 +457,13 @@ export async function runTwoPassScan(
   const detectedTechnologies = extractTechnologies(baselineScan.results);
   log(`Detected technologies: ${detectedTechnologies.join(', ') || 'none'}`);
   
-  if (detectedTechnologies.length === 0) {
-    log(`No technologies detected, skipping second pass`);
-    return {
-      baselineResults: baselineScan.results,
-      techSpecificResults: [],
-      detectedTechnologies: [],
-      totalFindings: baselineScan.results.length,
-      scanDurationMs: Date.now() - startTime
-    };
-  }
+  // Always run second pass with common vulnerability tags, even if no specific tech detected
+  const techTags = detectedTechnologies.length > 0 
+    ? buildTechSpecificTags(detectedTechnologies)
+    : COMMON_VULN_TAGS; // Just common vulns if no tech detected
   
-  // ─────────────── PASS 2: Technology-Specific Scan ───────────────
-  const techTags = buildTechSpecificTags(detectedTechnologies);
-  log(`Pass 2: Running tech-specific scan with tags: ${techTags.join(',')}`);
+  // ─────────────── PASS 2: Common Vulnerabilities + Tech-Specific Scan ───────────────
+  log(`Pass 2: Running common vulnerability + tech-specific scan with tags: ${techTags.join(',')}`);
   
   const techScan = await runNuclei({
     url: target,
@@ -492,12 +475,12 @@ export async function runTwoPassScan(
   });
   
   if (!techScan.success) {
-    log(`Technology-specific scan failed for ${target}: exit code ${techScan.exitCode}`);
+    log(`Common vulnerability + tech-specific scan failed for ${target}: exit code ${techScan.exitCode}`);
   }
   
   const totalFindings = baselineScan.results.length + (techScan.success ? techScan.results.length : 0);
   
-  log(`Two-pass scan completed: ${totalFindings} total findings (baseline: ${baselineScan.results.length}, tech-specific: ${techScan.success ? techScan.results.length : 0})`);
+  log(`Two-pass scan completed: ${totalFindings} total findings (baseline: ${baselineScan.results.length}, common+tech: ${techScan.success ? techScan.results.length : 0})`);
   
   return {
     baselineResults: baselineScan.results,

@@ -16,7 +16,7 @@ import semver from 'semver';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
-import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS } from '../util/nucleiWrapper.js';
+import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS, COMMON_VULN_TAGS } from '../util/nucleiWrapper.js';
 
 const exec = promisify(execFile);
 
@@ -852,8 +852,7 @@ async function runNucleiCVETests(
       url: target,
       templates: ['-id', cveIds.join(',')], // Target specific CVE IDs
       timeout: 20,
-      retries: 1,
-      insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+      retries: 1
     });
     
     if (!result.success && result.exitCode !== 2) {
@@ -1334,8 +1333,7 @@ export async function runTechStackScan(job: {
           // Use enhanced two-pass scanning for comprehensive technology detection
           const result = await runTwoPassScan(url, {
             timeout: 20,
-            retries: 2,
-            insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+            retries: 2
           });
           
           if (result.totalFindings === 0) {

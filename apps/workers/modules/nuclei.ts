@@ -89,7 +89,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 }
 
 
-async function processNucleiResults(results: any[], scanId: string, scanType: 'baseline' | 'tech-specific' | 'workflow', workflowFile?: string) {
+async function processNucleiResults(results: any[], scanId: string, scanType: 'baseline' | 'common+tech-specific' | 'workflow', workflowFile?: string) {
     for (const vuln of results) {
         try {
             const severity = (vuln.info.severity.toUpperCase() as any) || 'INFO';
@@ -136,15 +136,15 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
             return 0;
         }
 
-        log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalFindings} findings (baseline: ${result.baselineResults.length}, tech-specific: ${result.techSpecificResults.length})`);
+        log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalFindings} findings (baseline: ${result.baselineResults.length}, common+tech: ${result.techSpecificResults.length})`);
         log(`[nuclei] [Two-Pass Scan] Detected technologies: ${result.detectedTechnologies.join(', ') || 'none'}`);
 
         // Process baseline results
         let totalProcessed = 0;
         totalProcessed += await processNucleiResults(result.baselineResults, scanId!, 'baseline');
         
-        // Process technology-specific results
-        totalProcessed += await processNucleiResults(result.techSpecificResults, scanId!, 'tech-specific');
+        // Process common vulnerability + tech-specific results
+        totalProcessed += await processNucleiResults(result.techSpecificResults, scanId!, 'common+tech-specific');
         
         return totalProcessed;
     } catch (error) {
@@ -171,8 +171,7 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         const result = await runNucleiWrapper({
             url: target.url,
             templates: [workflowPath],
-            timeout: 15,
-            insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
+            timeout: 15
         });
 
         if (!result.success) {
