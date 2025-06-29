@@ -17,14 +17,11 @@
  * =============================================================================
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
-import * as path from 'node:path'; // REFACTOR: Added for path joining.
+import * as path from 'node:path';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
-
-const exec = promisify(execFile);
+import { runNuclei as runNucleiWrapper, scanUrl, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
 const MAX_CONCURRENT_SCANS = 4;
 
 const TECH_TO_NUCLEI_TAG_MAP: Record<string, string[]> = {
@@ -54,21 +51,18 @@ const LAST_UPDATE_TIMESTAMP_PATH = '/tmp/nuclei_last_update.txt';
 
 async function validateDependencies(): Promise<boolean> {
     try {
-        const result = await exec('nuclei', ['-version']);
-        log('[nuclei] Nuclei binary found.');
-        if (result.stderr) {
-            log('[nuclei] Version check stderr:', result.stderr);
-        }
+        const result = await runNucleiWrapper({ debug: true });
+        log('[nuclei] Nuclei wrapper validated successfully.');
         return true;
     } catch (error) {
-        log('[nuclei] [CRITICAL] Nuclei binary not found. Scans will be skipped.');
+        log('[nuclei] [CRITICAL] Nuclei wrapper not available. Scans will be skipped.');
         log('[nuclei] [CRITICAL] Error details:', (error as Error).message);
         return false;
     }
 }
 
 /**
- * REFACTOR: Template update is now optimized. It only runs if the last update
+ * Template update is now optimized. It only runs if the last update
  * was more than 24 hours ago.
  */
 async function updateTemplatesIfNeeded(): Promise<void> {
@@ -86,7 +80,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 
         if (Date.now() - lastUpdateTime > oneDay) {
             log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            const result = await exec('nuclei', ['-update-templates', '-ut', '/opt/nuclei-templates'], { timeout: 300000 }); // 5 min timeout
+            const result = await runNucleiWrapper({ updateTemplates: true, silent: true });
             if (result.stderr) {
                 log('[nuclei] Template update stderr:', result.stderr);
             }
@@ -104,11 +98,9 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 }
 
 
-async function processNucleiOutput(stdout: string, scanId: string, scanType: 'tags' | 'workflow', workflowFile?: string) {
-    const findings = stdout.trim().split('\n').filter(Boolean);
-    for (const line of findings) {
+async function processNucleiResults(results: any[], scanId: string, scanType: 'tags' | 'workflow', workflowFile?: string) {
+    for (const vuln of results) {
         try {
-            const vuln = JSON.parse(line);
             const severity = (vuln.info.severity.toUpperCase() as any) || 'INFO';
 
             const artifactId = await insertArtifact({
@@ -130,10 +122,10 @@ async function processNucleiOutput(stdout: string, scanId: string, scanType: 'ta
             });
             await insertFinding(artifactId, 'VULNERABILITY', 'See artifact details and Nuclei template for remediation guidance.', vuln.info.description);
         } catch (e) {
-            log(`[nuclei] Failed to parse result line:`, line);
+            log(`[nuclei] Failed to process result:`, vuln);
         }
     }
-    return findings.length;
+    return results.length;
 }
 
 
@@ -145,56 +137,36 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
             if (tags) tags.forEach(tag => baseTags.add(tag));
         }
     }
-    const tags = Array.from(baseTags).join(',');
-
-    // Build command arguments (Fixed for Nuclei v3.4.5)
-    const nucleiArgs = [
-        '-u', target.url,
-        '-tags', tags,
-        '-jsonl',   // v3.4+ uses -jsonl instead of -json
-        '-silent',
-        '-timeout', '10',
-        '-retries', '2',
-        '-sc',      // Use system chrome
-        '-headless',
-        '-t', '/opt/nuclei-templates/'  // Use -t for template directory
-    ];
+    const tags = Array.from(baseTags);
     
-    // Add disable SSL verification flag if TLS bypass is enabled
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-        nucleiArgs.push('-disable-ssl-verification');  // Full flag name
-    }
-    
-    log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags}`);
+    log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags.join(',')}`);
 
     try {
-        const { stdout, stderr } = await exec('nuclei', nucleiArgs, { timeout: 600000 });
+        const result = await scanUrl(target.url, tags, {
+            timeout: 10,
+            retries: 2,
+            concurrency: 6
+        });
 
-        if (stderr) {
-            log(`[nuclei] [Tag Scan] stderr for ${target.url}:`, stderr);
+        if (!result.success) {
+            log(`[nuclei] [Tag Scan] Failed for ${target.url}: exit code ${result.exitCode}`);
+            return 0;
         }
 
-        return await processNucleiOutput(stdout, scanId!, 'tags');
+        if (result.stderr) {
+            log(`[nuclei] [Tag Scan] stderr for ${target.url}:`, result.stderr);
+        }
+
+        return await processNucleiResults(result.results, scanId!, 'tags');
     } catch (error) {
-        // Nuclei exit code 2 means "no templates matched" or "no vulnerabilities found" - this is success, not failure
-        if ((error as any).code === 2) {
-            log(`[nuclei] [Tag Scan] No vulnerabilities found for ${target.url} (exit code 2 - success)`);
-            // Still process any stdout output that might exist
-            const stdout = (error as any).stdout || '';
-            return await processNucleiOutput(stdout, scanId!, 'tags');
-        }
-        
-        log(`[nuclei] [Tag Scan] Failed for ${target.url}:`, (error as Error).message);
-        if ((error as any).stderr) {
-            log(`[nuclei] [Tag Scan] Full stderr for ${target.url}:`, (error as any).stderr);
-        }
+        log(`[nuclei] [Tag Scan] Exception for ${target.url}:`, (error as Error).message);
         return 0;
     }
 }
 
 
 async function runNucleiWorkflow(target: { url: string }, workflowFileName: string, scanId?: string): Promise<number> {
-    // REFACTOR: Construct full path from base path and filename.
+    // Construct full path from base path and filename.
     const workflowPath = path.join(WORKFLOW_BASE_PATH, workflowFileName);
     
     log(`[nuclei] [Workflow Scan] Running workflow '${workflowPath}' on ${target.url}`);
@@ -207,42 +179,29 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
     }
 
     try {
-        const nucleiWorkflowArgs = [
-            '-u', target.url,
-            '-w', workflowPath,
-            '-jsonl',   // v3.4+ uses -jsonl instead of -json
-            '-silent',
-            '-timeout', '15',
-            '-sc',      // Use system chrome
-            '-headless',
-            '-t', '/opt/nuclei-templates/'  // Use -t for template directory
-        ];
-        
-        // Add disable SSL verification flag if TLS bypass is enabled
-        if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiWorkflowArgs.push('-disable-ssl-verification');  // Full flag name
-        }
-        
-        const { stdout, stderr } = await exec('nuclei', nucleiWorkflowArgs, { timeout: 900000 });
+        const result = await runNucleiWrapper({
+            url: target.url,
+            templates: [workflowPath],
+            jsonl: true,
+            silent: true,
+            timeout: 15,
+            systemChrome: true,
+            headless: true,
+            insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
+        });
 
-        if (stderr) {
-            log(`[nuclei] [Workflow Scan] stderr for ${target.url}:`, stderr);
+        if (!result.success) {
+            log(`[nuclei] [Workflow Scan] Failed for ${target.url}: exit code ${result.exitCode}`);
+            return 0;
         }
 
-        return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
+        if (result.stderr) {
+            log(`[nuclei] [Workflow Scan] stderr for ${target.url}:`, result.stderr);
+        }
+
+        return await processNucleiResults(result.results, scanId!, 'workflow', workflowPath);
     } catch (error) {
-        // Nuclei exit code 2 means "no templates matched" or "no vulnerabilities found" - this is success, not failure
-        if ((error as any).code === 2) {
-            log(`[nuclei] [Workflow Scan] No vulnerabilities found for ${target.url} with workflow ${workflowPath} (exit code 2 - success)`);
-            // Still process any stdout output that might exist
-            const stdout = (error as any).stdout || '';
-            return await processNucleiOutput(stdout, scanId!, 'workflow', workflowPath);
-        }
-        
-        log(`[nuclei] [Workflow Scan] Failed for ${target.url} with workflow ${workflowPath}:`, (error as Error).message);
-        if ((error as any).stderr) {
-            log(`[nuclei] [Workflow Scan] Full stderr for ${target.url}:`, (error as any).stderr);
-        }
+        log(`[nuclei] [Workflow Scan] Exception for ${target.url} with workflow ${workflowPath}:`, (error as Error).message);
         return 0;
     }
 }

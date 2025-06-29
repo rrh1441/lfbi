@@ -5,21 +5,21 @@ echo "🧪 Testing Nuclei headless mode with system Chrome..."
 
 # Test 1: Basic headless scan with tech templates
 echo "Test 1: Basic tech scan..."
-nuclei -sc -headless -u https://projectdiscovery.io -tags tech -jsonl -silent -timeout 10 || {
+nuclei -system-chrome -headless -u https://projectdiscovery.io -tags tech -jsonl -silent -timeout 10 || {
     echo "❌ FAIL: Basic tech scan failed"
     exit 1
 }
 
 # Test 2: Misconfiguration templates
 echo "Test 2: Misconfiguration scan..." 
-nuclei -sc -headless -u https://projectdiscovery.io -tags misconfiguration -jsonl -silent -timeout 10 || {
+nuclei -system-chrome -headless -u https://projectdiscovery.io -tags misconfiguration -jsonl -silent -timeout 10 || {
     echo "❌ FAIL: Misconfiguration scan failed"
     exit 1
 }
 
 # Test 3: Combined template tags
 echo "Test 3: Combined template scan..."
-nuclei -sc -headless -u https://projectdiscovery.io -tags tech,misconfiguration,exposed-panels -jsonl -silent -timeout 10 || {
+nuclei -system-chrome -headless -u https://projectdiscovery.io -tags tech,misconfiguration,exposed-panels -jsonl -silent -timeout 10 || {
     echo "❌ FAIL: Combined template scan failed"
     exit 1
 }

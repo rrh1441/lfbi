@@ -55,6 +55,10 @@ RUN mkdir -p /opt/nuclei-templates && \
     nuclei -update-templates -ut /opt/nuclei-templates
 ENV NUCLEI_TEMPLATES=/opt/nuclei-templates
 
+# Copy unified nuclei wrapper script
+COPY common/nuclei.sh /usr/local/bin/run_nuclei
+RUN chmod +x /usr/local/bin/run_nuclei
+
 # dnstwist (Python) – use --break-system-packages to avoid venv bloat
 RUN pip3 install --break-system-packages dnstwist
 

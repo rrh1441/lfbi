@@ -16,6 +16,7 @@ import semver from 'semver';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
+import { runNuclei as runNucleiWrapper, scanUrl } from '../util/nucleiWrapper.js';
 
 const exec = promisify(execFile);
 
@@ -228,13 +229,11 @@ function isProblematicDomain(hostname: string): boolean {
 }
 
 /* Convert Nuclei technology detection output to WappTech format */
-function convertNucleiToWappTech(nucleiLines: string[]): WappTech[] {
+function convertNucleiToWappTech(nucleiResults: any[]): WappTech[] {
   const technologies: WappTech[] = [];
   
-  for (const line of nucleiLines) {
+  for (const result of nucleiResults) {
     try {
-      const result = JSON.parse(line.trim());
-      
       // Extract technology information from Nuclei result
       const name = result.info?.name || result['template-id'] || 'Unknown';
       const version = result['extracted-results']?.[0] || result.info?.version || undefined;
@@ -253,7 +252,7 @@ function convertNucleiToWappTech(nucleiLines: string[]): WappTech[] {
         }))
       });
     } catch (error) {
-      // Skip malformed JSON lines
+      // Skip malformed results
       continue;
     }
   }
@@ -834,78 +833,59 @@ async function runNucleiCVETests(
   if (cveIds.length === 0) return results;
   
   try {
-    // Check if nuclei is available
-    await exec('nuclei', ['-version'], { timeout: 5000 });
+    // Check if nuclei wrapper is available
+    const testResult = await runNucleiWrapper({ debug: true });
+    if (!testResult.success) {
+      log('nuclei wrapper not available, skipping active CVE verification');
+      return results;
+    }
   } catch {
-    log('nuclei binary not found, skipping active CVE verification');
+    log('nuclei wrapper not found, skipping active CVE verification');
     return results;
   }
   
   try {
-    // Run nuclei with specific CVE templates (Fixed for v3.4.5)
-    const nucleiArgs = [
-      '-u', target,
-      '-id', cveIds.join(','), // Target specific CVE IDs
-      '-jsonl',   // v3.4+ uses -jsonl instead of -json
-      '-silent',
-      '-timeout', '20',
-      '-retries', '1',
-      '-sc',      // Use system chrome  
-      '-headless',
-      '-t', '/opt/nuclei-templates/'  // Use -t for template directory
-    ];
-    
-    // Add TLS bypass if environment variable is set
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      nucleiArgs.push('-disable-ssl-verification');  // Full flag name for v3.4.5
-    }
-    
     log(`nucleiCVE=testing target="${target}" cves="${cveIds.slice(0, 5).join(',')}" total=${cveIds.length}`);
     
-    let stdout = '';
-    let stderr = '';
+    // Use the new nuclei wrapper
+    const result = await runNucleiWrapper({
+      url: target,
+      templates: ['-id', cveIds.join(',')], // Target specific CVE IDs
+      jsonl: true,
+      silent: true,
+      timeout: 20,
+      retries: 1,
+      systemChrome: true,
+      headless: true,
+      insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+    });
     
-    try {
-      const result = await exec('nuclei', nucleiArgs, { 
-        timeout: 60000 // 1 minute timeout for CVE tests
-      });
-      stdout = result.stdout;
-      stderr = result.stderr;
-    } catch (error) {
-      // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
-      if ((error as any).code === 2) {
-        log(`nucleiCVE=no_vulns target="${target}" cves_tested=${cveIds.length}`);
-        stdout = (error as any).stdout || '';
-        stderr = (error as any).stderr || '';
-      } else {
-        throw error; // Re-throw actual errors
-      }
+    if (!result.success && result.exitCode !== 2) {
+      log(`nucleiCVE=failed target="${target}" exit_code=${result.exitCode}`);
+      return results;
     }
     
-    if (stderr) {
-      log(`nucleiCVE=stderr`, stderr);
+    if (result.stderr) {
+      log(`nucleiCVE=stderr`, result.stderr);
     }
     
-    // Parse nuclei results
-    const lines = stdout.trim().split('\n').filter(Boolean);
-    
-    for (const line of lines) {
+    // Parse nuclei results from the wrapper
+    for (const vuln of result.results) {
       try {
-        const result = JSON.parse(line);
-        const cveMatch = result['template-id']?.match(/CVE-\d{4}-\d+/);
+        const cveMatch = vuln['template-id']?.match(/CVE-\d{4}-\d+/);
         
         if (cveMatch) {
           results.set(cveMatch[0], {
             cveId: cveMatch[0],
-            templateId: result['template-id'],
+            templateId: vuln['template-id'],
             verified: true,
             exploitable: true,
-            details: result
+            details: vuln
           });
           log(`nucleiCVE=confirmed cve="${cveMatch[0]}" exploitable=true`);
         }
       } catch (e) {
-        log(`nucleiCVE=parse_error line="${line}"`);
+        log(`nucleiCVE=parse_error result="${JSON.stringify(vuln)}"`);
       }
     }
     
@@ -1309,14 +1289,14 @@ export async function runTechStackScan(job: {
   const start = Date.now();
   log(`techstack=start domain=${domain}`);
   
-  // Check for nuclei (required for tech detection) - use same approach as working nuclei module
+  // Check for nuclei wrapper (required for tech detection)
   let nucleiAvailable = false;
   try {
-    await exec('nuclei', ['-version'], { timeout: 5_000 });
-    nucleiAvailable = true;
-    log(`techstack=nuclei confirmed available`);
+    const testResult = await runNucleiWrapper({ debug: true });
+    nucleiAvailable = testResult.success;
+    log(`techstack=nuclei wrapper confirmed available`);
   } catch (error) {
-    log(`techstack=nuclei not available: ${(error as Error).message}`);
+    log(`techstack=nuclei wrapper not available: ${(error as Error).message}`);
     nucleiAvailable = false;
   }
   
@@ -1354,53 +1334,29 @@ export async function runTechStackScan(job: {
         
         try {
           log(`techstack=nuclei url="${url}"`);
-          const nucleiArgs = [
-            '-u', url,
-            '-tags', 'tech',
-            '-jsonl',   // v3.4+ uses -jsonl instead of -json
-            '-silent',
-            '-timeout', '20',
-            '-retries', '2',
-            '-sc',      // Use system chrome
-            '-headless',
-            '-t', '/opt/nuclei-templates/'  // Use -t for template directory
-          ];
           
-          // Add disable certificate verification flag if TLS bypass is enabled
-          if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-            nucleiArgs.push('-disable-ssl-verification');  // Full flag name for v3.4.5
+          const result = await scanUrl(url, ['tech'], {
+            timeout: 20,
+            retries: 2,
+            insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+          });
+          
+          if (!result.success && result.exitCode !== 2) {
+            log(`techstack=nuclei_failed url="${url}" exit_code=${result.exitCode}`);
+            return;
           }
           
-          let stdout = '';
-          let stderr = '';
-          
-          try {
-            const result = await exec('nuclei', nucleiArgs, { timeout: CONFIG.NUCLEI_TIMEOUT_MS });
-            stdout = result.stdout;
-            stderr = result.stderr;
-          } catch (error) {
-            // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
-            if ((error as any).code === 2) {
-              log(`techstack=nuclei_success url="${url}" no_findings=true`);
-              stdout = (error as any).stdout || '';
-              stderr = (error as any).stderr || '';
-            } else {
-              throw error; // Re-throw actual errors
-            }
+          if (result.stderr) {
+            log(`techstack=nuclei_stderr url="${url}" stderr="${result.stderr.slice(0, 200)}"`);
           }
           
-          if (stderr) {
-            log(`techstack=nuclei_stderr url="${url}" stderr="${stderr.slice(0, 200)}"`);
+          log(`techstack=nuclei_output url="${url}" results=${result.results.length}`);
+          
+          if (result.results.length === 0) {
+            log(`techstack=nuclei_no_output url="${url}"`);
           }
           
-          const lines = stdout.trim().split('\n').filter(Boolean);
-          log(`techstack=nuclei_output url="${url}" lines=${lines.length} stdout_size=${stdout.length}`);
-          
-          if (lines.length === 0) {
-            log(`techstack=nuclei_no_output url="${url}" raw_stdout="${stdout.slice(0, 100)}"`);
-          }
-          
-          const techs = convertNucleiToWappTech(lines);
+          const techs = convertNucleiToWappTech(result.results);
           log(`techstack=converted url="${url}" techs=${techs.length}`);
           techs.forEach(t => {
             techMap.set(t.slug, t);

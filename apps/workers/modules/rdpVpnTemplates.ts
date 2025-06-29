@@ -5,13 +5,10 @@
  * including FortiNet, Palo Alto GlobalProtect, and other remote access solutions.
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
-
-const execFileAsync = promisify(execFile);
+import { scanTargetList, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
 
 // Configuration constants
 const NUCLEI_TIMEOUT_MS = 300_000; // 5 minutes
@@ -157,76 +154,34 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
   
   try {
     // Create temporary targets file
-    const targetsFile = `/tmp/nuclei-rdpvpn-targets-${Date.now()}.txt`;
-    await fs.writeFile(targetsFile, targets.join('\n'));
+    const targetsFile = await createTargetsFile(targets, 'nuclei-rdpvpn-targets');
     
     log(`Running Nuclei with ${RDP_VPN_TEMPLATES.length} RDP/VPN templates against ${targets.length} targets`);
     
-    // Build template arguments
-    const templateArgs = RDP_VPN_TEMPLATES.flatMap(template => ['-t', template]);
+    const result = await scanTargetList(targetsFile, RDP_VPN_TEMPLATES, {
+      timeout: 30,
+      retries: 2,
+      concurrency: CONCURRENCY,
+      systemChrome: true,
+      headless: true,
+      insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
+    });
     
-    const args = [
-      '-list', targetsFile,
-      ...templateArgs,
-      '-jsonl',   // v3.4+ uses -jsonl instead of -json
-      '-silent',
-      '-timeout', '30',
-      '-retries', '2',
-      `-c`, CONCURRENCY.toString(),
-      '-sc',      // Use system chrome
-      '-headless'
-    ];
+    // Cleanup targets file
+    await cleanupFile(targetsFile);
     
-    // Add TLS bypass flag if needed (consistent with other modules)
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      args.push('-disable-ssl-verification');  // Full flag name for v3.4.5
-    }
-    
-    let stdout = '';
-    let stderr = '';
-    
-    try {
-      const result = await execFileAsync('nuclei', [...args, '-t', '/opt/nuclei-templates/'], {
-        timeout: NUCLEI_TIMEOUT_MS,
-        maxBuffer: 50 * 1024 * 1024, // 50MB buffer
-        env: { ...process.env, NO_COLOR: '1' }
-      });
-      stdout = result.stdout;
-      stderr = result.stderr;
-    } catch (error) {
-      // Nuclei exit code 2 means "no vulnerabilities found" - this is success, not failure
-      if ((error as any).code === 2) {
-        log(`Nuclei scan completed with no vulnerabilities found (exit code 2)`);
-        stdout = (error as any).stdout || '';
-        stderr = (error as any).stderr || '';
-      } else {
-        throw error; // Re-throw actual errors
-      }
+    if (!result.success) {
+      log(`Nuclei RDP/VPN scan failed with exit code ${result.exitCode}`);
+      return [];
     }
     
     // Enhanced stderr logging - capture full output for better debugging
-    if (stderr) {
-      log(`Nuclei stderr: ${stderr}`);
+    if (result.stderr) {
+      log(`Nuclei stderr: ${result.stderr}`);
     }
     
-    // Parse JSON results
-    const results: NucleiResult[] = [];
-    const lines = stdout.trim().split('\n').filter(line => line.trim());
-    
-    for (const line of lines) {
-      try {
-        const result = JSON.parse(line) as NucleiResult;
-        results.push(result);
-      } catch (parseError) {
-        log(`Failed to parse Nuclei result: ${line.slice(0, 200)}`);
-      }
-    }
-    
-    // Cleanup
-    await fs.unlink(targetsFile).catch(() => {});
-    
-    log(`Nuclei RDP/VPN scan completed: ${results.length} findings`);
-    return results;
+    log(`Nuclei RDP/VPN scan completed: ${result.results.length} findings`);
+    return result.results as NucleiResult[];
     
   } catch (error) {
     log(`Nuclei RDP/VPN scan failed: ${(error as Error).message}`);
