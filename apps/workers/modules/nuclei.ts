@@ -9,7 +9,7 @@
  * integration with vulnerability intelligence and timeline validation.
  *
  * Key Features:
- * 1.  **Optimized Template Updates:** Only updates templates if older than 24 hours
+ * 1.  **Template Updates:** Handled by dedicated updater process in fly.toml
  * 2.  **Technology-aware Scanning:** Uses technology-specific Nuclei tags
  * 3.  **Workflow Execution:** Runs advanced multi-step workflows for detected tech
  * 4.  **Concurrency & Structure:** Parallel scans with tag-based and workflow phases
@@ -37,8 +37,7 @@ const TECH_TO_WORKFLOW_MAP: Record<string, string> = {
     'jira': 'jira-workflow.yaml'
 };
 
-// REFACTOR: Location for tracking the last template update time.
-const LAST_UPDATE_TIMESTAMP_PATH = '/tmp/nuclei_last_update.txt';
+// Template updates now handled by dedicated updater process in fly.toml
 
 async function validateDependencies(): Promise<boolean> {
     try {
@@ -52,41 +51,7 @@ async function validateDependencies(): Promise<boolean> {
     }
 }
 
-/**
- * Template update is now optimized. It only runs if the last update
- * was more than 24 hours ago.
- */
-async function updateTemplatesIfNeeded(): Promise<void> {
-    try {
-        let lastUpdateTime = 0;
-        try {
-            const content = await fs.readFile(LAST_UPDATE_TIMESTAMP_PATH, 'utf8');
-            lastUpdateTime = parseInt(content.trim()) || 0;
-        } catch {
-            // File doesn't exist or can't be read, treat as never updated
-            lastUpdateTime = 0;
-        }
-        
-        const oneDay = 24 * 60 * 60 * 1000;
-
-        if (Date.now() - lastUpdateTime > oneDay) {
-            log('[nuclei] Templates are outdated (> 24 hours). Updating...');
-            const result = await runNucleiWrapper({ updateTemplates: true, silent: true });
-            if (result.stderr) {
-                log('[nuclei] Template update stderr:', result.stderr);
-            }
-            if (result.stdout) {
-                log('[nuclei] Template update stdout:', result.stdout.substring(0, 500));
-            }
-            await fs.writeFile(LAST_UPDATE_TIMESTAMP_PATH, Date.now().toString());
-            log('[nuclei] Template update complete.');
-        } else {
-            log('[nuclei] Templates are up-to-date. Skipping update.');
-        }
-    } catch (error) {
-        log('[nuclei] [WARNING] Failed to update nuclei templates. Scans will proceed with local version.', (error as Error).message);
-    }
-}
+// Template updates removed - now handled by dedicated updater process
 
 
 async function processNucleiResults(results: any[], scanId: string, scanType: 'baseline' | 'common+tech-specific' | 'workflow', workflowFile?: string) {
@@ -197,8 +162,7 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
         await insertArtifact({type: 'scan_error', val_text: 'Nuclei binary not found, scan aborted.', severity: 'HIGH', meta: { scan_id: job.scanId, scan_module: 'nuclei' }});
         return 0;
     }
-    // REFACTOR: Call the optimized update function.
-    await updateTemplatesIfNeeded();
+    // Template updates handled by dedicated updater process in fly.toml
 
     const targets = job.targets?.length ? job.targets : [{ url: `https://${job.domain}` }];
 

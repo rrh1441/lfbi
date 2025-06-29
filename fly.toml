@@ -15,6 +15,8 @@ primary_region = 'sea'
   api            = "npx tsx apps/api-main/server.ts"
   scanner_worker = "npx tsx apps/workers/worker.ts"
   sync_worker    = "npm run start --prefix apps/sync-worker"
+  # NEW: one always-on updater — pulls templates once a day
+  updater        = "sh -c 'while true; do run_nuclei -update-templates; sleep 86400; done'"
 
 [http_service]
   internal_port = 3000
@@ -56,3 +58,9 @@ primary_region = 'sea'
   cpu_kind = 'shared'
   cpus = 1
   processes = ['sync_worker']
+
+[[vm]] # NEW: updater VM — smallest size for template updates
+  memory = '256mb'  # ✅ Minimal RAM for git operations (256MB minimum on Fly)
+  cpu_kind = 'shared'
+  cpus = 1
+  processes = ['updater']

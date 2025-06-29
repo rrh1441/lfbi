@@ -121,7 +121,6 @@ interface NucleiOptions {
   
   // Environment
   httpProxy?: string;
-  updateTemplates?: boolean;
 }
 
 interface NucleiResult {
@@ -225,10 +224,7 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     args.push('-retries', options.retries.toString());
   }
   
-  // Template updates should be run separately, not combined with scanning
-  // if (options.updateTemplates) {
-  //   args.push('-update-templates');
-  // }
+  // Template updates handled by dedicated updater process in fly.toml
   
   log(`Executing unified nuclei: run_nuclei ${args.join(' ')}`);
   
