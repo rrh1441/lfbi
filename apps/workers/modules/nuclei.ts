@@ -21,23 +21,14 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
-import { runNuclei as runNucleiWrapper, scanUrl, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
+import { 
+  runNuclei as runNucleiWrapper, 
+  runTwoPassScan
+} from '../util/nucleiWrapper.js';
 const MAX_CONCURRENT_SCANS = 4;
 
-const TECH_TO_NUCLEI_TAG_MAP: Record<string, string[]> = {
-  "wordpress": ["wordpress", "wp-plugin", "wp-theme"],
-  "joomla": ["joomla"],
-  "drupal": ["drupal"],
-  "nginx": ["nginx"],
-  "apache": ["apache", "httpd"],
-  "iis": ["iis"],
-  "php": ["php"],
-  "java": ["java", "tomcat", "spring", "log4j"],
-  "python": ["python", "django", "flask"],
-  "nodejs": ["nodejs", "express"],
-  "graphql": ["graphql"],
-  "elasticsearch": ["elasticsearch"],
-};
+// Note: Technology mapping is now handled by the enhanced nucleiWrapper
+// using the TECH_TAG_MAPPING constant for consistent technology detection
 
 // REFACTOR: Workflow base path is now configurable.
 const WORKFLOW_BASE_PATH = process.env.NUCLEI_WORKFLOWS_PATH || './workflows';
@@ -51,7 +42,7 @@ const LAST_UPDATE_TIMESTAMP_PATH = '/tmp/nuclei_last_update.txt';
 
 async function validateDependencies(): Promise<boolean> {
     try {
-        const result = await runNucleiWrapper({ debug: true });
+        await runNucleiWrapper({ debug: true });
         log('[nuclei] Nuclei wrapper validated successfully.');
         return true;
     } catch (error) {
@@ -98,7 +89,7 @@ async function updateTemplatesIfNeeded(): Promise<void> {
 }
 
 
-async function processNucleiResults(results: any[], scanId: string, scanType: 'tags' | 'workflow', workflowFile?: string) {
+async function processNucleiResults(results: any[], scanId: string, scanType: 'baseline' | 'tech-specific' | 'workflow', workflowFile?: string) {
     for (const vuln of results) {
         try {
             const severity = (vuln.info.severity.toUpperCase() as any) || 'INFO';
@@ -130,36 +121,34 @@ async function processNucleiResults(results: any[], scanId: string, scanType: 't
 
 
 async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId?: string): Promise<number> {
-    const baseTags = new Set(['misconfiguration', 'default-logins', 'exposed-panels', 'exposure', 'tech']);
-    if (target.tech) {
-        for (const tech of target.tech) {
-            const tags = TECH_TO_NUCLEI_TAG_MAP[tech.toLowerCase()];
-            if (tags) tags.forEach(tag => baseTags.add(tag));
-        }
-    }
-    const tags = Array.from(baseTags);
-    
-    log(`[nuclei] [Tag Scan] Running on ${target.url} with tags: ${tags.join(',')}`);
+    log(`[nuclei] [Enhanced Two-Pass Scan] Running on ${target.url}`);
 
     try {
-        const result = await scanUrl(target.url, tags, {
-            timeout: 10,
+        // Use the new two-pass scanning approach
+        const result = await runTwoPassScan(target.url, {
+            timeout: 30, // Increased for more thorough scanning
             retries: 2,
             concurrency: 6
         });
 
-        if (!result.success) {
-            log(`[nuclei] [Tag Scan] Failed for ${target.url}: exit code ${result.exitCode}`);
+        if (result.totalFindings === 0) {
+            log(`[nuclei] [Two-Pass Scan] No findings for ${target.url}`);
             return 0;
         }
 
-        if (result.stderr) {
-            log(`[nuclei] [Tag Scan] stderr for ${target.url}:`, result.stderr);
-        }
+        log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalFindings} findings (baseline: ${result.baselineResults.length}, tech-specific: ${result.techSpecificResults.length})`);
+        log(`[nuclei] [Two-Pass Scan] Detected technologies: ${result.detectedTechnologies.join(', ') || 'none'}`);
 
-        return await processNucleiResults(result.results, scanId!, 'tags');
+        // Process baseline results
+        let totalProcessed = 0;
+        totalProcessed += await processNucleiResults(result.baselineResults, scanId!, 'baseline');
+        
+        // Process technology-specific results
+        totalProcessed += await processNucleiResults(result.techSpecificResults, scanId!, 'tech-specific');
+        
+        return totalProcessed;
     } catch (error) {
-        log(`[nuclei] [Tag Scan] Exception for ${target.url}:`, (error as Error).message);
+        log(`[nuclei] [Two-Pass Scan] Exception for ${target.url}:`, (error as Error).message);
         return 0;
     }
 }
@@ -182,10 +171,7 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         const result = await runNucleiWrapper({
             url: target.url,
             templates: [workflowPath],
-            jsonl: true,
-            silent: true,
             timeout: 15,
-            headless: true,
             insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0"
         });
 
@@ -219,7 +205,7 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
 
     let totalFindings = 0;
     
-    log(`[nuclei] --- Starting Phase 1: Tag-based scans on ${targets.length} targets ---`);
+    log(`[nuclei] --- Starting Enhanced Two-Pass Scans on ${targets.length} targets ---`);
     for (let i = 0; i < targets.length; i += MAX_CONCURRENT_SCANS) {
         const chunk = targets.slice(i, i + MAX_CONCURRENT_SCANS);
         const results = await Promise.all(chunk.map(target => {
@@ -229,6 +215,8 @@ export async function runNuclei(job: { domain: string; scanId?: string; targets?
     }
 
     log(`[nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---`);
+    // Note: Two-pass scanning already covers technology-specific templates
+    // Workflows provide additional deep-dive analysis for specific technologies
     for (const target of targets) {
         const detectedTech = new Set(target.tech?.map(t => t.toLowerCase()) || []);
         for (const tech in TECH_TO_WORKFLOW_MAP) {

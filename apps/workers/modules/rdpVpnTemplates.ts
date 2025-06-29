@@ -162,7 +162,6 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
       timeout: 30,
       retries: 2,
       concurrency: CONCURRENCY,
-      headless: true,
       insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
     });
     

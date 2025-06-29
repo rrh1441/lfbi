@@ -16,7 +16,7 @@ import semver from 'semver';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
-import { runNuclei as runNucleiWrapper, scanUrl } from '../util/nucleiWrapper.js';
+import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS } from '../util/nucleiWrapper.js';
 
 const exec = promisify(execFile);
 
@@ -851,11 +851,8 @@ async function runNucleiCVETests(
     const result = await runNucleiWrapper({
       url: target,
       templates: ['-id', cveIds.join(',')], // Target specific CVE IDs
-      jsonl: true,
-      silent: true,
       timeout: 20,
       retries: 1,
-      headless: true,
       insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
     });
     
@@ -1334,28 +1331,24 @@ export async function runTechStackScan(job: {
         try {
           log(`techstack=nuclei url="${url}"`);
           
-          const result = await scanUrl(url, ['tech'], {
+          // Use enhanced two-pass scanning for comprehensive technology detection
+          const result = await runTwoPassScan(url, {
             timeout: 20,
             retries: 2,
             insecure: process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0'
           });
           
-          if (!result.success && result.exitCode !== 2) {
-            log(`techstack=nuclei_failed url="${url}" exit_code=${result.exitCode}`);
+          if (result.totalFindings === 0) {
+            log(`techstack=nuclei_no_output url="${url}"`);
             return;
           }
           
-          if (result.stderr) {
-            log(`techstack=nuclei_stderr url="${url}" stderr="${result.stderr.slice(0, 200)}"`);
-          }
+          log(`techstack=nuclei_output url="${url}" baseline=${result.baselineResults.length} tech_specific=${result.techSpecificResults.length} total=${result.totalFindings}`);
+          log(`techstack=detected_techs url="${url}" techs="${result.detectedTechnologies.join(', ')}"`);
           
-          log(`techstack=nuclei_output url="${url}" results=${result.results.length}`);
-          
-          if (result.results.length === 0) {
-            log(`techstack=nuclei_no_output url="${url}"`);
-          }
-          
-          const techs = convertNucleiToWappTech(result.results);
+          // Process both baseline and tech-specific results
+          const allResults = [...result.baselineResults, ...result.techSpecificResults];
+          const techs = convertNucleiToWappTech(allResults);
           log(`techstack=converted url="${url}" techs=${techs.length}`);
           techs.forEach(t => {
             techMap.set(t.slug, t);
