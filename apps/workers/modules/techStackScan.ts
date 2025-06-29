@@ -846,7 +846,7 @@ async function runNucleiCVETests(
     const nucleiArgs = [
       '-u', target,
       '-id', cveIds.join(','), // Target specific CVE IDs
-      '-json',
+      '-jsonl',   // v3.4+ uses -jsonl instead of -json
       '-silent',
       '-timeout', '20',
       '-retries', '1',
@@ -1357,7 +1357,7 @@ export async function runTechStackScan(job: {
           const nucleiArgs = [
             '-u', url,
             '-tags', 'tech',
-            '-json',
+            '-jsonl',   // v3.4+ uses -jsonl instead of -json
             '-silent',
             '-timeout', '20',
             '-retries', '2',

@@ -168,7 +168,7 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
     const args = [
       '-list', targetsFile,
       ...templateArgs,
-      '-json',
+      '-jsonl',   // v3.4+ uses -jsonl instead of -json
       '-silent',
       '-timeout', '30',
       '-retries', '2',

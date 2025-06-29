@@ -151,7 +151,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     const nucleiArgs = [
         '-u', target.url,
         '-tags', tags,
-        '-json',
+        '-jsonl',   // v3.4+ uses -jsonl instead of -json
         '-silent',
         '-timeout', '10',
         '-retries', '2',
@@ -210,7 +210,7 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         const nucleiWorkflowArgs = [
             '-u', target.url,
             '-w', workflowPath,
-            '-json',
+            '-jsonl',   // v3.4+ uses -jsonl instead of -json
             '-silent',
             '-timeout', '15',
             '-sc',      // Use system chrome
