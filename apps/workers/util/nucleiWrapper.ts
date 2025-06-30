@@ -6,19 +6,20 @@
  * 1. Baseline scan: misconfiguration,default-logins,exposed-panels,exposure,tech
  * 2. Common vulnerabilities + tech-specific: cve,panel,xss,wordpress,wp-plugin,osint,lfi,rce + detected tech tags
  * 
- * Uses -system-chrome flag and NUCLEI_PREFERRED_CHROME_PATH environment variable for Chrome integration.
+ * Uses NUCLEI_PREFERRED_CHROME_PATH environment variable for Chrome integration.
  * Reference: https://docs.projectdiscovery.io/templates/introduction
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import { log as rootLog } from '../core/logger.js';
-
-const execFileAsync = promisify(execFile);
+import { insertArtifact } from '../core/artifactStore.js';
 
 // Base flags applied to every Nuclei execution for consistency
-export const NUCLEI_BASE_FLAGS = ['-system-chrome', '-headless', '-silent', '-jsonl'];
+export const NUCLEI_BASE_FLAGS = [
+  '-silent',
+  '-jsonl'
+];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Two-Pass Scanning Configuration
@@ -118,9 +119,13 @@ interface NucleiOptions {
   // Debug options
   stats?: boolean;
   debug?: boolean;
+  version?: boolean;
   
   // Environment
   httpProxy?: string;
+  
+  // Persistence options
+  scanId?: string;
 }
 
 interface NucleiResult {
@@ -164,6 +169,7 @@ interface NucleiExecutionResult {
   stderr: string;
   exitCode: number;
   success: boolean;
+  persistedCount?: number; // Number of findings persisted as artifacts
 }
 
 interface TwoPassScanResult {
@@ -172,6 +178,7 @@ interface TwoPassScanResult {
   detectedTechnologies: string[];
   totalFindings: number;
   scanDurationMs: number;
+  totalPersistedCount?: number; // Total artifacts persisted across both passes
 }
 
 /**
@@ -180,11 +187,65 @@ interface TwoPassScanResult {
 const log = (...args: unknown[]) => rootLog('[nucleiWrapper]', ...args);
 
 /**
+ * Create artifacts for Nuclei results like other modules
+ */
+async function createNucleiArtifacts(results: NucleiResult[], scanId: string): Promise<number> {
+  let count = 0;
+  
+  for (const result of results) {
+    try {
+      // Map Nuclei severity to our severity levels
+      const severity = mapNucleiSeverityToArtifactSeverity(result.info?.severity || 'info');
+      
+      await insertArtifact({
+        type: 'nuclei_vulnerability',
+        val_text: `${result.info?.name || result['template-id']} - ${result['matched-at'] || result.host}`,
+        severity: severity,
+        src_url: result['matched-at'] || result.host,
+        meta: {
+          scan_id: scanId,
+          scan_module: 'nuclei',
+          template_id: result['template-id'],
+          template_path: result['template-path'],
+          nuclei_data: result
+        }
+      });
+      
+      count++;
+    } catch (error) {
+      log(`Failed to create artifact for Nuclei result: ${result['template-id']}`);
+    }
+  }
+  
+  return count;
+}
+
+/**
+ * Map Nuclei severity levels to our artifact severity levels
+ */
+function mapNucleiSeverityToArtifactSeverity(nucleiSeverity: string): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' {
+  switch (nucleiSeverity.toLowerCase()) {
+    case 'critical': return 'CRITICAL';
+    case 'high': return 'HIGH'; 
+    case 'medium': return 'MEDIUM';
+    case 'low': return 'LOW';
+    case 'info':
+    default: return 'INFO';
+  }
+}
+
+/**
  * Execute Nuclei using the unified wrapper script
  */
 export async function runNuclei(options: NucleiOptions): Promise<NucleiExecutionResult> {
-  // Build arguments using base flags (includes -system-chrome)
+  // Build arguments using base flags
   const args: string[] = [...NUCLEI_BASE_FLAGS];
+  
+  // Version check - simple validation that doesn't require target
+  if (options.version) {
+    args.length = 0; // Clear base flags for version check
+    args.push('-version');
+  }
   
   if (options.url) {
     args.push('-u', options.url);
@@ -224,44 +285,83 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     args.push('-retries', options.retries.toString());
   }
   
+  // Conditionally add headless flags only when needed
+  if (options.headless) {
+    args.push('-headless');
+    // Always use system-chrome when headless for reliability in Docker
+    args.push('-system-chrome');
+  }
+  
+  let artifactsCreated = 0;
+  
   // Template updates handled by dedicated updater process in fly.toml
   
-  log(`Executing unified nuclei: run_nuclei ${args.join(' ')}`);
+  log(`Executing nuclei: /usr/local/bin/nuclei ${args.join(' ')}`);
   
   let stdout = '';
   let stderr = '';
   let exitCode = 0;
   let success = false;
   
-  try {
-    const result = await execFileAsync('run_nuclei', args, {
-      timeout: (options.timeout || 30) * 1000, // Convert to ms
-      maxBuffer: 50 * 1024 * 1024, // 50MB buffer
-      env: { ...process.env, NO_COLOR: '1' }
+  // Use spawn to capture JSON-L output
+  await new Promise<void>((resolve, reject) => {
+    const nucleiProcess = spawn('/usr/local/bin/nuclei', args, {
+      stdio: 'pipe', // Always capture output to parse JSON-L results
+      env: { 
+        ...process.env, 
+        NO_COLOR: '1',
+        // This is crucial for running headless Chrome in Docker
+        NUCLEI_DISABLE_SANDBOX: 'true'
+      }
     });
     
-    stdout = result.stdout;
-    stderr = result.stderr;
-    exitCode = 0;
-    success = true;
+    // Capture stdout and stderr for compatibility
+    if (nucleiProcess.stdout) {
+      nucleiProcess.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+    }
     
-  } catch (error: any) {
-    stdout = error.stdout || '';
-    stderr = error.stderr || '';
-    exitCode = error.code || 1;
+    if (nucleiProcess.stderr) {
+      nucleiProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+    }
     
-    // Only exit code 0 is success in v3.4.5
-    log(`Nuclei execution failed with exit code ${exitCode}: ${error.message}`);
-    success = false;
-  }
+    nucleiProcess.on('exit', (code) => {
+      exitCode = code || 0;
+      
+      // Exit code 1 is normal for "findings found", not an error
+      // Exit codes > 1 are actual errors
+      if (exitCode <= 1) {
+        success = true;
+        resolve();
+      } else {
+        success = false;
+        reject(new Error(`Nuclei exited with code ${exitCode}`));
+      }
+    });
+    
+    nucleiProcess.on('error', (error) => {
+      reject(error);
+    });
+    
+    // Set timeout
+    const timeoutMs = (options.timeout || 30) * 1000;
+    setTimeout(() => {
+      nucleiProcess.kill('SIGTERM');
+      reject(new Error(`Nuclei execution timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
   
   // Log stderr if present (may contain warnings)
   if (stderr) {
     log(`Nuclei stderr: ${stderr}`);
   }
   
-  // Parse JSONL results
+  // Parse JSONL results from stdout
   const results: NucleiResult[] = [];
+  
   if (stdout.trim()) {
     const lines = stdout.trim().split('\n').filter(line => line.trim());
     
@@ -278,14 +378,21 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     }
   }
   
-  log(`Nuclei execution completed: ${results.length} results, exit code ${exitCode}`);
+  // Create artifacts if scanId is provided
+  if (options.scanId && results.length > 0) {
+    artifactsCreated = await createNucleiArtifacts(results, options.scanId);
+    log(`Nuclei execution completed: ${results.length} results, ${artifactsCreated} artifacts created, exit code ${exitCode}`);
+  } else {
+    log(`Nuclei execution completed: ${results.length} results, exit code ${exitCode}`);
+  }
   
   return {
     results,
     stdout,
     stderr,
     exitCode,
-    success
+    success,
+    persistedCount: artifactsCreated // Track created artifacts
   };
 }
 
@@ -435,6 +542,7 @@ export async function runTwoPassScan(
     timeout: 30,
     retries: 2,
     concurrency: 6,
+    headless: true, // Enable headless for tech detection
     ...options
   });
   
@@ -467,6 +575,7 @@ export async function runTwoPassScan(
     timeout: 30,
     retries: 2,
     concurrency: 6,
+    headless: true, // Enable headless for CVE/tech-specific scans
     ...options
   });
   
@@ -475,15 +584,21 @@ export async function runTwoPassScan(
   }
   
   const totalFindings = baselineScan.results.length + (techScan.success ? techScan.results.length : 0);
+  const totalPersistedCount = (baselineScan.persistedCount || 0) + (techScan.persistedCount || 0);
   
-  log(`Two-pass scan completed: ${totalFindings} total findings (baseline: ${baselineScan.results.length}, common+tech: ${techScan.success ? techScan.results.length : 0})`);
+  if (options.scanId) {
+    log(`Two-pass scan completed: ${totalPersistedCount} findings persisted as artifacts (baseline: ${baselineScan.persistedCount || 0}, common+tech: ${techScan.persistedCount || 0})`);
+  } else {
+    log(`Two-pass scan completed: ${totalFindings} total findings (baseline: ${baselineScan.results.length}, common+tech: ${techScan.success ? techScan.results.length : 0})`);
+  }
   
   return {
     baselineResults: baselineScan.results,
     techSpecificResults: techScan.success ? techScan.results : [],
     detectedTechnologies,
     totalFindings,
-    scanDurationMs: Date.now() - startTime
+    scanDurationMs: Date.now() - startTime,
+    totalPersistedCount
   };
 }
 

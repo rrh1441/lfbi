@@ -14,6 +14,7 @@
     "start:workers": "pnpm --filter @dealbrief/workers start",
     "start:api": "pnpm --filter @dealbrief/api-main start",
     "start:sync": "pnpm --filter sync-worker start",
+    "smoke:nuclei": "npx ts-node ./scripts/smoke-nuclei.ts",
     "clean": "rm -rf node_modules dist .next && pnpm -r exec rm -rf node_modules dist .next"
   },
   "devDependencies": {

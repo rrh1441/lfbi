@@ -280,7 +280,7 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
   const originWhois = await getWhoisData(job.domain);
 
   try {
-    const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 60_000 }); // Reduced from 120s to 60s
+    const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 120_000 }); // Restored to 120s - was working before
     const permutations = JSON.parse(stdout) as Array<{ domain: string; dns_a?: string[]; dns_aaaa?: string[] }>;
 
     // Pre‑filter: exclude canonical & non‑resolving entries

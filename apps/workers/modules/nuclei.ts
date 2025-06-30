@@ -41,12 +41,17 @@ const TECH_TO_WORKFLOW_MAP: Record<string, string> = {
 
 async function validateDependencies(): Promise<boolean> {
     try {
-        await runNucleiWrapper({ debug: true });
-        log('[nuclei] Nuclei wrapper validated successfully.');
-        return true;
+        // A simple version check is the most reliable way to validate.
+        // It exits with 0 on success and doesn't require a target.
+        const result = await runNucleiWrapper({ version: true });
+        if (result.success) {
+            log('[nuclei] Nuclei binary validated successfully.');
+            return true;
+        }
+        log(`[nuclei] [CRITICAL] Nuclei validation failed with exit code ${result.exitCode}.`);
+        return false;
     } catch (error) {
-        log('[nuclei] [CRITICAL] Nuclei wrapper not available. Scans will be skipped.');
-        log('[nuclei] [CRITICAL] Error details:', (error as Error).message);
+        log('[nuclei] [CRITICAL] Nuclei validation threw an error.', (error as Error).message);
         return false;
     }
 }
@@ -93,25 +98,40 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
         const result = await runTwoPassScan(target.url, {
             timeout: 30, // Increased for more thorough scanning
             retries: 2,
-            concurrency: 6
+            concurrency: 6,
+            scanId: scanId // Pass scanId for artifact persistence
         });
 
-        if (result.totalFindings === 0) {
-            log(`[nuclei] [Two-Pass Scan] No findings for ${target.url}`);
-            return 0;
+        // Return persisted count if scanId was provided, otherwise fall back to processing results manually
+        if (scanId && result.totalPersistedCount !== undefined) {
+            if (result.totalPersistedCount === 0) {
+                log(`[nuclei] [Two-Pass Scan] No findings for ${target.url}`);
+                return 0;
+            }
+            
+            log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalPersistedCount} findings persisted as artifacts`);
+            log(`[nuclei] [Two-Pass Scan] Detected technologies: ${result.detectedTechnologies.join(', ') || 'none'}`);
+            
+            return result.totalPersistedCount;
+        } else {
+            // Fall back to manual processing for backward compatibility
+            if (result.totalFindings === 0) {
+                log(`[nuclei] [Two-Pass Scan] No findings for ${target.url}`);
+                return 0;
+            }
+
+            log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalFindings} findings (baseline: ${result.baselineResults.length}, common+tech: ${result.techSpecificResults.length})`);
+            log(`[nuclei] [Two-Pass Scan] Detected technologies: ${result.detectedTechnologies.join(', ') || 'none'}`);
+
+            // Process baseline results manually
+            let totalProcessed = 0;
+            totalProcessed += await processNucleiResults(result.baselineResults, scanId!, 'baseline');
+            
+            // Process common vulnerability + tech-specific results manually
+            totalProcessed += await processNucleiResults(result.techSpecificResults, scanId!, 'common+tech-specific');
+            
+            return totalProcessed;
         }
-
-        log(`[nuclei] [Two-Pass Scan] Completed for ${target.url}: ${result.totalFindings} findings (baseline: ${result.baselineResults.length}, common+tech: ${result.techSpecificResults.length})`);
-        log(`[nuclei] [Two-Pass Scan] Detected technologies: ${result.detectedTechnologies.join(', ') || 'none'}`);
-
-        // Process baseline results
-        let totalProcessed = 0;
-        totalProcessed += await processNucleiResults(result.baselineResults, scanId!, 'baseline');
-        
-        // Process common vulnerability + tech-specific results
-        totalProcessed += await processNucleiResults(result.techSpecificResults, scanId!, 'common+tech-specific');
-        
-        return totalProcessed;
     } catch (error) {
         log(`[nuclei] [Two-Pass Scan] Exception for ${target.url}:`, (error as Error).message);
         return 0;
@@ -136,7 +156,8 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         const result = await runNucleiWrapper({
             url: target.url,
             templates: [workflowPath],
-            timeout: 15
+            timeout: 15,
+            scanId: scanId // Pass scanId for artifact persistence
         });
 
         if (!result.success) {
@@ -148,7 +169,13 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
             log(`[nuclei] [Workflow Scan] stderr for ${target.url}:`, result.stderr);
         }
 
-        return await processNucleiResults(result.results, scanId!, 'workflow', workflowPath);
+        // Use persistedCount if available, otherwise fall back to manual processing
+        if (scanId && result.persistedCount !== undefined) {
+            log(`[nuclei] [Workflow Scan] Completed for ${target.url}: ${result.persistedCount} findings persisted as artifacts`);
+            return result.persistedCount;
+        } else {
+            return await processNucleiResults(result.results, scanId!, 'workflow', workflowPath);
+        }
     } catch (error) {
         log(`[nuclei] [Workflow Scan] Exception for ${target.url} with workflow ${workflowPath}:`, (error as Error).message);
         return 0;

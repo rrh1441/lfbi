@@ -573,20 +573,21 @@ async function startSyncWorker() {
         process.exit(1);
     }
     
-    logProgress('Sync Worker started - monitoring for module completions and findings');
+    logProgress('Sync Worker started - running one-time sync to save costs');
     
-    // Initialize sync timestamps to prevent logging old data on startup
-    // Only sync data from the last 10 minutes to avoid noise from previous deployments
-    const recentTime = new Date(Date.now() - (10 * 60 * 1000)); // 10 minutes ago
-    lastSuccessfulScanSync = recentTime;
-    lastSuccessfulFindingSync = recentTime;
-    lastSuccessfulCredentialsSync = recentTime;
-    lastSuccessfulTotalsSync = recentTime;
+    // Initialize sync timestamps to catch ALL data (epoch start)
+    // FIXED: Force sync of all data to catch missing scans
+    const epochStart = new Date(0); // Start from epoch to sync everything
+    lastSuccessfulScanSync = epochStart;
+    lastSuccessfulFindingSync = epochStart;
+    lastSuccessfulCredentialsSync = epochStart;
+    lastSuccessfulTotalsSync = epochStart;
     
-    // Perform an initial check to catch up if worker was down
+    // Run sync cycle once and exit to save costs
     await runSyncCycle(); 
 
-    setInterval(runSyncCycle, SYNC_INTERVAL_MS);
+    logProgress('Sync Worker completed successfully - shutting down to scale to zero');
+    process.exit(0);
 }
 
 // Graceful shutdown

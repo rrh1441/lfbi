@@ -27,12 +27,24 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Make Rod/Nuclei pick up the system browser
-ENV NUCLEI_PREFERRED_CHROME_PATH=/usr/bin/chromium-browser
+ENV ROD_BROWSER_BIN=/usr/bin/chromium-browser \
+    HEADLESS_SKIP_BROWSER_DOWNLOAD=1 \
+    NUCLEI_PREFERRED_CHROME_PATH=/usr/bin/chromium-browser \
+    ROD_BROWSER=/usr/bin/chromium-browser \
+    ROD_KEEP_USER_DATA_DIR=false \
+    ROD_BROWSER_SKIP_DOWNLOAD=true
+
+# Also create the expected Rod cache directory and symlink to system Chrome
+RUN mkdir -p /root/.cache/rod/browser/chromium-1321438 && \
+    ln -s /usr/bin/chromium-browser /root/.cache/rod/browser/chromium-1321438/chrome
+
 RUN ln -sf /usr/bin/chromium-browser /usr/bin/chrome
+RUN ln -s /usr/bin/chromium-browser /usr/bin/google-chrome  # NEW: Nuclei checks this path first
 
 # Security scanner environment variables
 ENV NODE_TLS_REJECT_UNAUTHORIZED=0 \
-    TESTSSL_PATH=/opt/testssl.sh/testssl.sh
+    TESTSSL_PATH=/opt/testssl.sh/testssl.sh \
+    NUCLEI_DISABLE_SANDBOX=true
 
 # ------------------------------------------------------------------------
 # Security tooling
@@ -55,9 +67,7 @@ RUN mkdir -p /opt/nuclei-templates && \
     nuclei -update-templates -ut /opt/nuclei-templates
 ENV NUCLEI_TEMPLATES=/opt/nuclei-templates
 
-# Copy unified nuclei wrapper script
-COPY common/nuclei.sh /usr/local/bin/run_nuclei
-RUN chmod +x /usr/local/bin/run_nuclei
+# Nuclei wrapper script removed - now calling nuclei binary directly from TypeScript
 
 # dnstwist (Python) – use --break-system-packages to avoid venv bloat
 RUN pip3 install --break-system-packages dnstwist

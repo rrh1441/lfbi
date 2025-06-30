@@ -1,30 +1,31 @@
-# fly.toml app configuration file generated for dealbrief-scanner on 2025-06-04T10:45:45-07:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# fly.toml — DealBrief-Scanner (updated)
 
-app = 'dealbrief-scanner'
-primary_region = 'sea'
+app            = "dealbrief-scanner"
+primary_region = "sea"
 
 [build]
+  platform = "linux/amd64"
 
 [env]
   NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
+# ────────────── Processes ──────────────
 [processes]
   api            = "npx tsx apps/api-main/server.ts"
   scanner_worker = "npx tsx apps/workers/worker.ts"
   sync_worker    = "npm run start --prefix apps/sync-worker"
-  # NEW: one always-on updater — pulls templates once a day
+
+  # Always-on template updater - pulls once every 24 h
   updater        = "sh -c 'while true; do run_nuclei -update-templates; sleep 86400; done'"
 
+# ────────────── HTTP service (API) ──────────────
 [http_service]
-  internal_port = 3000
-  force_https = true
-  auto_stop_machines = 'off'  # Keep API always running for scan triggers
-  auto_start_machines = true
+  internal_port        = 3000
+  force_https          = true
+  auto_stop_machines   = "off"   # keep API live
+  auto_start_machines  = true
   min_machines_running = 1
-  processes = ['api']
+  processes            = ["api"]
 
 # Scanner worker: Scale to zero when idle, high RAM when running
 [[services]]
@@ -41,15 +42,17 @@ primary_region = 'sea'
   auto_start_machines = true  # Auto-start when needed
   min_machines_running = 0    # ✅ No idle cost (or set to 1 for continuous sync)
 
-[[vm]] # VM for the API - Always running, minimal RAM
-  memory = '256mb'  # ✅ Reduced from 1GB - just HTTP requests
-  cpu_kind = 'shared'
-  cpus = 1
-  processes = ['api']
+# ────────────── VM sizes ──────────────
+# API — small & always on
+[[vm]]
+  memory    = "256mb"
+  cpu_kind  = "shared"
+  cpus      = 1
+  processes = ["api"]
 
 [[vm]] # VM for the scanner worker - High RAM for scan bursts
-  memory = '1gb'    # Keep high RAM for memory-intensive scans
-  cpu_kind = 'shared'
+  memory = '4gb'    # Keep high RAM for memory-intensive scans
+  cpu_kind = 'performance'
   cpus = 1
   processes = ['scanner_worker']
 
@@ -59,8 +62,9 @@ primary_region = 'sea'
   cpus = 1
   processes = ['sync_worker']
 
-[[vm]] # NEW: updater VM — smallest size for template updates
-  memory = '256mb'  # ✅ Minimal RAM for git operations (256MB minimum on Fly)
-  cpu_kind = 'shared'
-  cpus = 1
-  processes = ['updater']
+# Template updater — tiny, no Chrome
+[[vm]]
+  memory    = "512mb"     # enough for `git` + unzip
+  cpu_kind  = "shared"
+  cpus      = 1
+  processes = ["updater"]

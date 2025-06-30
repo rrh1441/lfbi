@@ -834,7 +834,7 @@ async function runNucleiCVETests(
   
   try {
     // Check if nuclei wrapper is available
-    const testResult = await runNucleiWrapper({ debug: true });
+    const testResult = await runNucleiWrapper({ version: true });
     if (!testResult.success) {
       log('nuclei wrapper not available, skipping active CVE verification');
       return results;
@@ -852,7 +852,8 @@ async function runNucleiCVETests(
       url: target,
       templates: ['-id', cveIds.join(',')], // Target specific CVE IDs
       timeout: 20,
-      retries: 1
+      retries: 1,
+      headless: true // Enable headless for CVE verification
     });
     
     if (!result.success && result.exitCode !== 2) {
@@ -1287,7 +1288,7 @@ export async function runTechStackScan(job: {
   // Check for nuclei wrapper (required for tech detection)
   let nucleiAvailable = false;
   try {
-    const testResult = await runNucleiWrapper({ debug: true });
+    const testResult = await runNucleiWrapper({ version: true });
     nucleiAvailable = testResult.success;
     log(`techstack=nuclei wrapper confirmed available`);
   } catch (error) {
