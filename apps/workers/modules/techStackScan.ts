@@ -1579,7 +1579,7 @@ export async function runTechStackScan(job: {
     // Metrics and summary
     const metrics: ScanMetrics = {
       totalTargets: allTargets.length,
-      thirdPartyOrigins: thirdParty.length,
+      thirdPartyOrigins: thirdPartyCount,
       uniqueTechs: techMap.size,
       supplyFindings,
       runMs: Date.now() - start,
