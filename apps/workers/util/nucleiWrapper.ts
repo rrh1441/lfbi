@@ -348,10 +348,26 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
       reject(error);
     });
     
-    // Set timeout with grace period for cleanup
-    const defaultTimeoutSeconds = 180; // 3 minutes default
-    const timeoutSeconds = options.timeout || defaultTimeoutSeconds;
-    const timeoutMs = Number(process.env.NUCLEI_TIMEOUT_MS) || (timeoutSeconds * 1000);
+    // Set timeout with smart tiered system based on scan type
+    const defaultTimeoutSeconds = 180; // 3 minutes fallback
+    let timeoutMs: number;
+    
+    if (options.headless) {
+      // Deep-dive scans with headless Chrome need more time
+      timeoutMs = Number(process.env.NUCLEI_HEADLESS_TIMEOUT_MS) || 90000; // 90s default for headless
+      log(`Using headless timeout: ${timeoutMs}ms`);
+    } else {
+      // Baseline scans can be faster
+      timeoutMs = Number(process.env.NUCLEI_BASELINE_TIMEOUT_MS) || 45000; // 45s default for baseline
+      log(`Using baseline timeout: ${timeoutMs}ms`);
+    }
+    
+    // Allow manual override via options
+    if (options.timeout) {
+      timeoutMs = options.timeout * 1000;
+      log(`Manual timeout override: ${timeoutMs}ms`);
+    }
+    
     const gracePeriodMs = 3000; // 3 seconds grace period after SIGTERM
     
     const timeoutHandle = setTimeout(() => {
@@ -422,9 +438,8 @@ export async function scanUrl(
   return runNuclei({
     url,
     tags,
-    timeout: 180, // 3 minutes for headless operations
     retries: 2,
-    concurrency: 6,
+    concurrency: Number(process.env.NUCLEI_CONCURRENCY) || 32,
     ...options
   });
 }
@@ -440,9 +455,8 @@ export async function scanTargetList(
   return runNuclei({
     targetList: targetFile,
     templates,
-    timeout: 180, // 3 minutes for headless operations
     retries: 2,
-    concurrency: 6,
+    concurrency: Number(process.env.NUCLEI_CONCURRENCY) || 32,
     ...options
   });
 }
@@ -554,10 +568,9 @@ export async function runTwoPassScan(
   const baselineScan = await runNuclei({
     url: target,
     tags: BASELINE_TAGS,
-    timeout: 180, // 3 minutes for headless operations
     retries: 2,
-    concurrency: 6,
-    headless: true, // Enable headless for tech detection
+    concurrency: Number(process.env.NUCLEI_CONCURRENCY) || 32,
+    headless: false, // Baseline scan faster without headless - tech detection works fine
     ...options
   });
   
@@ -587,10 +600,9 @@ export async function runTwoPassScan(
   const techScan = await runNuclei({
     url: target,
     tags: techTags,
-    timeout: 180, // 3 minutes for headless operations
     retries: 2,
-    concurrency: 6,
-    headless: true, // Enable headless for CVE/tech-specific scans
+    concurrency: Number(process.env.NUCLEI_CONCURRENCY) || 32,
+    headless: true, // Enable headless for CVE/tech-specific scans that need browser interaction
     ...options
   });
   

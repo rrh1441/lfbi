@@ -7,9 +7,10 @@ primary_region = "sea"
   platform = "linux/amd64"
 
 [env]
-  # Nuclei timeouts - increased for headless Chrome operations
-  NUCLEI_TIMEOUT_MS = "180000"        # 3 minutes for headless browser operations
-  NUCLEI_HEADLESS_TIMEOUT_MS = "180000"
+  # Nuclei timeouts - tiered for baseline vs deep-dive scans
+  NUCLEI_BASELINE_TIMEOUT_MS = "12000"     # 12s for baseline scans (most templates < 3s)
+  NUCLEI_HEADLESS_TIMEOUT_MS = "90000"     # 90s for deep-dive scans with headless
+  NUCLEI_CONCURRENCY = "32"                # Increase concurrency - VM was 65% idle
   NUCLEI_RETRIES = "2"
   
   NODE_TLS_REJECT_UNAUTHORIZED = "0"

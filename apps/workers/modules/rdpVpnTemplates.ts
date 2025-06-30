@@ -159,9 +159,9 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
     log(`Running Nuclei with ${RDP_VPN_TEMPLATES.length} RDP/VPN templates against ${targets.length} targets`);
     
     const result = await scanTargetList(targetsFile, RDP_VPN_TEMPLATES, {
-      timeout: 180, // 3 minutes for headless operations
       retries: 2,
-      concurrency: CONCURRENCY
+      concurrency: CONCURRENCY,
+      headless: true // RDP/VPN portals may need headless for login detection
     });
     
     // Cleanup targets file

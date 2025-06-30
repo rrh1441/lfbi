@@ -167,9 +167,9 @@ async function runNucleiEmailScan(targets: string[]): Promise<NucleiResult[]> {
     
     // Use specific templates for email services (not two-pass since we need specific templates)
     const result = await scanTargetList(targetsFile, EMAIL_TEMPLATES, {
-      timeout: 180, // 3 minutes for headless operations
       retries: 2,
-      concurrency: CONCURRENCY
+      concurrency: CONCURRENCY,
+      headless: true // Email services may need headless for form detection
     });
     
     // Cleanup targets file

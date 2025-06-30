@@ -6,7 +6,8 @@
  */
 
 import axios from 'axios';
-import { insertArtifact, insertFinding } from '../core/artifactStore.js';
+import { createHash } from 'node:crypto';
+import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
 
@@ -51,6 +52,15 @@ interface AccessibilityScanSummary {
   seriousViolations: number;
   worstPage: string;
   commonIssues: string[];
+}
+
+interface PageHashData {
+  url: string;
+  titleHash: string;
+  headingsHash: string;
+  linksHash: string;
+  formsHash: string;
+  contentHash: string;
 }
 
 /**
@@ -121,6 +131,127 @@ function isTestableUrl(url: string): boolean {
   ];
   
   return !skipPatterns.some(pattern => pattern.test(url));
+}
+
+/**
+ * Compute page hash for change detection - captures key accessibility-relevant elements
+ */
+async function computePageHash(url: string): Promise<PageHashData | null> {
+  try {
+    return await withPage(async (page) => {
+      await page.goto(url, { 
+        waitUntil: 'domcontentloaded', 
+        timeout: PAGE_TIMEOUT_MS 
+      });
+      
+      // Extract key accessibility-relevant content for hashing
+      const hashData = await page.evaluate(() => {
+        const title = document.title || '';
+        
+        // Get all headings text
+        const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'))
+          .map(h => h.textContent?.trim() || '')
+          .join('|');
+        
+        // Get all link text and href attributes
+        const links = Array.from(document.querySelectorAll('a[href]'))
+          .map(a => `${a.textContent?.trim() || ''}:${a.getAttribute('href') || ''}`)
+          .join('|');
+        
+        // Get form structure (labels, inputs, buttons)
+        const forms = Array.from(document.querySelectorAll('form, input, label, button'))
+          .map(el => {
+            if (el.tagName === 'INPUT') {
+              return `input[${el.getAttribute('type') || 'text'}]:${el.getAttribute('name') || ''}`;
+            }
+            return `${el.tagName.toLowerCase()}:${el.textContent?.trim() || ''}`;
+          })
+          .join('|');
+        
+        // Get sample of main content (first 1000 chars)
+        const content = (document.body?.textContent || '').slice(0, 1000);
+        
+        return { title, headings, links, forms, content };
+      });
+      
+      // Create hashes of each component
+      return {
+        url,
+        titleHash: createHash('md5').update(hashData.title).digest('hex'),
+        headingsHash: createHash('md5').update(hashData.headings).digest('hex'),
+        linksHash: createHash('md5').update(hashData.links).digest('hex'),
+        formsHash: createHash('md5').update(hashData.forms).digest('hex'),
+        contentHash: createHash('md5').update(hashData.content).digest('hex')
+      };
+    });
+  } catch (error) {
+    log(`Failed to compute hash for ${url}: ${(error as Error).message}`);
+    return null;
+  }
+}
+
+/**
+ * Check if site has changed since last accessibility scan
+ */
+async function hasAccessibilityChanged(domain: string, currentHashes: PageHashData[]): Promise<boolean> {
+  try {
+    // Get the most recent accessibility scan hash
+    const { rows } = await pool.query(`
+      SELECT meta->'page_hashes' as page_hashes
+      FROM artifacts 
+      WHERE type IN ('accessibility_scan_summary', 'accessibility_scan_skipped')
+        AND meta->>'domain' = $1
+        AND meta->>'scan_module' = 'accessibilityScan'
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [domain]);
+    
+    if (!rows.length || !rows[0].page_hashes) {
+      log(`accessibility=change_detection domain="${domain}" status="no_previous_scan"`);
+      return true; // No previous scan, so run it
+    }
+    
+    const previousHashes: PageHashData[] = rows[0].page_hashes;
+    
+    // Compare current vs previous hashes
+    const currentHashMap = new Map(currentHashes.map(h => [h.url, h]));
+    const previousHashMap = new Map(previousHashes.map(h => [h.url, h]));
+    
+    // Check if any pages changed
+    for (const [url, currentHash] of currentHashMap) {
+      const previousHash = previousHashMap.get(url);
+      
+      if (!previousHash) {
+        log(`accessibility=change_detected domain="${domain}" url="${url}" reason="new_page"`);
+        return true; // New page found
+      }
+      
+      // Check if any component hash changed
+      if (currentHash.titleHash !== previousHash.titleHash ||
+          currentHash.headingsHash !== previousHash.headingsHash ||
+          currentHash.linksHash !== previousHash.linksHash ||
+          currentHash.formsHash !== previousHash.formsHash ||
+          currentHash.contentHash !== previousHash.contentHash) {
+        log(`accessibility=change_detected domain="${domain}" url="${url}" reason="content_changed"`);
+        return true;
+      }
+    }
+    
+    // Check if pages were removed
+    for (const url of previousHashMap.keys()) {
+      if (!currentHashMap.has(url)) {
+        log(`accessibility=change_detected domain="${domain}" url="${url}" reason="page_removed"`);
+        return true;
+      }
+    }
+    
+    log(`accessibility=no_change_detected domain="${domain}" pages=${currentHashes.length}`);
+    return false;
+    
+  } catch (error) {
+    log(`accessibility=change_detection_error domain="${domain}" error="${(error as Error).message}"`);
+    return true; // On error, run the scan to be safe
+  }
 }
 
 /**
@@ -272,7 +403,8 @@ async function createAccessibilityArtifact(
   scanId: string, 
   domain: string, 
   summary: AccessibilityScanSummary, 
-  pageResults: AccessibilityPageResult[]
+  pageResults: AccessibilityPageResult[],
+  pageHashes?: PageHashData[]
 ): Promise<number> {
   
   let severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' = 'INFO';
@@ -282,7 +414,7 @@ async function createAccessibilityArtifact(
   else if (summary.totalViolations > 0) severity = 'LOW';
   
   return await insertArtifact({
-    type: 'accessibility_summary',
+    type: 'accessibility_scan_summary',
     val_text: `Accessibility scan: ${summary.totalViolations} violations across ${summary.pagesSuccessful} pages (${summary.criticalViolations} critical, ${summary.seriousViolations} serious)`,
     severity,
     meta: {
@@ -291,6 +423,7 @@ async function createAccessibilityArtifact(
       domain,
       summary,
       page_results: pageResults,
+      page_hashes: pageHashes || [], // Store hashes for future change detection
       legal_risk_assessment: {
         ada_lawsuit_risk: severity === 'HIGH' ? 'HIGH' : severity === 'MEDIUM' ? 'MEDIUM' : 'LOW',
         wcag_compliance: summary.totalViolations === 0 ? 'COMPLIANT' : 'NON_COMPLIANT',
@@ -381,6 +514,45 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
     const pagesToTest = await discoverTestablePages(domain);
     log(`Discovered ${pagesToTest.length} pages to test for accessibility`);
     
+    // STEP 1: Compute current page hashes for change detection
+    log(`accessibility=hash_computation domain="${domain}" pages=${pagesToTest.length}`);
+    const currentHashes: PageHashData[] = [];
+    
+    for (const url of pagesToTest.slice(0, 5)) { // Only hash first 5 pages for performance
+      const hashData = await computePageHash(url);
+      if (hashData) {
+        currentHashes.push(hashData);
+      }
+    }
+    
+    // STEP 2: Check if site has changed since last scan
+    const hasChanged = await hasAccessibilityChanged(domain, currentHashes);
+    
+    if (!hasChanged) {
+      // Site hasn't changed, skip full accessibility scan
+      log(`accessibility=skipped domain="${domain}" reason="no_changes_detected"`);
+      
+      await insertArtifact({
+        type: 'accessibility_scan_skipped',
+        val_text: `Accessibility scan skipped: No changes detected since last scan`,
+        severity: 'INFO',
+        meta: {
+          scan_id: scanId,
+          scan_module: 'accessibilityScan',
+          domain,
+          reason: 'no_changes_detected',
+          pages_checked: currentHashes.length,
+          page_hashes: currentHashes,
+          scan_duration_ms: Date.now() - startTime
+        }
+      });
+      
+      return 0;
+    }
+    
+    // STEP 3: Site has changed, run full accessibility scan
+    log(`accessibility=running_full_scan domain="${domain}" reason="changes_detected"`);
+    
     // Test each page using shared browser
     for (const url of pagesToTest) {
       const result = await testPageAccessibility(url);
@@ -395,7 +567,7 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
     log(`Accessibility analysis complete: ${summary.totalViolations} violations (${summary.criticalViolations} critical, ${summary.seriousViolations} serious)`);
     
     // Create artifacts and findings
-    const artifactId = await createAccessibilityArtifact(scanId, domain, summary, pageResults);
+    const artifactId = await createAccessibilityArtifact(scanId, domain, summary, pageResults, currentHashes);
     const findingsCount = await createAccessibilityFindings(artifactId, pageResults);
     
     const duration = Date.now() - startTime;
