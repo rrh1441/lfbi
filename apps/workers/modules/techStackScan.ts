@@ -16,7 +16,7 @@ import semver from 'semver';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
-import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS, COMMON_VULN_TAGS } from '../util/nucleiWrapper.js';
+import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS, COMMON_VULN_TAGS, filterWebVulnUrls, isNonHtmlAsset } from '../util/nucleiWrapper.js';
 
 const exec = promisify(execFile);
 
@@ -1305,8 +1305,11 @@ export async function runTechStackScan(job: {
       buildTargets(scanId, domain),
       discoverThirdPartyOrigins(domain)
     ]);
-    const allTargets = [...primary, ...thirdParty];
-    log(`techstack=targets primary=${primary.length} thirdParty=${thirdParty.length} total=${allTargets.length}`);
+    const allTargetsRaw = [...primary, ...thirdParty];
+    
+    // Filter out non-HTML assets for faster scanning
+    const { webUrls: allTargets, skippedCount } = filterWebVulnUrls(allTargetsRaw);
+    log(`techstack=targets primary=${primary.length} thirdParty=${thirdParty.length} total=${allTargets.length} skipped=${skippedCount}`);
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
     // fingerprint with Nuclei or fallback

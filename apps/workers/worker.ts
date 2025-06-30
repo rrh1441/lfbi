@@ -387,11 +387,64 @@ async function processScan(job: ScanJob): Promise<void> {
     totalModuleResults += phase2cTotalResults;
     modulesCompleted += phase2cModules.length;
 
-    // Phase 3: Final sequential modules  
+    // Phase 2D: Endpoint-based attack surface modules (parallel - all need discovered endpoints)
+    const phase2dModules = ['rdp_vpn_templates', 'email_bruteforce_surface', 'nuclei', 'rate_limit_scan'];
+    const phase2dResults = await Promise.allSettled(
+      phase2dModules.map(async (moduleName) => {
+        await updateScanMasterStatus(scanId, {
+          status: 'processing',
+          current_module: `${moduleName}_phase2d`,
+          progress: 80
+        });
+        
+        log(`=== Running module (Phase 2D): ${moduleName} ===`);
+        
+        switch (moduleName) {
+          case 'rdp_vpn_templates':
+            log(`[${scanId}] STARTING RDP/VPN vulnerability templates for ${domain}`);
+            const rdpFindings = await runRdpVpnTemplates({ domain, scanId });
+            log(`[${scanId}] COMPLETED RDP/VPN templates scan: ${rdpFindings} remote access vulnerabilities found`);
+            return rdpFindings;
+          case 'email_bruteforce_surface':
+            log(`[${scanId}] STARTING email bruteforce surface scan for ${domain}`);
+            const emailFindings = await runEmailBruteforceSurface({ domain, scanId });
+            log(`[${scanId}] COMPLETED email bruteforce surface scan: ${emailFindings} email attack vectors found`);
+            return emailFindings;
+          case 'nuclei':
+            log(`[${scanId}] STARTING Nuclei vulnerability scan for ${domain}`);
+            const nucleiFindings = await runNuclei({ domain, scanId });
+            log(`[${scanId}] COMPLETED Nuclei scan: ${nucleiFindings} vulnerabilities found`);
+            return nucleiFindings;
+          case 'rate_limit_scan':
+            log(`[${scanId}] STARTING rate-limit tests for ${domain}`);
+            const rlFindings = await runRateLimitScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED rate limiting tests: ${rlFindings} rate limit issues found`);
+            return rlFindings;
+          default:
+            return 0;
+        }
+      })
+    );
+    
+    // Collect Phase 2D results
+    let phase2dTotalResults = 0;
+    phase2dResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        phase2dTotalResults += result.value;
+      } else {
+        log(`Phase 2D module ${phase2dModules[index]} failed:`, result.reason);
+      }
+    });
+    
+    totalModuleResults += phase2dTotalResults;
+    modulesCompleted += phase2dModules.length;
+
+    // Phase 3: Final sequential modules (reduced)  
     const phase3Modules = ALL_MODULES_IN_ORDER.filter(m => 
       !phase1Modules.includes(m) && 
       !phase2aModules.includes(m) && 
       !phase2cModules.includes(m) && 
+      !phase2dModules.includes(m) && 
       m !== 'endpoint_discovery'
     );
     
@@ -417,17 +470,6 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] COMPLETED document exposure: ${moduleFindings} discoveries`);
             break;
 
-          case 'rdp_vpn_templates':
-            log(`[${scanId}] STARTING RDP/VPN vulnerability templates for ${domain}`);
-            moduleFindings = await runRdpVpnTemplates({ domain, scanId });
-            log(`[${scanId}] COMPLETED RDP/VPN templates scan: ${moduleFindings} remote access vulnerabilities found`);
-            break;
-
-          case 'email_bruteforce_surface':
-            log(`[${scanId}] STARTING email bruteforce surface scan for ${domain}`);
-            moduleFindings = await runEmailBruteforceSurface({ domain, scanId });
-            log(`[${scanId}] COMPLETED email bruteforce surface scan: ${moduleFindings} email attack vectors found`);
-            break;
 
           case 'typosquat_scorer':
             log(`[${scanId}] STARTING typosquat analysis for ${domain}`);
@@ -498,17 +540,6 @@ async function processScan(job: ScanJob): Promise<void> {
           //   log(`[${scanId}] COMPLETED OpenVAS scan: ${moduleFindings} vulnerabilities found`);
           //   break;
             
-          case 'nuclei':
-            log(`[${scanId}] STARTING Nuclei vulnerability scan for ${domain}`);
-            moduleFindings = await runNuclei({ domain, scanId });
-            log(`[${scanId}] COMPLETED Nuclei scan: ${moduleFindings} vulnerabilities found`);
-            break;
-            
-          case 'rate_limit_scan':
-            log(`[${scanId}] STARTING rate-limit tests for ${domain}`);
-            moduleFindings = await runRateLimitScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED rate limiting tests: ${moduleFindings} rate limit issues found`);
-            break;
             
           case 'spf_dmarc':
             log(`[${scanId}] STARTING SPF/DMARC email security scan for ${domain}`);

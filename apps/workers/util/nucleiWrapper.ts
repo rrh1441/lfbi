@@ -187,6 +187,104 @@ interface TwoPassScanResult {
 const log = (...args: unknown[]) => rootLog('[nucleiWrapper]', ...args);
 
 /**
+ * Check if URL is non-HTML asset that should be skipped for web vulnerability scanning
+ */
+export function isNonHtmlAsset(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname.toLowerCase();
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    // File extension patterns that never return HTML
+    const nonHtmlExtensions = /\.(js|css|png|jpg|jpeg|gif|svg|ico|pdf|zip|exe|dmg|mp4|mp3|woff|woff2|ttf|eot)$/i;
+    if (nonHtmlExtensions.test(pathname)) return true;
+    
+    // API endpoints that return JSON/XML, not HTML
+    const apiPatterns = [
+      /\/api[\/\?]/,
+      /\/v\d+[\/\?]/,
+      /\.json[\/\?]?$/,
+      /\.xml[\/\?]?$/,
+      /\/rest[\/\?]/,
+      /\/graphql[\/\?]/,
+      /player_api/,
+      /analytics/,
+      /tracking/
+    ];
+    if (apiPatterns.some(pattern => pattern.test(pathname))) return true;
+    
+    // CDN and static asset domains
+    const cdnPatterns = [
+      'cdn.',
+      'static.',
+      'assets.',
+      'media.',
+      'img.',
+      'js.',
+      'css.',
+      'fonts.',
+      'maxcdn.bootstrapcdn.com',
+      'cdnjs.cloudflare.com',
+      'unpkg.com',
+      'jsdelivr.net'
+    ];
+    if (cdnPatterns.some(pattern => hostname.includes(pattern))) return true;
+    
+    return false;
+  } catch {
+    return false; // Invalid URL, let it through for safety
+  }
+}
+
+/**
+ * Filter URLs to only include those suitable for web vulnerability scanning
+ */
+export function filterWebVulnUrls(urls: string[]): { webUrls: string[]; skippedCount: number } {
+  const webUrls = urls.filter(url => !isNonHtmlAsset(url));
+  return {
+    webUrls,
+    skippedCount: urls.length - webUrls.length
+  };
+}
+
+/**
+ * Gate Nuclei templates based on detected technologies
+ */
+export function gateTemplatesByTech(detectedTechnologies: string[], allTemplates: string[]): string[] {
+  if (detectedTechnologies.length === 0) {
+    // No tech detected, run basic templates only
+    return allTemplates.filter(template => 
+      !template.includes('wordpress') &&
+      !template.includes('drupal') &&
+      !template.includes('joomla') &&
+      !template.includes('magento')
+    );
+  }
+  
+  // Run all templates if we detected relevant technologies
+  const hasWordPress = detectedTechnologies.some(tech => 
+    tech.toLowerCase().includes('wordpress') || tech.toLowerCase().includes('wp'));
+  const hasDrupal = detectedTechnologies.some(tech => 
+    tech.toLowerCase().includes('drupal'));
+  
+  let gatedTemplates = [...allTemplates];
+  
+  // Remove WordPress templates if no WordPress detected
+  if (!hasWordPress) {
+    gatedTemplates = gatedTemplates.filter(template => 
+      !template.includes('wordpress') && !template.includes('wp-plugin'));
+  }
+  
+  // Remove Drupal templates if no Drupal detected
+  if (!hasDrupal) {
+    gatedTemplates = gatedTemplates.filter(template => 
+      !template.includes('drupal'));
+  }
+  
+  return gatedTemplates;
+}
+
+/**
  * Create artifacts for Nuclei results like other modules
  */
 async function createNucleiArtifacts(results: NucleiResult[], scanId: string): Promise<number> {
@@ -303,7 +401,7 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
   let exitCode = 0;
   let success = false;
   
-  // Use spawn to capture JSON-L output
+  // Use spawn to capture JSON-L output with streaming parsing
   await new Promise<void>((resolve, reject) => {
     const nucleiProcess = spawn('/usr/local/bin/nuclei', args, {
       stdio: 'pipe', // Always capture output to parse JSON-L results
@@ -315,10 +413,30 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
       }
     });
     
-    // Capture stdout and stderr for compatibility
+    let stdoutBuffer = '';
+    
+    // Stream JSON-L parsing to capture results even on timeout
     if (nucleiProcess.stdout) {
       nucleiProcess.stdout.on('data', (data) => {
-        stdout += data.toString();
+        const chunk = data.toString();
+        stdout += chunk;
+        stdoutBuffer += chunk;
+        
+        // Parse complete JSON lines as they arrive
+        const lines = stdoutBuffer.split('\n');
+        stdoutBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          if (line.trim() && line.startsWith('{')) {
+            try {
+              const result = JSON.parse(line) as NucleiResult;
+              results.push(result);
+              log(`Streaming result: ${result['template-id']} on ${result.host}`);
+            } catch (parseError) {
+              // Skip malformed JSON lines
+            }
+          }
+        }
       });
     }
     
@@ -574,6 +692,9 @@ export async function runTwoPassScan(
     ...options
   });
   
+  // Check if baseline scan timed out cleanly (indicates page loading issues)
+  const baselineTimedOut = !baselineScan.success && baselineScan.stderr?.includes('timeout');
+  
   if (!baselineScan.success) {
     log(`Baseline scan failed for ${target}: exit code ${baselineScan.exitCode}`);
     return {
@@ -594,12 +715,36 @@ export async function runTwoPassScan(
     ? buildTechSpecificTags(detectedTechnologies)
     : COMMON_VULN_TAGS; // Just common vulns if no tech detected
   
+  // Gate templates based on detected technologies
+  const gatedTags = gateTemplatesByTech(detectedTechnologies, techTags);
+  
   // ─────────────── PASS 2: Common Vulnerabilities + Tech-Specific Scan ───────────────
-  log(`Pass 2: Running common vulnerability + tech-specific scan with tags: ${techTags.join(',')}`);
+  
+  // Skip headless pass if baseline timed out (page doesn't load properly)
+  const shouldSkipHeadless = baselineTimedOut && isNonHtmlAsset(target);
+  
+  if (shouldSkipHeadless) {
+    log(`Pass 2: Skipping headless scan for ${target} - baseline timeout on non-HTML asset`);
+    const totalFindings = baselineScan.results.length;
+    const totalPersistedCount = baselineScan.persistedCount || 0;
+    
+    log(`Two-pass scan completed (headless skipped): ${totalPersistedCount} findings persisted as artifacts (baseline: ${baselineScan.persistedCount || 0}, headless: skipped)`);
+    
+    return {
+      baselineResults: baselineScan.results,
+      techSpecificResults: [],
+      detectedTechnologies,
+      totalFindings,
+      scanDurationMs: Date.now() - startTime,
+      totalPersistedCount
+    };
+  }
+  
+  log(`Pass 2: Running common vulnerability + tech-specific scan with gated tags: ${gatedTags.join(',')}`);
   
   const techScan = await runNuclei({
     url: target,
-    tags: techTags,
+    tags: gatedTags,
     retries: 2,
     concurrency: Number(process.env.NUCLEI_CONCURRENCY) || 32,
     headless: true, // Enable headless for CVE/tech-specific scans that need browser interaction

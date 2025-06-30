@@ -56,10 +56,10 @@ primary_region = "sea"
   cpus      = 1
   processes = ["api"]
 
-[[vm]] # VM for the scanner worker - High RAM for scan bursts
+[[vm]] # VM for the scanner worker - High RAM for scan bursts + dual core for parallelization
   memory = '4gb'    # Keep high RAM for memory-intensive scans
   cpu_kind = 'performance'
-  cpus = 1
+  cpus = 2          # Add second core for parallel module execution
   processes = ['scanner_worker']
 
 [[vm]] # VM for the sync worker - Minimal RAM for DB operations
