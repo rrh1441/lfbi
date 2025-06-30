@@ -105,6 +105,20 @@ export async function runZAPScan(job: {
         totalFindings += findings;
       } catch (error) {
         log(`ZAP scan failed for ${target.url}: ${(error as Error).message}`);
+        
+        // Create error artifact for failed ZAP scan
+        await insertArtifact({
+          type: 'scan_error',
+          val_text: `ZAP scan failed for ${target.url}: ${(error as Error).message}`,
+          severity: 'MEDIUM',
+          meta: {
+            scan_id: scanId,
+            scan_module: 'zapScan',
+            target_url: target.url,
+            asset_type: target.assetType,
+            error_message: (error as Error).message
+          }
+        });
       }
     }
     
@@ -257,7 +271,8 @@ async function executeZAPBaseline(target: string, assetType: string, scanId: str
         } else {
           log(`ZAP scan failed for ${target} (exit code: ${code})`);
           if (stderr) log(`ZAP stderr: ${stderr}`);
-          reject(new Error(`ZAP baseline scan failed with exit code ${code}`));
+          if (stdout) log(`ZAP stdout: ${stdout}`);
+          reject(new Error(`ZAP baseline scan failed with exit code ${code}: ${stderr}`));
         }
       });
       

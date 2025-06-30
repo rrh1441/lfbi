@@ -85,11 +85,13 @@ RUN apk add --no-cache sslscan
 # OpenVAS/Greenbone CE - Enterprise vulnerability scanner
 RUN pip3 install --break-system-packages python-gvm gvm-tools
 
-# OWASP ZAP - Web application security scanner (baseline script only)
+# OWASP ZAP - Web application security scanner with all dependencies
 RUN apk add --no-cache openjdk11-jre && \
     pip3 install --break-system-packages python-owasp-zap-v2.4 && \
     curl -fsSL https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap-baseline.py \
          -o /usr/local/bin/zap-baseline.py && \
+    curl -fsSL https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap_common.py \
+         -o /usr/local/lib/python3.12/site-packages/zap_common.py && \
     chmod +x /usr/local/bin/zap-baseline.py && \
     mkdir -p /root/.ZAP && \
     python3 /usr/local/bin/zap-baseline.py --version || echo "ZAP baseline script installed successfully"
