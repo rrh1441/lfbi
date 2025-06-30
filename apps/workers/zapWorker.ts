@@ -74,7 +74,8 @@ async function startZAPWorker(): Promise<void> {
   log(`Starting dedicated ZAP worker [${workerInstanceId}]`);
   
   // Initialize database connection
-  try {\n    await initializeDatabase();
+  try {
+    await initializeDatabase();
     log('Database connection initialized successfully');
   } catch (error) {
     log('Database initialization failed:', (error as Error).message);
@@ -114,4 +115,40 @@ async function startZAPWorker(): Promise<void> {
   
   // Main processing loop - optimized for ZAP workloads
   while (!isShuttingDown) {
-    try {\n      // Look for ZAP-specific jobs\n      const job = await queue.getNextJob('zap_scan') as ZAPJob | null;\n      \n      if (job && !isShuttingDown) {\n        log(`Processing ZAP job: ${job.id}`);\n        await processZAPJob(job);\n      } else {\n        // No ZAP jobs available, wait before checking again\n        // ZAP workers can check more frequently since they scale to zero\n        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second intervals\n      }\n      \n    } catch (error) {\n      if (!isShuttingDown) {\n        log('ZAP worker error:', (error as Error).message);\n        // Wait before retrying on error\n        await new Promise(resolve => setTimeout(resolve, 5000));\n      }\n    }\n  }\n  \n  log('ZAP worker loop exited due to shutdown signal');\n}\n\n// Start the ZAP worker\nstartZAPWorker().catch(error => {\n  log('CRITICAL: Failed to start ZAP worker:', (error as Error).message);\n  process.exit(1);\n});
+    try {
+      // Look for any available jobs - we'll filter for ZAP jobs
+      const job = await queue.getNextJob() as ZAPJob | null;
+      
+      if (job && !isShuttingDown) {
+        // Filter for ZAP jobs only - skip non-ZAP jobs
+        if (job.type === 'zap_scan') {
+          log(`Processing ZAP job: ${job.id}`);
+          await processZAPJob(job);
+        } else {
+          // Put non-ZAP job back in queue for other workers
+          await queue.addJob(job.id, job);
+          log(`Skipped non-ZAP job ${job.id} (type: ${(job as any).type || 'unknown'})`);
+        }
+      } else {
+        // No ZAP jobs available, wait before checking again
+        // ZAP workers can check more frequently since they scale to zero
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second intervals
+      }
+      
+    } catch (error) {
+      if (!isShuttingDown) {
+        log('ZAP worker error:', (error as Error).message);
+        // Wait before retrying on error
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+  }
+  
+  log('ZAP worker loop exited due to shutdown signal');
+}
+
+// Start the ZAP worker
+startZAPWorker().catch(error => {
+  log('CRITICAL: Failed to start ZAP worker:', (error as Error).message);
+  process.exit(1);
+});

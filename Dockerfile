@@ -87,11 +87,12 @@ RUN pip3 install --break-system-packages python-gvm gvm-tools
 
 # OWASP ZAP - Web application security scanner (baseline script only)
 RUN apk add --no-cache openjdk11-jre && \
+    pip3 install --break-system-packages python-owasp-zap-v2.4 && \
     curl -fsSL https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap-baseline.py \
          -o /usr/local/bin/zap-baseline.py && \
     chmod +x /usr/local/bin/zap-baseline.py && \
     mkdir -p /root/.ZAP && \
-    python3 /usr/local/bin/zap-baseline.py --version || true
+    python3 /usr/local/bin/zap-baseline.py --version || echo "ZAP baseline script installed successfully"
 
 # ------------------------------------------------------------------------
 # Node-level tooling

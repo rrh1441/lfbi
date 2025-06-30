@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
-import { classifyTargetAssetType } from '../util/nucleiWrapper.js';
+import { isNonHtmlAsset } from '../util/nucleiWrapper.js';
 
 // Enhanced logging
 const log = (...args: unknown[]) => rootLog('[zapScan]', ...args);
@@ -183,16 +183,13 @@ async function getZAPTargets(scanId: string, domain: string): Promise<Array<{url
       `https://${domain}/dashboard`
     ];
     
-    // Classify and filter for web applications
+    // Filter for web applications (HTML assets only)
     const targets = urls
+      .filter(url => !isNonHtmlAsset(url))
       .map(url => ({
         url,
-        assetType: classifyTargetAssetType(url)
+        assetType: 'html' // All remaining URLs after filtering are HTML assets
       }))
-      .filter(target => {
-        // Only scan HTML assets, skip non-HTML (APIs, static files, etc.)
-        return target.assetType === 'html';
-      })
       .slice(0, MAX_ZAP_TARGETS);
     
     log(`Identified ${targets.length} ZAP targets from ${urls.length} discovered URLs`);
