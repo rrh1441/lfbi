@@ -53,6 +53,12 @@ const RISK_TO_SEVERITY: Record<'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL', Severity>
 };
 
 // ───────────────── Types ────────────────────────────────────────────────────
+// Enhanced target with asset type classification for performance optimization
+interface ClassifiedTarget {
+  url: string;
+  assetType: 'html' | 'nonHtml';
+}
+
 interface WappTech {
   name: string;
   slug: string;
@@ -384,9 +390,86 @@ function analyzeHttpHeaders(headers: Headers, url: string): WappTech[] {
 }
 
 
-/* Build enhanced target list */
-async function buildTargets(scanId: string, domain: string): Promise<string[]> {
-  const targets = new Set<string>([`https://${domain}`, `https://www.${domain}`]);
+/**
+ * Classify target as HTML or non-HTML asset based on expensive URL patterns
+ * Targets expensive endpoints like /player_api, maxcdn, direct// that should bypass Nuclei
+ */
+function classifyTargetAssetType(url: string): 'html' | 'nonHtml' {
+  try {
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname.toLowerCase();
+    const hostname = urlObj.hostname.toLowerCase();
+    
+    // Known expensive non-HTML patterns that should bypass Nuclei entirely (~2min savings)
+    const expensiveNonHtmlPatterns = [
+      // Player APIs - very expensive and never return HTML
+      /player_api/i,
+      /\/api\/player/i,
+      /\/player\//i,
+      
+      // CDN assets - maxcdn.bootstrapcdn.com and similar
+      /maxcdn\.bootstrapcdn/i,
+      /cdn\.jsdelivr/i,
+      /cdnjs\.cloudflare/i,
+      /unpkg\.com/i,
+      
+      // Direct file endpoints that never return HTML
+      /\/direct\//i,
+      /\/assets\/direct/i,
+      /\/static\/direct/i,
+      
+      // Common API endpoints that return JSON/XML
+      /\/v\d+\/api/i,
+      /\/rest\/api/i,
+      /\/graphql/i,
+      /\/api\/v\d+/i,
+      
+      // Analytics and tracking endpoints
+      /analytics/i,
+      /tracking/i,
+      /metrics/i,
+      /telemetry/i,
+      
+      // Streaming and media endpoints
+      /stream/i,
+      /media/i,
+      /video/i,
+      /audio/i
+    ];
+    
+    // Check pathname patterns first (most common case)
+    if (expensiveNonHtmlPatterns.some(pattern => pattern.test(pathname))) {
+      return 'nonHtml';
+    }
+    
+    // Check hostname patterns for CDN detection
+    if (expensiveNonHtmlPatterns.some(pattern => pattern.test(hostname))) {
+      return 'nonHtml';
+    }
+    
+    // File extensions that are definitely non-HTML
+    const nonHtmlExtensions = /\.(js|css|png|jpg|jpeg|gif|svg|ico|pdf|zip|exe|dmg|mp4|mp3|woff|woff2|ttf|eot|json|xml)$/i;
+    if (nonHtmlExtensions.test(pathname)) {
+      return 'nonHtml';
+    }
+    
+    // Default to HTML for potential web content
+    return 'html';
+  } catch {
+    // Invalid URL, classify as HTML to be safe
+    return 'html';
+  }
+}
+
+/* Build enhanced target list with asset type classification */
+async function buildTargets(scanId: string, domain: string): Promise<ClassifiedTarget[]> {
+  const baseTargets = [`https://${domain}`, `https://www.${domain}`];
+  const targets = new Map<string, ClassifiedTarget>();
+  
+  // Add base domain targets (always HTML)
+  baseTargets.forEach(url => {
+    targets.set(url, { url, assetType: 'html' });
+  });
   
   try {
     const { rows } = await pool.query(
@@ -397,7 +480,7 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
       [scanId]
     );
     
-    // Add discovered endpoints (limit to 100 for performance)
+    // Add discovered endpoints with classification (limit to 100 for performance)
     const discoveredCount = rows[0]?.urls?.length || 0;
     rows[0]?.urls?.slice(0, 100).forEach((url: string) => {
       if (url && typeof url === 'string' && url !== 'null' && url.startsWith('http')) {
@@ -406,33 +489,37 @@ async function buildTargets(scanId: string, domain: string): Promise<string[]> {
           const urlObj = new URL(url);
           // Skip if URL is valid and not problematic
           if (urlObj.hostname && !isProblematicDomain(urlObj.hostname)) {
-            targets.add(url);
+            const assetType = classifyTargetAssetType(url);
+            targets.set(url, { url, assetType });
           }
         } catch {
           // Skip invalid URLs
         }
       }
     });
-    log(`buildTargets discovered=${discoveredCount} total=${targets.size}`);
+    
+    const htmlCount = Array.from(targets.values()).filter(t => t.assetType === 'html').length;
+    const nonHtmlCount = Array.from(targets.values()).filter(t => t.assetType === 'nonHtml').length;
+    log(`buildTargets discovered=${discoveredCount} total=${targets.size} (html=${htmlCount}, nonHtml=${nonHtmlCount})`);
   } catch (error) {
     log(`buildTargets error: ${(error as Error).message}`);
   }
   
-  // If no endpoints discovered, add common paths for better coverage
+  // If no endpoints discovered, add common paths for better coverage (all HTML)
   if (targets.size <= 2) {
     const commonPaths = ['/admin', '/api', '/app', '/login', '/dashboard', '/home', '/about'];
     commonPaths.forEach(path => {
-      targets.add(`https://${domain}${path}`);
-      targets.add(`https://www.${domain}${path}`);
+      targets.set(`https://${domain}${path}`, { url: `https://${domain}${path}`, assetType: 'html' });
+      targets.set(`https://www.${domain}${path}`, { url: `https://www.${domain}${path}`, assetType: 'html' });
     });
     log(`buildTargets fallback added common paths, total=${targets.size}`);
   }
   
-  return Array.from(targets);
+  return Array.from(targets.values());
 }
 
 /* Third-party sub-resource discovery using shared Puppeteer */
-async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
+async function discoverThirdPartyOrigins(domain: string): Promise<ClassifiedTarget[]> {
   // Check if Puppeteer is enabled
   if (process.env.ENABLE_PUPPETEER === '0') {
     log(`thirdParty=skipped domain=${domain} reason="puppeteer_disabled"`);
@@ -481,11 +568,18 @@ async function discoverThirdPartyOrigins(domain: string): Promise<string[]> {
         });
       }
       
-      // Limit results to prevent excessive discovery
+      // Limit results to prevent excessive discovery and classify each one
       const limitedOrigins = Array.from(origins).slice(0, CONFIG.MAX_THIRD_PARTY_REQUESTS);
-      log(`thirdParty=discovered domain=${domain} origins=${limitedOrigins.length}`);
+      const classifiedTargets = limitedOrigins.map(url => ({
+        url,
+        assetType: classifyTargetAssetType(url) as 'html' | 'nonHtml'
+      }));
       
-      return limitedOrigins;
+      const htmlCount = classifiedTargets.filter(t => t.assetType === 'html').length;
+      const nonHtmlCount = classifiedTargets.filter(t => t.assetType === 'nonHtml').length;
+      log(`thirdParty=discovered domain=${domain} total=${limitedOrigins.length} (html=${htmlCount}, nonHtml=${nonHtmlCount})`);
+      
+      return classifiedTargets;
     });
     
   } catch (error) {
@@ -1300,16 +1394,39 @@ export async function runTechStackScan(job: {
   const cb = new TechnologyScanCircuitBreaker();
   const limit = pLimit(CONFIG.MAX_CONCURRENCY);
   try {
-    // Build or use provided targets
-    const [primary, thirdParty] = providedTargets ? [providedTargets, []] : await Promise.all([
-      buildTargets(scanId, domain),
-      discoverThirdPartyOrigins(domain)
-    ]);
-    const allTargetsRaw = [...primary, ...thirdParty];
+    // Build classified targets or use provided targets
+    let classifiedTargets: ClassifiedTarget[];
+    let primaryCount = 0, thirdPartyCount = 0;
     
-    // Filter out non-HTML assets for faster scanning
-    const { webUrls: allTargets, skippedCount } = filterWebVulnUrls(allTargetsRaw);
-    log(`techstack=targets primary=${primary.length} thirdParty=${thirdParty.length} total=${allTargets.length} skipped=${skippedCount}`);
+    if (providedTargets) {
+      // Convert provided targets to classified format (assume HTML for compatibility)
+      classifiedTargets = providedTargets.map(url => ({ url, assetType: 'html' as const }));
+      primaryCount = providedTargets.length;
+    } else {
+      const [primary, thirdParty] = await Promise.all([
+        buildTargets(scanId, domain),
+        discoverThirdPartyOrigins(domain)
+      ]);
+      classifiedTargets = [...primary, ...thirdParty];
+      primaryCount = primary.length;
+      thirdPartyCount = thirdParty.length;
+    }
+    
+    // Separate HTML and non-HTML targets for different treatment
+    const htmlTargets = classifiedTargets.filter(t => t.assetType === 'html').map(t => t.url);
+    const nonHtmlTargets = classifiedTargets.filter(t => t.assetType === 'nonHtml');
+    
+    // Apply additional filtering to HTML targets only (keep the existing filterWebVulnUrls for compatibility)
+    const { webUrls: allTargets, skippedCount } = filterWebVulnUrls(htmlTargets);
+    
+    log(`techstack=targets primary=${primaryCount} thirdParty=${thirdPartyCount} total=${classifiedTargets.length} html=${htmlTargets.length} finalHtml=${allTargets.length} nonHtml=${nonHtmlTargets.length} skipped=${skippedCount}`);
+    
+    // Log the expensive non-HTML targets being bypassed for transparency
+    if (nonHtmlTargets.length > 0) {
+      const bypassedUrls = nonHtmlTargets.map(t => t.url).slice(0, 5).join(', ');
+      log(`techstack=bypass_nuclei targets=[${bypassedUrls}${nonHtmlTargets.length > 5 ? '...' : ''}] (~2min time savings by skipping expensive non-HTML assets)`);
+    }
+    
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
     // fingerprint with Nuclei or fallback
