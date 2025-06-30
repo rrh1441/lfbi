@@ -1,18 +1,21 @@
 /**
  * OWASP ZAP Web Application Security Scanner Integration
  * 
- * Provides comprehensive web application security testing using OWASP ZAP.
- * Focuses on web-specific vulnerabilities that complement Nuclei's broader scanning.
+ * Provides comprehensive web application security testing using OWASP ZAP baseline scanner.
+ * Integrates with asset classification system for smart targeting.
+ * Designed for dedicated ZAP worker architecture with pay-per-second economics.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, readFile, unlink } from 'fs/promises';
-import { existsSync } from 'fs';
-import { randomBytes } from 'crypto';
-import { insertArtifact, insertFinding } from '../core/artifactStore.js';
+import { spawn } from 'node:child_process';
+import { readFile, unlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
+import { log as rootLog } from '../core/logger.js';
+import { classifyTargetAssetType } from '../util/nucleiWrapper.js';
 
-const execAsync = promisify(exec);
+// Enhanced logging
+const log = (...args: unknown[]) => rootLog('[zapScan]', ...args);
 
 interface ZAPVulnerability {
   alert: string;
@@ -49,10 +52,11 @@ interface ZAPSite {
   alerts: ZAPVulnerability[];
 }
 
-function log(...args: any[]) {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [zap]`, ...args);
-}
+// Configuration
+const ZAP_BASELINE_SCRIPT = '/usr/local/bin/zap-baseline.py';
+const ZAP_TIMEOUT_MS = 180_000; // 3 minutes per target
+const MAX_ZAP_TARGETS = 5;      // Limit targets for performance
+const ZAP_JAVA_OPTS = '-Xmx2g -XX:+UseG1GC'; // Optimize for 4GB container
 
 /**
  * Main ZAP scanning function
@@ -64,18 +68,18 @@ export async function runZAPScan(job: {
   const { domain, scanId } = job;
   log(`Starting OWASP ZAP web application security scan for ${domain}`);
 
-  // Check if ZAP is available
-  if (!await isZAPAvailable()) {
-    log(`OWASP ZAP not available - skipping web application security scan`);
+  // Check if ZAP baseline script is available
+  if (!isZAPAvailable()) {
+    log(`ZAP baseline script not found at ${ZAP_BASELINE_SCRIPT} - skipping web application scan`);
     
     await insertArtifact({
       type: 'scan_warning',
-      val_text: `OWASP ZAP web application scanner not available - web-specific vulnerability testing skipped`,
+      val_text: `ZAP baseline script not available - web application security testing skipped`,
       severity: 'LOW',
       meta: {
         scan_id: scanId,
         scan_module: 'zapScan',
-        reason: 'scanner_unavailable'
+        reason: 'zap_baseline_unavailable'
       }
     });
     
@@ -83,37 +87,39 @@ export async function runZAPScan(job: {
   }
 
   try {
-    // Discover web targets from previous scans
-    const targets = await discoverWebTargets(domain, scanId);
+    // Get high-value web application targets
+    const targets = await getZAPTargets(scanId, domain);
     if (targets.length === 0) {
-      log(`No web targets discovered for ZAP scan`);
+      log(`No suitable web targets found for ZAP scanning`);
       return 0;
     }
 
-    log(`Discovered ${targets.length} web targets for security testing`);
+    log(`Found ${targets.length} high-value web targets for ZAP scanning`);
 
     // Execute ZAP baseline scan for each target
     let totalFindings = 0;
     
-    for (const target of targets.slice(0, 5)) { // Limit to 5 targets for performance
+    for (const target of targets) {
       try {
-        const findings = await executeZAPBaseline(target, scanId);
+        const findings = await executeZAPBaseline(target.url, target.assetType, scanId);
         totalFindings += findings;
       } catch (error) {
-        log(`ZAP scan failed for ${target}: ${(error as Error).message}`);
+        log(`ZAP scan failed for ${target.url}: ${(error as Error).message}`);
       }
     }
     
     // Create summary artifact
     await insertArtifact({
-      type: 'scan_summary',
-      val_text: `OWASP ZAP scan completed: ${totalFindings} web application vulnerabilities found across ${targets.length} targets`,
+      type: 'zap_scan_summary',
+      val_text: `ZAP scan completed: ${totalFindings} web application vulnerabilities found across ${targets.length} targets`,
       severity: totalFindings > 5 ? 'HIGH' : totalFindings > 0 ? 'MEDIUM' : 'INFO',
       meta: {
         scan_id: scanId,
         scan_module: 'zapScan',
+        domain,
         total_vulnerabilities: totalFindings,
-        targets_scanned: targets.length
+        targets_scanned: targets.length,
+        targets: targets.map(t => ({ url: t.url, asset_type: t.assetType }))
       }
     });
 
@@ -125,12 +131,12 @@ export async function runZAPScan(job: {
     
     await insertArtifact({
       type: 'scan_error',
-      val_text: `OWASP ZAP web application scan failed: ${(error as Error).message}`,
+      val_text: `ZAP web application scan failed: ${(error as Error).message}`,
       severity: 'MEDIUM',
       meta: {
         scan_id: scanId,
         scan_module: 'zapScan',
-        error: true,
+        domain,
         error_message: (error as Error).message
       }
     });
@@ -140,118 +146,131 @@ export async function runZAPScan(job: {
 }
 
 /**
- * Check if OWASP ZAP is available
+ * Check if ZAP baseline script is available
  */
-async function isZAPAvailable(): Promise<boolean> {
+function isZAPAvailable(): boolean {
+  return existsSync(ZAP_BASELINE_SCRIPT);
+}
+
+/**
+ * Get high-value web application targets using existing asset classification
+ */
+async function getZAPTargets(scanId: string, domain: string): Promise<Array<{url: string, assetType: string}>> {
   try {
-    const { stdout } = await execAsync('which zap', { timeout: 5000 });
-    return stdout.trim().length > 0;
+    // Get discovered endpoints from endpointDiscovery
+    const { rows } = await pool.query(
+      `SELECT DISTINCT src_url 
+       FROM artifacts 
+       WHERE meta->>'scan_id' = $1 
+         AND type IN ('discovered_endpoint', 'http_probe')
+         AND src_url ILIKE $2
+         AND src_url ~ '^https?://'`,
+      [scanId, `%${domain}%`]
+    );
+    
+    const discoveredUrls = rows.map(r => r.src_url);
+    
+    // If no discovered endpoints, use high-value defaults
+    const urls = discoveredUrls.length > 0 ? discoveredUrls : [
+      `https://${domain}`,
+      `https://www.${domain}`,
+      `https://app.${domain}`,
+      `https://admin.${domain}`,
+      `https://portal.${domain}`,
+      `https://api.${domain}/docs`, // API documentation often has web interfaces
+      `https://${domain}/admin`,
+      `https://${domain}/login`,
+      `https://${domain}/dashboard`
+    ];
+    
+    // Classify and filter for web applications
+    const targets = urls
+      .map(url => ({
+        url,
+        assetType: classifyTargetAssetType(url)
+      }))
+      .filter(target => {
+        // Only scan HTML assets, skip non-HTML (APIs, static files, etc.)
+        return target.assetType === 'html';
+      })
+      .slice(0, MAX_ZAP_TARGETS);
+    
+    log(`Identified ${targets.length} ZAP targets from ${urls.length} discovered URLs`);
+    
+    return targets;
   } catch (error) {
-    // Try alternative ZAP command locations
-    try {
-      const { stdout } = await execAsync('which zap.sh', { timeout: 5000 });
-      return stdout.trim().length > 0;
-    } catch {
-      try {
-        await execAsync('/opt/zap/zap.sh -version', { timeout: 10000 });
-        return true;
-      } catch {
-        try {
-          await execAsync('/opt/zaproxy/zap.sh -version', { timeout: 10000 });
-          return true;
-        } catch {
-          return false;
-        }
-      }
-    }
+    log(`Error discovering ZAP targets: ${(error as Error).message}`);
+    // Fallback to basic targets
+    return [
+      { url: `https://${domain}`, assetType: 'html' },
+      { url: `https://www.${domain}`, assetType: 'html' }
+    ];
   }
 }
 
 /**
- * Discover web targets for ZAP scanning
+ * Execute ZAP baseline scan using the zap-baseline.py script
  */
-async function discoverWebTargets(domain: string, scanId: string): Promise<string[]> {
-  const targets = new Set<string>();
-  
-  // Primary targets
-  targets.add(`https://${domain}`);
-  targets.add(`http://${domain}`);
-  targets.add(`https://www.${domain}`);
-  targets.add(`http://www.${domain}`);
-  
-  // Common web application paths
-  const commonPaths = [
-    '/login',
-    '/admin',
-    '/api',
-    '/app',
-    '/portal',
-    '/dashboard',
-    '/console'
-  ];
-  
-  // Add common paths to primary domain
-  for (const path of commonPaths) {
-    targets.add(`https://${domain}${path}`);
-    targets.add(`https://www.${domain}${path}`);
-  }
-  
-  // TODO: In future, query artifact store for discovered endpoints
-  // from endpointDiscovery module
-  
-  return Array.from(targets).slice(0, 10); // Limit for performance
-}
-
-/**
- * Execute ZAP baseline scan
- */
-async function executeZAPBaseline(target: string, scanId: string): Promise<number> {
+async function executeZAPBaseline(target: string, assetType: string, scanId: string): Promise<number> {
   const sessionId = randomBytes(8).toString('hex');
   const outputFile = `/tmp/zap_report_${sessionId}.json`;
   
   try {
-    log(`Running ZAP baseline scan for ${target}`);
+    log(`Running ZAP baseline scan for ${target} (${assetType})`);
     
-    // Determine ZAP command
-    let zapCommand = 'zap';
-    if (!await isCommandAvailable('zap')) {
-      if (await isCommandAvailable('zap.sh')) {
-        zapCommand = 'zap.sh';
-      } else if (existsSync('/opt/zap/zap.sh')) {
-        zapCommand = '/opt/zap/zap.sh';
-      } else if (existsSync('/opt/zaproxy/zap.sh')) {
-        zapCommand = '/opt/zaproxy/zap.sh';
-      } else {
-        throw new Error('ZAP executable not found');
-      }
-    }
-    
-    // Build ZAP baseline command
+    // Build ZAP baseline command arguments
     const zapArgs = [
-      '-cmd',
-      '-quickurl', target,
-      '-quickprogress',
-      '-quickout', outputFile
+      '-t', target,           // Target URL
+      '-J', outputFile,       // JSON output file
+      '-I',                   // Ignore warnings
+      '-d'                    // Debug mode for better error reporting
     ];
     
-    // Add optional configurations
-    if (process.env.ZAP_TIMEOUT) {
-      zapArgs.push('-config', 'spider.maxDuration=' + process.env.ZAP_TIMEOUT);
-    }
+    // Set environment for optimal performance
+    const env = {
+      ...process.env,
+      JAVA_OPTS: ZAP_JAVA_OPTS,
+      ZAP_PORT: '0'           // Use random port to avoid conflicts
+    };
     
-    // Execute ZAP scan
-    const command = `${zapCommand} ${zapArgs.join(' ')}`;
-    log(`Executing ZAP command: ${command}`);
-    
-    const { stdout, stderr } = await execAsync(command, {
-      timeout: 300000, // 5 minutes timeout
-      maxBuffer: 50 * 1024 * 1024 // 50MB buffer
+    // Execute ZAP baseline scan using spawn for better control
+    await new Promise<void>((resolve, reject) => {
+      const zapProcess = spawn('python3', [ZAP_BASELINE_SCRIPT, ...zapArgs], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env,
+        timeout: ZAP_TIMEOUT_MS
+      });
+      
+      let stdout = '';
+      let stderr = '';
+      
+      zapProcess.stdout?.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      zapProcess.stderr?.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      zapProcess.on('exit', (code) => {
+        if (code === 0 || code === 2) {
+          // Exit code 0 = success, 2 = warnings found (normal for ZAP)
+          log(`ZAP scan completed for ${target} (exit code: ${code})`);
+          resolve();
+        } else {
+          log(`ZAP scan failed for ${target} (exit code: ${code})`);
+          if (stderr) log(`ZAP stderr: ${stderr}`);
+          reject(new Error(`ZAP baseline scan failed with exit code ${code}`));
+        }
+      });
+      
+      zapProcess.on('error', (error) => {
+        reject(new Error(`ZAP process error: ${error.message}`));
+      });
     });
     
-    log(`ZAP scan completed for ${target}`);
-    
     // Parse results and create findings
-    const findings = await parseZAPResults(outputFile, target, scanId);
+    const findings = await parseZAPResults(outputFile, target, assetType, scanId);
     
     return findings;
     
@@ -272,9 +291,9 @@ async function executeZAPBaseline(target: string, scanId: string): Promise<numbe
 }
 
 /**
- * Parse ZAP JSON results and create artifacts/findings
+ * Parse ZAP JSON results and create artifacts/findings with asset-aware severity escalation
  */
-async function parseZAPResults(outputFile: string, target: string, scanId: string): Promise<number> {
+async function parseZAPResults(outputFile: string, target: string, assetType: string, scanId: string): Promise<number> {
   try {
     if (!existsSync(outputFile)) {
       log(`ZAP output file not found: ${outputFile}`);
@@ -293,22 +312,29 @@ async function parseZAPResults(outputFile: string, target: string, scanId: strin
         // Skip informational alerts with very low risk
         if (alert.riskcode === '0') continue;
         
+        // Apply asset-aware severity escalation
+        const baseSeverity = mapZAPRiskToSeverity(alert.riskcode);
+        const escalatedSeverity = escalateSeverityForAsset(baseSeverity, assetType);
+        
         const artifactId = await insertArtifact({
           type: 'zap_vulnerability',
-          val_text: `${alert.name} (Risk: ${alert.riskdesc})`,
-          severity: mapZAPRiskToSeverity(alert.riskcode),
+          val_text: `${alert.name} on ${assetType}`,
+          severity: escalatedSeverity,
           src_url: target,
           meta: {
             scan_id: scanId,
             scan_module: 'zapScan',
+            target_url: target,
+            asset_type: assetType,
             alert_id: alert.alert,
             confidence: alert.confidence,
             risk_code: alert.riskcode,
             risk_desc: alert.riskdesc,
+            base_severity: baseSeverity,
+            escalated_severity: escalatedSeverity,
             cwe_id: alert.cweid,
             wasc_id: alert.wascid,
-            instances_count: alert.instances?.length || 0,
-            zap_data: alert
+            instances_count: alert.instances?.length || 0
           }
         });
         
@@ -319,10 +345,12 @@ async function parseZAPResults(outputFile: string, target: string, scanId: strin
           
         await insertFinding(
           artifactId,
-          'ZAP_VULNERABILITY',
+          'ZAP_WEB_VULNERABILITY',
           alert.desc.slice(0, 250) + (alert.desc.length > 250 ? '...' : ''),
-          `Risk: ${alert.riskdesc} | Confidence: ${alert.confidence} | Solution: ${alert.solution.slice(0, 200)}${instancesText}`
+          `Risk: ${alert.riskdesc} | Confidence: ${alert.confidence} | Asset: ${assetType} | Solution: ${alert.solution.slice(0, 150)}${instancesText}`
         );
+        
+        log(`Created ZAP finding: ${alert.name} (${escalatedSeverity}) for ${target}`);
         
         findingsCount++;
       }
@@ -342,22 +370,41 @@ async function parseZAPResults(outputFile: string, target: string, scanId: strin
  */
 function mapZAPRiskToSeverity(riskCode: string): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' {
   switch (riskCode) {
-    case '3': return 'HIGH';     // High risk
-    case '2': return 'MEDIUM';   // Medium risk
-    case '1': return 'LOW';      // Low risk
-    case '0': return 'INFO';     // Informational
+    case '3': return 'HIGH';     // ZAP High -> Our High
+    case '2': return 'MEDIUM';   // ZAP Medium -> Our Medium
+    case '1': return 'LOW';      // ZAP Low -> Our Low
+    case '0': return 'INFO';     // ZAP Info -> Our Info
     default: return 'LOW';
   }
 }
 
 /**
- * Check if a command is available
+ * Escalate severity for critical asset types (admin panels, customer portals, etc.)
  */
-async function isCommandAvailable(command: string): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(`which ${command}`, { timeout: 5000 });
-    return stdout.trim().length > 0;
-  } catch {
-    return false;
+function escalateSeverityForAsset(
+  baseSeverity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO',
+  assetType: string
+): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' {
+  // Critical assets get severity escalation
+  const criticalAssetPatterns = [
+    'admin', 'portal', 'customer', 'management', 
+    'backend', 'control', 'dashboard'
+  ];
+  
+  const isCriticalAsset = criticalAssetPatterns.some(pattern => 
+    assetType.toLowerCase().includes(pattern)
+  );
+  
+  if (!isCriticalAsset) {
+    return baseSeverity;
+  }
+  
+  // Escalate for critical assets
+  switch (baseSeverity) {
+    case 'HIGH': return 'CRITICAL';
+    case 'MEDIUM': return 'HIGH';
+    case 'LOW': return 'MEDIUM';
+    default: return baseSeverity; // Keep INFO and CRITICAL as-is
   }
 }
+

@@ -22,7 +22,7 @@ import { runRdpVpnTemplates } from './modules/rdpVpnTemplates.js';
 import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
 import { runCensysScan } from './modules/censysPlatformScan.js';
 // import { runOpenVASScan } from './modules/openvasScan.js';  // Available but disabled until needed
-// import { runZAPScan } from './modules/zapScan.js';  // Available but disabled due to build issues
+import { runZAPScan } from './modules/zapScan.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -388,7 +388,7 @@ async function processScan(job: ScanJob): Promise<void> {
     modulesCompleted += phase2cModules.length;
 
     // Phase 2D: Endpoint-based attack surface modules (parallel - all need discovered endpoints)
-    const phase2dModules = ['rdp_vpn_templates', 'email_bruteforce_surface', 'nuclei', 'rate_limit_scan'];
+    const phase2dModules = ['rdp_vpn_templates', 'email_bruteforce_surface', 'nuclei', 'rate_limit_scan', 'zap_scan'];
     const phase2dResults = await Promise.allSettled(
       phase2dModules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -420,6 +420,11 @@ async function processScan(job: ScanJob): Promise<void> {
             const rlFindings = await runRateLimitScan({ domain, scanId });
             log(`[${scanId}] COMPLETED rate limiting tests: ${rlFindings} rate limit issues found`);
             return rlFindings;
+          case 'zap_scan':
+            log(`[${scanId}] STARTING ZAP web application security scan for ${domain}`);
+            const zapFindings = await runZAPScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED ZAP scan: ${zapFindings} web vulnerabilities found`);
+            return zapFindings;
           default:
             return 0;
         }
