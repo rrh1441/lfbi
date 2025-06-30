@@ -573,9 +573,9 @@ async function startSyncWorker() {
         process.exit(1);
     }
     
-    logProgress('Sync Worker started - running one-time sync to save costs');
+    logProgress('Sync Worker started - running continuous sync every minute');
     
-    // Initialize sync timestamps to catch ALL data (epoch start)
+    // Initialize sync timestamps to catch ALL data (epoch start)  
     // FIXED: Force sync of all data to catch missing scans
     const epochStart = new Date(0); // Start from epoch to sync everything
     lastSuccessfulScanSync = epochStart;
@@ -583,11 +583,19 @@ async function startSyncWorker() {
     lastSuccessfulCredentialsSync = epochStart;
     lastSuccessfulTotalsSync = epochStart;
     
-    // Run sync cycle once and exit to save costs
-    await runSyncCycle(); 
-
-    logProgress('Sync Worker completed successfully - shutting down to scale to zero');
-    process.exit(0);
+    // Run initial sync
+    await runSyncCycle();
+    
+    // Continue running and sync every minute
+    setInterval(async () => {
+        try {
+            await runSyncCycle();
+        } catch (error) {
+            logError('Sync cycle failed:', error);
+        }
+    }, SYNC_INTERVAL_MS);
+    
+    logProgress('Sync Worker running continuously - will sync every minute');
 }
 
 // Graceful shutdown

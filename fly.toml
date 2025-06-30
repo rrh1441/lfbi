@@ -7,6 +7,11 @@ primary_region = "sea"
   platform = "linux/amd64"
 
 [env]
+  # Nuclei timeouts - increased for headless Chrome operations
+  NUCLEI_TIMEOUT_MS = "180000"        # 3 minutes for headless browser operations
+  NUCLEI_HEADLESS_TIMEOUT_MS = "180000"
+  NUCLEI_RETRIES = "2"
+  
   NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 # ────────────── Processes ──────────────
@@ -35,12 +40,12 @@ primary_region = "sea"
   min_machines_running = 0    # ✅ No idle cost
   max_machines_running = 10   # ✅ Support up to 10 parallel scans
 
-# Sync worker: Minimal resources, can scale to zero
+# Sync worker: Always running for continuous sync
 [[services]]
   processes = ['sync_worker']
-  auto_stop_machines = true   # ✅ Scale to zero when idle
+  auto_stop_machines = false  # Keep running
   auto_start_machines = true  # Auto-start when needed
-  min_machines_running = 0    # ✅ No idle cost (or set to 1 for continuous sync)
+  min_machines_running = 1    # Always keep 1 running
 
 # ────────────── VM sizes ──────────────
 # API — small & always on

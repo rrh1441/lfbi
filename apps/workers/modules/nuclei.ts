@@ -96,7 +96,7 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     try {
         // Use the new two-pass scanning approach
         const result = await runTwoPassScan(target.url, {
-            timeout: 30, // Increased for more thorough scanning
+            timeout: 180, // 3 minutes for headless Chrome operations
             retries: 2,
             concurrency: 6,
             scanId: scanId // Pass scanId for artifact persistence
@@ -156,7 +156,7 @@ async function runNucleiWorkflow(target: { url: string }, workflowFileName: stri
         const result = await runNucleiWrapper({
             url: target.url,
             templates: [workflowPath],
-            timeout: 15,
+            timeout: 180, // 3 minutes for headless operations
             scanId: scanId // Pass scanId for artifact persistence
         });
 

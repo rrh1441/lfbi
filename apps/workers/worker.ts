@@ -34,32 +34,7 @@ function log(...args: any[]) {
   console.log(`[${timestamp}] [worker]`, ...args);
 }
 
-// Trigger sync worker to sync scan results to Supabase
-async function triggerSyncWorker(scanId: string) {
-  try {
-    log(`Triggering sync worker for scan ${scanId}`);
-    
-    // Start the existing sync_worker machine (ID: 148e212fe19238)
-    const syncWorkerMachineId = '148e212fe19238';
-    const response = await fetch(`https://api.machines.dev/v1/apps/dealbrief-scanner/machines/${syncWorkerMachineId}/start`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.FLY_API_TOKEN}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (response.ok) {
-      log(`✅ Sync worker triggered successfully for scan ${scanId}`);
-    } else {
-      const errorText = await response.text();
-      log(`⚠️ Failed to trigger sync worker: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-  } catch (error) {
-    log(`⚠️ Error triggering sync worker:`, (error as Error).message);
-    // Don't fail the scan if sync trigger fails
-  }
-}
+// Sync worker now runs continuously - no need to trigger manually
 
 interface ScanJob {
   id: string;
@@ -647,8 +622,7 @@ async function processScan(job: ScanJob): Promise<void> {
     
     log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindingsCount} verified findings, ${totalArtifactsCount} artifacts across ${TOTAL_MODULES} security modules`);
 
-    // Trigger sync worker to sync results to Supabase
-    await triggerSyncWorker(scanId);
+    // Sync worker runs continuously and will pick up results automatically
 
   } catch (error) {
     log(`❌ Scan failed for ${companyName}:`, (error as Error).message);

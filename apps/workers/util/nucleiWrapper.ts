@@ -330,6 +330,7 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     
     nucleiProcess.on('exit', (code) => {
       exitCode = code || 0;
+      clearTimeout(timeoutHandle); // Clear timeout when process exits normally
       
       // Exit code 1 is normal for "findings found", not an error
       // Exit codes > 1 are actual errors
@@ -343,14 +344,28 @@ export async function runNuclei(options: NucleiOptions): Promise<NucleiExecution
     });
     
     nucleiProcess.on('error', (error) => {
+      clearTimeout(timeoutHandle); // Clear timeout on error
       reject(error);
     });
     
-    // Set timeout
-    const timeoutMs = (options.timeout || 30) * 1000;
-    setTimeout(() => {
+    // Set timeout with grace period for cleanup
+    const defaultTimeoutSeconds = 180; // 3 minutes default
+    const timeoutSeconds = options.timeout || defaultTimeoutSeconds;
+    const timeoutMs = Number(process.env.NUCLEI_TIMEOUT_MS) || (timeoutSeconds * 1000);
+    const gracePeriodMs = 3000; // 3 seconds grace period after SIGTERM
+    
+    const timeoutHandle = setTimeout(() => {
+      log(`Nuclei execution timed out after ${timeoutMs}ms, sending SIGTERM`);
       nucleiProcess.kill('SIGTERM');
-      reject(new Error(`Nuclei execution timed out after ${timeoutMs}ms`));
+      
+      // Grace period for cleanup, then SIGKILL
+      setTimeout(() => {
+        if (!nucleiProcess.killed) {
+          log(`Nuclei did not exit gracefully, sending SIGKILL`);
+          nucleiProcess.kill('SIGKILL');
+        }
+        reject(new Error(`Nuclei execution timed out after ${timeoutMs}ms`));
+      }, gracePeriodMs);
     }, timeoutMs);
   });
   
@@ -407,7 +422,7 @@ export async function scanUrl(
   return runNuclei({
     url,
     tags,
-    timeout: 30,
+    timeout: 180, // 3 minutes for headless operations
     retries: 2,
     concurrency: 6,
     ...options
@@ -425,7 +440,7 @@ export async function scanTargetList(
   return runNuclei({
     targetList: targetFile,
     templates,
-    timeout: 30,
+    timeout: 180, // 3 minutes for headless operations
     retries: 2,
     concurrency: 6,
     ...options
@@ -539,7 +554,7 @@ export async function runTwoPassScan(
   const baselineScan = await runNuclei({
     url: target,
     tags: BASELINE_TAGS,
-    timeout: 30,
+    timeout: 180, // 3 minutes for headless operations
     retries: 2,
     concurrency: 6,
     headless: true, // Enable headless for tech detection
@@ -572,7 +587,7 @@ export async function runTwoPassScan(
   const techScan = await runNuclei({
     url: target,
     tags: techTags,
-    timeout: 30,
+    timeout: 180, // 3 minutes for headless operations
     retries: 2,
     concurrency: 6,
     headless: true, // Enable headless for CVE/tech-specific scans
