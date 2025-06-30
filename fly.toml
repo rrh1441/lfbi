@@ -20,6 +20,7 @@ primary_region = "sea"
   api            = "npx tsx apps/api-main/server.ts"
   scanner_worker = "npx tsx apps/workers/worker.ts"
   sync_worker    = "npm run start --prefix apps/sync-worker"
+  zap_worker     = "npx tsx apps/workers/zapWorker.ts"
 
   # Always-on template updater - pulls once every 24 h
   updater        = "sh -c 'while true; do run_nuclei -update-templates; sleep 86400; done'"
@@ -48,6 +49,14 @@ primary_region = "sea"
   auto_start_machines = true  # Auto-start when needed
   min_machines_running = 1    # Always keep 1 running
 
+# ZAP worker: Scale to zero when idle, burst when needed
+[[services]]
+  processes = ['zap_worker']
+  auto_stop_machines = true   # ✅ Scale to ZERO when idle (pay-per-second)
+  auto_start_machines = true  # Auto-start when ZAP scan triggered
+  min_machines_running = 0    # ✅ No idle cost
+  max_machines_running = 5    # ✅ Support up to 5 parallel ZAP scans
+
 # ────────────── VM sizes ──────────────
 # API — small & always on
 [[vm]]
@@ -67,6 +76,12 @@ primary_region = "sea"
   cpu_kind = 'shared'
   cpus = 1
   processes = ['sync_worker']
+
+[[vm]] # VM for ZAP workers - High performance for web app scanning
+  memory = '4gb'    # ZAP needs sufficient memory for Java + web crawling
+  cpu_kind = 'performance'
+  cpus = 2          # Dual core for parallel ZAP scanning
+  processes = ['zap_worker']
 
 # Template updater — tiny, no Chrome
 [[vm]]
