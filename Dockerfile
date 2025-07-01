@@ -72,6 +72,13 @@ ENV NUCLEI_TEMPLATES=/opt/nuclei-templates
 # dnstwist (Python) – use --break-system-packages to avoid venv bloat
 RUN pip3 install --break-system-packages dnstwist
 
+# WebTech and WhatWeb for fast technology detection (replaces heavy Nuclei tech scanning)
+RUN pip3 install --break-system-packages webtech && \
+    apk add --no-cache ruby ruby-dev make gcc musl-dev && \
+    git clone https://github.com/urbanadventurer/WhatWeb.git /opt/whatweb && \
+    ln -s /opt/whatweb/whatweb /usr/local/bin/whatweb && \
+    chmod +x /usr/local/bin/whatweb
+
 # SpiderFoot
 RUN git clone https://github.com/smicallef/spiderfoot.git /opt/spiderfoot && \
     pip3 install --break-system-packages -r /opt/spiderfoot/requirements.txt && \
@@ -101,7 +108,7 @@ RUN apk add --no-cache openjdk11-jre && \
 # ------------------------------------------------------------------------
 RUN npm install -g pnpm tsx
 
-# Technology fingerprinting now handled by Nuclei templates - no additional tools needed
+# Technology fingerprinting now handled by WebTech/WhatWeb for 35+ second speed improvement
 
 # ------------------------------------------------------------------------
 # Project dependencies

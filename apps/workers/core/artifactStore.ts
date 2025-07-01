@@ -54,17 +54,30 @@ export async function insertFinding(
   artifactId: number, 
   findingType: string, 
   recommendation: string, 
-  description: string
+  description: string,
+  severity?: string
 ): Promise<number> {
   try {
-    const result = await pool.query(
-      `INSERT INTO findings (artifact_id, finding_type, recommendation, description, created_at) 
-       VALUES ($1, $2, $3, $4, NOW()) 
-       RETURNING id`,
-      [artifactId, findingType, recommendation, description]
-    );
+    let query: string;
+    let params: any[];
     
-    console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}`);
+    if (severity) {
+      // Override severity for this specific finding
+      query = `INSERT INTO findings (artifact_id, finding_type, recommendation, description, severity, created_at) 
+               VALUES ($1, $2, $3, $4, $5, NOW()) 
+               RETURNING id`;
+      params = [artifactId, findingType, recommendation, description, severity];
+    } else {
+      // Use default behavior (inherits severity from artifact)
+      query = `INSERT INTO findings (artifact_id, finding_type, recommendation, description, created_at) 
+               VALUES ($1, $2, $3, $4, NOW()) 
+               RETURNING id`;
+      params = [artifactId, findingType, recommendation, description];
+    }
+    
+    const result = await pool.query(query, params);
+    
+    console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}${severity ? ` with severity ${severity}` : ''}`);
     return result.rows[0].id;
   } catch (error) {
     console.error('[artifactStore] Insert finding error:', error);

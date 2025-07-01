@@ -17,6 +17,12 @@ import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
 import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS, COMMON_VULN_TAGS, filterWebVulnUrls, isNonHtmlAsset } from '../util/nucleiWrapper.js';
+import { detectTechnologiesFast, detectMultipleUrlsFast, detectFromHeaders, type FastTechResult } from '../util/fastTechDetection.js';
+import { normalizeTechnology, batchNormalizeTechnologies, deduplicateComponents, type NormalizedComponent } from '../util/cpeNormalization.js';
+import { findVulnerabilitiesForComponent, batchVulnerabilityAnalysis, type ComponentVulnerabilityReport } from '../util/versionMatcher.js';
+import { batchFindOSVVulnerabilities, mergeVulnerabilityResults } from '../util/osvIntegration.js';
+import { generateSBOM as generateCycloneDXSBOM, exportSBOMAsJSON, getSBOMStats } from '../util/sbomGenerator.js';
+import { batchDetectFavicons } from '../util/faviconDetection.js';
 
 const exec = promisify(execFile);
 
@@ -65,6 +71,9 @@ interface WappTech {
   version?: string;
   confidence: number;
   cpe?: string;
+  purl?: string;
+  vendor?: string;
+  ecosystem?: string;
   categories: { id: number; name: string; slug: string }[];
 }
 
@@ -264,6 +273,33 @@ function convertNucleiToWappTech(nucleiResults: any[]): WappTech[] {
   }
   
   return technologies;
+}
+
+/* Convert FastTechResult to WappTech format with CPE/PURL normalization */
+function convertFastTechToWappTech(fastTech: FastTechResult): WappTech {
+  // Normalize the technology to get CPE/PURL identifiers
+  const normalized = normalizeTechnology(
+    fastTech.name,
+    fastTech.version,
+    fastTech.confidence,
+    'webtech'
+  );
+  
+  return {
+    name: fastTech.name,
+    slug: fastTech.slug,
+    version: fastTech.version,
+    confidence: fastTech.confidence,
+    cpe: normalized.cpe,
+    purl: normalized.purl,
+    vendor: normalized.vendor,
+    ecosystem: normalized.ecosystem,
+    categories: fastTech.categories.map((cat: string) => ({
+      id: 0,
+      name: cat,
+      slug: cat.toLowerCase().replace(/[^a-z0-9]/g, '-')
+    }))
+  };
 }
 
 /* Enhanced ecosystem detection */
@@ -1429,78 +1465,86 @@ export async function runTechStackScan(job: {
     
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
-    // fingerprint with Nuclei or fallback
-    if (nucleiAvailable) {
-      // Primary: Nuclei-based detection
-      await Promise.all(allTargets.map(url => limit(async () => {
-        if (cb.isTripped()) return;
+    // Fast technology detection with WebTech (replaces heavy Nuclei scanning)
+    log(`techstack=fast_detection starting WebTech scan for ${allTargets.length} targets`);
+    
+    // Use fast batch detection for multiple URLs
+    const fastResults = await detectMultipleUrlsFast(allTargets.slice(0, 5)); // Limit to 5 key URLs for speed
+    
+    // Process fast detection results
+    for (const result of fastResults) {
+      if (result.error) {
+        log(`techstack=webtech_error url="${result.url}" error="${result.error}"`);
+        continue;
+      }
+      
+      log(`techstack=webtech_success url="${result.url}" techs=${result.technologies.length} duration=${result.duration}ms`);
+      
+      // Convert FastTechResult to WappTech format
+      for (const fastTech of result.technologies) {
+        const wappTech = convertFastTechToWappTech(fastTech);
+        techMap.set(wappTech.slug, wappTech);
         
-        // Validate URL before processing (prevent "null" and malformed URLs)
-        if (!url || url === 'null' || url === 'undefined' || typeof url !== 'string') {
-          log(`techstack=nuclei_skip url="${url}" reason="invalid_url"`);
-          return;
+        if (!detectMap.has(wappTech.slug)) {
+          detectMap.set(wappTech.slug, []);
         }
+        detectMap.get(wappTech.slug)!.push(wappTech);
+      }
+    }
+    
+    // Additional favicon-based detection for unique app identification
+    log(`techstack=favicon_detection starting favicon analysis for ${Math.min(allTargets.length, 3)} URLs`);
+    const faviconResults = await batchDetectFavicons(allTargets.slice(0, 3));
+    
+    for (let i = 0; i < faviconResults.length; i++) {
+      const faviconTechs = faviconResults[i];
+      const url = allTargets[i];
+      
+      if (faviconTechs.length > 0) {
+        log(`techstack=favicon_found url="${url}" techs=${faviconTechs.length}`);
         
-        try {
-          new URL(url); // Validate URL format
-        } catch {
-          log(`techstack=nuclei_skip url="${url}" reason="malformed_url"`);
-          return;
-        }
-        
-        try {
-          log(`techstack=nuclei url="${url}"`);
+        for (const faviconTech of faviconTechs) {
+          const wappTech = convertFastTechToWappTech(faviconTech);
           
-          // Use enhanced two-pass scanning for comprehensive technology detection
-          const result = await runTwoPassScan(url, {
-            timeout: 20,
-            retries: 2
-          });
-          
-          if (result.totalFindings === 0) {
-            log(`techstack=nuclei_no_output url="${url}"`);
-            return;
+          // Only add if not already detected by other methods
+          if (!techMap.has(wappTech.slug)) {
+            techMap.set(wappTech.slug, wappTech);
+            
+            if (!detectMap.has(wappTech.slug)) {
+              detectMap.set(wappTech.slug, []);
+            }
+            detectMap.get(wappTech.slug)!.push(wappTech);
           }
-          
-          log(`techstack=nuclei_output url="${url}" baseline=${result.baselineResults.length} tech_specific=${result.techSpecificResults.length} total=${result.totalFindings}`);
-          log(`techstack=detected_techs url="${url}" techs="${result.detectedTechnologies.join(', ')}"`);
-          
-          // Process both baseline and tech-specific results
-          const allResults = [...result.baselineResults, ...result.techSpecificResults];
-          const techs = convertNucleiToWappTech(allResults);
-          log(`techstack=converted url="${url}" techs=${techs.length}`);
-          techs.forEach(t => {
-            techMap.set(t.slug, t);
-            if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
-            detectMap.get(t.slug)!.push(t);
-          });
-        } catch (e) { 
-          const error = e as Error;
-          log(`techstack=nuclei_error url="${url}" error="${error.message}" code="${(e as any).code}"`);
-          if (error.message.includes('timeout')) cb.recordTimeout(); 
         }
-      })));
-    } else {
-      // Fallback: Basic HTTP header analysis
-      await Promise.all(allTargets.slice(0, 5).map(url => limit(async () => { // Limit to 5 URLs for fallback
+      }
+    }
+    
+    const totalDetectedTechs = Array.from(techMap.keys()).length;
+    const totalDuration = fastResults.reduce((sum, r) => sum + r.duration, 0);
+    log(`techstack=fast_detection_complete total_techs=${totalDetectedTechs} total_duration=${totalDuration}ms avg_per_url=${Math.round(totalDuration / fastResults.length)}ms`);
+    
+    // If WebTech found no technologies, fall back to header analysis for key URLs
+    if (totalDetectedTechs === 0) {
+      log(`techstack=fallback_headers starting header analysis for ${Math.min(allTargets.length, 3)} URLs`);
+      
+      await Promise.all(allTargets.slice(0, 3).map(url => limit(async () => {
         if (cb.isTripped()) return;
         try {
-          log(`techstack=fallback_scan url="${url}"`);
-          const response = await fetch(url, { 
-            method: 'HEAD',
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; TechStackScanner/1.0)' },
-            signal: AbortSignal.timeout(10000)
-          });
+          log(`techstack=header_scan url="${url}"`);
+          const headerTechs = await detectFromHeaders(url);
           
-          const techs = analyzeHttpHeaders(response.headers, url);
-          log(`techstack=fallback_detected url="${url}" techs=${techs.length}`);
-          techs.forEach(t => {
-            techMap.set(t.slug, t);
-            if (!detectMap.has(t.slug)) detectMap.set(t.slug, []);
-            detectMap.get(t.slug)!.push(t);
-          });
+          log(`techstack=header_detected url="${url}" techs=${headerTechs.length}`);
+          for (const fastTech of headerTechs) {
+            const wappTech = convertFastTechToWappTech(fastTech);
+            techMap.set(wappTech.slug, wappTech);
+            
+            if (!detectMap.has(wappTech.slug)) {
+              detectMap.set(wappTech.slug, []);
+            }
+            detectMap.get(wappTech.slug)!.push(wappTech);
+          }
         } catch (e) {
-          log(`techstack=fallback_error url="${url}" error="${(e as Error).message}"`);
+          log(`techstack=header_error url="${url}" error="${(e as Error).message}"`);
         }
       })));
     }
@@ -1510,6 +1554,56 @@ export async function runTechStackScan(job: {
       const a = await analyzeSecurityEnhanced(tech, detectMap.get(slug) ?? [tech], allTargets);
       analysisMap.set(slug, a);
     })));
+
+    // Enhanced vulnerability analysis with NVD + OSV.dev
+    log(`techstack=vuln_analysis starting enhanced vulnerability analysis for ${Array.from(techMap.values()).length} technologies`);
+    const normalizedComponents = Array.from(techMap.values()).map(tech => 
+      normalizeTechnology(tech.name, tech.version, tech.confidence, 'fast-detection')
+    );
+    
+    // Batch vulnerability analysis with NVD + OSV.dev
+    const vulnerabilityReports = await batchVulnerabilityAnalysis(normalizedComponents);
+    
+    // Enhance with OSV.dev data for open source packages
+    log(`techstack=osv_enhancement starting OSV.dev integration for ${normalizedComponents.length} components`);
+    const osvVulnerabilities = await batchFindOSVVulnerabilities(normalizedComponents);
+    
+    // Merge NVD and OSV results
+    for (let i = 0; i < vulnerabilityReports.length; i++) {
+      const report = vulnerabilityReports[i];
+      const osvVulns = osvVulnerabilities[i] || [];
+      
+      if (osvVulns.length > 0) {
+        report.vulnerabilities = mergeVulnerabilityResults(report.vulnerabilities, osvVulns);
+        log(`techstack=osv_merged component="${report.component.name}" nvd=${report.vulnerabilities.length - osvVulns.length} osv=${osvVulns.length} total=${report.vulnerabilities.length}`);
+      }
+    }
+    
+    // Generate SBOM
+    const cyclonDxSbom = generateCycloneDXSBOM(vulnerabilityReports, {
+      targetName: domain,
+      targetVersion: undefined,
+      targetDescription: `Security scan of ${domain}`,
+      scanId: scanId!,
+      domain: domain
+    });
+    
+    const sbomStats = getSBOMStats(cyclonDxSbom);
+    log(`techstack=sbom_generated components=${sbomStats.componentCount} vulnerabilities=${sbomStats.vulnerabilityCount} critical=${sbomStats.criticalCount}`);
+    
+    // Store SBOM as artifact
+    await insertArtifact({
+      type: 'sbom',
+      val_text: `SBOM generated: ${sbomStats.componentCount} components, ${sbomStats.vulnerabilityCount} vulnerabilities`,
+      severity: sbomStats.criticalCount > 0 ? 'CRITICAL' : sbomStats.highCount > 0 ? 'HIGH' : 'INFO',
+      meta: {
+        scan_id: scanId,
+        scan_module: 'techStackScan',
+        sbom_format: 'CycloneDX-1.5',
+        sbom_data: exportSBOMAsJSON(cyclonDxSbom),
+        stats: sbomStats
+      }
+    });
     // artefacts
     let artCount = 0, supplyFindings = 0;
     for (const [slug, tech] of techMap) {
@@ -1561,8 +1655,8 @@ export async function runTechStackScan(job: {
       if (a.supplyChainScore >= CONFIG.SUPPLY_CHAIN_THRESHOLD) supplyFindings++;
     }
     
-    // Generate SBOM
-    const sbom = generateSBOM(techMap, analysisMap, domain);
+    // Generate legacy SBOM
+    const legacySbom = generateSBOM(techMap, analysisMap, domain);
     await insertArtifact({
       type: 'sbom_cyclonedx',
       val_text: `Software Bill of Materials (CycloneDX 1.5) - ${techMap.size} components`,
@@ -1570,7 +1664,7 @@ export async function runTechStackScan(job: {
       meta: {
         scan_id: scanId,
         scan_module: 'techStackScan',
-        sbom: sbom,
+        sbom: legacySbom,
         format: 'CycloneDX',
         version: '1.5'
       }

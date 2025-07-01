@@ -729,7 +729,8 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
           artifactId,
           mapSeverityToFindingType(severity),
           getRecommendationText(severity),
-          description
+          description,
+          severity === 'CRITICAL' ? 'CRITICAL' : severity === 'MEDIUM' ? 'MEDIUM' : 'LOW'
         );
         
         findingsCount++;

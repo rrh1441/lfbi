@@ -12,7 +12,7 @@ import { runNuclei } from './modules/nuclei.js';
 import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
-import { runTechStackScan } from './modules/techStackScan.js';                 // ← ADDED
+import { runTechStackScan } from './modules/techStackScan.js';
 import { runAbuseIntelScan } from './modules/abuseIntelScan.js';
 import { runAdversarialMediaScan } from './modules/adversarialMediaScan.js';
 import { runAccessibilityScan } from './modules/accessibilityScan.js';
@@ -43,32 +43,50 @@ interface ScanJob {
   createdAt: string;
 }
 
-// All modules in execution order
-const ALL_MODULES_IN_ORDER = [
+// Tier-based module configuration
+type ScanTier = 'TIER_1' | 'TIER_2';
+
+// Tier 1: Safe, automated modules - no active probing beyond standard discovery
+const TIER_1_MODULES = [
   'spiderfoot',
-  'dns_twist',
+  'dns_twist', 
   'document_exposure',
   'shodan',
   'censys',
   'breach_directory_probe',
-  'rdp_vpn_templates',
-  'email_bruteforce_surface',
-  'typosquat_scorer',
-  'db_port_scan',
   'endpoint_discovery',
-  'tech_stack_scan',                                                      // ← ADDED
+  'tech_stack_scan',
   'abuse_intel_scan',
-  // 'adversarial_media_scan',  // COMMENTED OUT - too noisy
-  'accessibility_scan',
-  'denial_wallet_scan',
+  'accessibility_scan',  // Limited to 3 pages in Tier 1
+  'nuclei',              // Baseline vulnerability scan with 8s timeout
   'tls_scan',
-  'zap_scan',    // Web application security testing (now working with Docker)
-  'nuclei',      // Primary vulnerability scanner (upgraded to v3.4.5)
-  // 'openvas_scan',  // Available but disabled until needed for deeper vulnerability assessment
-  'rate_limit_scan',
   'spf_dmarc',
   'trufflehog'
 ];
+
+// Tier 2: Deep scanning modules requiring authorization - includes active probing
+const TIER_2_MODULES = [
+  ...TIER_1_MODULES,  // Include all Tier 1 modules
+  'rdp_vpn_templates',
+  'email_bruteforce_surface', 
+  'db_port_scan',
+  'denial_wallet_scan',
+  'zap_scan',     // ZAP only runs in Tier 2
+  'nuclei',       // Full Nuclei scan in Tier 2
+  'rate_limit_scan'
+];
+
+// Function to get active modules based on tier
+function getActiveModules(tier: ScanTier): string[] {
+  return tier === 'TIER_1' ? TIER_1_MODULES : TIER_2_MODULES;
+}
+
+// Determine scan tier - for now default to TIER_1 for performance
+function determineScanTier(domain: string): ScanTier {
+  // Default to Tier 1 for improved performance
+  // TODO: Add logic for authorized Tier 2 scans
+  return 'TIER_1';
+}
 
 interface ScanMasterUpdate {
   status?: string;
@@ -192,7 +210,11 @@ async function processScan(job: ScanJob): Promise<void> {
   
   try {
     // === SCAN INITIALIZATION ===
-    const TOTAL_MODULES = ALL_MODULES_IN_ORDER.length;
+    const scanTier = determineScanTier(domain);
+    const activeModules = getActiveModules(scanTier);
+    const TOTAL_MODULES = activeModules.length;
+    
+    log(`[${scanId}] 🎯 Using ${scanTier} tier with ${TOTAL_MODULES} modules: ${activeModules.join(', ')}`);
     
     // Insert or update scan record
     await pool.query(
@@ -260,7 +282,7 @@ async function processScan(job: ScanJob): Promise<void> {
     modulesCompleted += phase1Modules.length;
 
     // Phase 2A: Independent analysis modules (parallel - no dependencies)
-    const phase2aModules = ['shodan', 'censys', 'document_exposure', 'dns_twist', 'tls_scan', 'spf_dmarc'];
+    const phase2aModules = ['shodan', 'censys', 'document_exposure', 'dns_twist', 'tls_scan', 'spf_dmarc'].filter(m => activeModules.includes(m));
     const phase2aResults = await Promise.allSettled(
       phase2aModules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -273,9 +295,9 @@ async function processScan(job: ScanJob): Promise<void> {
         
         switch (moduleName) {
           case 'shodan':
-            log(`[${scanId}] STARTING Shodan scan for ${domain}`);
+            log(`[${scanId}] STARTING Shodan intelligence scan for ${domain}`);
             const shodanFindings = await runShodanScan({ domain, scanId, companyName });
-            log(`[${scanId}] COMPLETED Shodan infrastructure scan: ${shodanFindings} services found`);
+            log(`[${scanId}] COMPLETED Shodan scan: ${shodanFindings} services found`);
             return shodanFindings;
           case 'censys':
             log(`[${scanId}] STARTING Censys platform scan for ${domain}`);
@@ -336,7 +358,7 @@ async function processScan(job: ScanJob): Promise<void> {
     modulesCompleted += 1;
 
     // Phase 2C: Endpoint-dependent modules (parallel)
-    const phase2cModules = ['tech_stack_scan', 'abuse_intel_scan', 'accessibility_scan', 'denial_wallet_scan'];
+    const phase2cModules = ['tech_stack_scan', 'abuse_intel_scan', 'accessibility_scan', 'denial_wallet_scan'].filter(m => activeModules.includes(m));
     const phase2cResults = await Promise.allSettled(
       phase2cModules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -388,7 +410,7 @@ async function processScan(job: ScanJob): Promise<void> {
     modulesCompleted += phase2cModules.length;
 
     // Phase 2D: Endpoint-based attack surface modules (parallel - all need discovered endpoints)
-    const phase2dModules = ['rdp_vpn_templates', 'email_bruteforce_surface', 'nuclei', 'rate_limit_scan', 'zap_scan'];
+    const phase2dModules = ['rate_limit_scan'].filter(m => activeModules.includes(m));
     const phase2dResults = await Promise.allSettled(
       phase2dModules.map(async (moduleName) => {
         await updateScanMasterStatus(scanId, {
@@ -400,31 +422,11 @@ async function processScan(job: ScanJob): Promise<void> {
         log(`=== Running module (Phase 2D): ${moduleName} ===`);
         
         switch (moduleName) {
-          case 'rdp_vpn_templates':
-            log(`[${scanId}] STARTING RDP/VPN vulnerability templates for ${domain}`);
-            const rdpFindings = await runRdpVpnTemplates({ domain, scanId });
-            log(`[${scanId}] COMPLETED RDP/VPN templates scan: ${rdpFindings} remote access vulnerabilities found`);
-            return rdpFindings;
-          case 'email_bruteforce_surface':
-            log(`[${scanId}] STARTING email bruteforce surface scan for ${domain}`);
-            const emailFindings = await runEmailBruteforceSurface({ domain, scanId });
-            log(`[${scanId}] COMPLETED email bruteforce surface scan: ${emailFindings} email attack vectors found`);
-            return emailFindings;
-          case 'nuclei':
-            log(`[${scanId}] STARTING Nuclei vulnerability scan for ${domain}`);
-            const nucleiFindings = await runNuclei({ domain, scanId });
-            log(`[${scanId}] COMPLETED Nuclei scan: ${nucleiFindings} vulnerabilities found`);
-            return nucleiFindings;
           case 'rate_limit_scan':
-            log(`[${scanId}] STARTING rate-limit tests for ${domain}`);
+            log(`[${scanId}] STARTING rate-limit analysis for ${domain}`);
             const rlFindings = await runRateLimitScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED rate limiting tests: ${rlFindings} rate limit issues found`);
+            log(`[${scanId}] COMPLETED rate limit analysis: ${rlFindings} rate limit issues found`);
             return rlFindings;
-          case 'zap_scan':
-            log(`[${scanId}] STARTING ZAP web application security scan for ${domain}`);
-            const zapFindings = await runZAPScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED ZAP scan: ${zapFindings} web vulnerabilities found`);
-            return zapFindings;
           default:
             return 0;
         }
@@ -444,8 +446,8 @@ async function processScan(job: ScanJob): Promise<void> {
     totalModuleResults += phase2dTotalResults;
     modulesCompleted += phase2dModules.length;
 
-    // Phase 3: Final sequential modules (reduced)  
-    const phase3Modules = ALL_MODULES_IN_ORDER.filter(m => 
+    // Phase 3: Final sequential modules - now empty in Tier 1 system
+    const phase3Modules = activeModules.filter(m => 
       !phase1Modules.includes(m) && 
       !phase2aModules.includes(m) && 
       !phase2cModules.includes(m) && 
@@ -469,19 +471,28 @@ async function processScan(job: ScanJob): Promise<void> {
         let moduleFindings = 0;
         
         switch (moduleName) {
-          case 'document_exposure':
-            log(`[${scanId}] STARTING document exposure scan for ${companyName}`);
-            moduleFindings = await runDocumentExposure({ companyName, domain, scanId });
-            log(`[${scanId}] COMPLETED document exposure: ${moduleFindings} discoveries`);
+          case 'rdp_vpn_templates':
+            log(`[${scanId}] STARTING RDP/VPN template scan for ${domain}`);
+            moduleFindings = await runRdpVpnTemplates({ domain, scanId });
+            log(`[${scanId}] COMPLETED RDP/VPN scan: ${moduleFindings} services found`);
             break;
-
-
-          case 'typosquat_scorer':
-            log(`[${scanId}] STARTING typosquat analysis for ${domain}`);
-            // Typosquat scanning now handled by dnsTwist module with WHOIS intelligence
-            log(`Skipping removed typosquatScorer module - functionality merged into dnsTwist`);
-            moduleFindings = 0;
-            log(`[${scanId}] COMPLETED typosquat analysis: ${moduleFindings} active typosquats detected`);
+            
+          case 'email_bruteforce_surface':
+            log(`[${scanId}] STARTING email bruteforce surface scan for ${domain}`);
+            moduleFindings = await runEmailBruteforceSurface({ domain, scanId });
+            log(`[${scanId}] COMPLETED email surface scan: ${moduleFindings} exposures found`);
+            break;
+            
+          case 'nuclei':
+            log(`[${scanId}] STARTING Nuclei vulnerability scan for ${domain}`);
+            moduleFindings = await runNuclei({ domain, scanId });
+            log(`[${scanId}] COMPLETED Nuclei scan: ${moduleFindings} vulnerabilities found`);
+            break;
+            
+          case 'zap_scan':
+            log(`[${scanId}] STARTING OWASP ZAP web application security scan for ${domain}`);
+            moduleFindings = await runZAPScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED ZAP scan: ${moduleFindings} web application vulnerabilities found`);
             break;
             
           case 'db_port_scan':
@@ -533,17 +544,11 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] COMPLETED TLS scan: ${moduleFindings} TLS issues found`);
             break;
             
-          // case 'zap_scan':  // Disabled due to build issues
-          //   log(`[${scanId}] STARTING OWASP ZAP web application security scan for ${domain}`);
-          //   moduleFindings = await runZAPScan({ domain, scanId });
-          //   log(`[${scanId}] COMPLETED ZAP scan: ${moduleFindings} web application vulnerabilities found`);
-          //   break;
-            
-          // case 'openvas_scan':  // Available but disabled
-          //   log(`[${scanId}] STARTING OpenVAS enterprise vulnerability scan for ${domain}`);
-          //   moduleFindings = await runOpenVASScan({ domain, scanId });
-          //   log(`[${scanId}] COMPLETED OpenVAS scan: ${moduleFindings} vulnerabilities found`);
-          //   break;
+          case 'rate_limit_scan':
+            log(`[${scanId}] STARTING rate limit analysis for ${domain}`);
+            moduleFindings = await runRateLimitScan({ domain, scanId });
+            log(`[${scanId}] COMPLETED rate limit scan: ${moduleFindings} rate limit issues found`);
+            break;
             
             
           case 'spf_dmarc':
