@@ -82,14 +82,46 @@ async function startZAPWorker(): Promise<void> {
     process.exit(1);
   }
   
-  // Verify ZAP is available
-  const zapBaseline = '/usr/local/bin/zap-baseline.py';
+  // Verify Docker and ZAP image are available
   try {
-    const fs = await import('node:fs/promises');
-    await fs.access(zapBaseline);
-    log('ZAP baseline script found and accessible');
-  } catch {
-    log(`ERROR: ZAP baseline script not found at ${zapBaseline}`);
+    const { spawn } = await import('node:child_process');
+    
+    // Check Docker availability
+    const dockerCheck = await new Promise<boolean>((resolve) => {
+      const dockerProcess = spawn('docker', ['--version'], { stdio: 'pipe' });
+      dockerProcess.on('exit', (code) => resolve(code === 0));
+      dockerProcess.on('error', () => resolve(false));
+    });
+    
+    if (!dockerCheck) {
+      log('ERROR: Docker is not available for ZAP scanning');
+      process.exit(1);
+    }
+    
+    // Check ZAP Docker image availability
+    const zapImageCheck = await new Promise<boolean>((resolve) => {
+      const inspectProcess = spawn('docker', ['image', 'inspect', 'zaproxy/zap-stable'], { stdio: 'pipe' });
+      inspectProcess.on('exit', (code) => resolve(code === 0));
+      inspectProcess.on('error', () => resolve(false));
+    });
+    
+    if (!zapImageCheck) {
+      log('WARNING: ZAP Docker image not found, attempting to pull...');
+      const pullProcess = spawn('docker', ['pull', 'zaproxy/zap-stable'], { stdio: 'pipe' });
+      const pullResult = await new Promise<boolean>((resolve) => {
+        pullProcess.on('exit', (code) => resolve(code === 0));
+        pullProcess.on('error', () => resolve(false));
+      });
+      
+      if (!pullResult) {
+        log('ERROR: Failed to pull ZAP Docker image');
+        process.exit(1);
+      }
+    }
+    
+    log('✅ Docker and ZAP image are available');
+  } catch (error) {
+    log('ERROR: Failed to verify ZAP setup:', (error as Error).message);
     process.exit(1);
   }
   

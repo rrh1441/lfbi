@@ -7,7 +7,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { readFile, unlink } from 'node:fs/promises';
+import { readFile, unlink, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
@@ -53,10 +53,10 @@ interface ZAPSite {
 }
 
 // Configuration
-const ZAP_BASELINE_SCRIPT = '/usr/local/bin/zap-baseline.py';
+const ZAP_DOCKER_IMAGE = 'zaproxy/zap-stable';
 const ZAP_TIMEOUT_MS = 180_000; // 3 minutes per target
 const MAX_ZAP_TARGETS = 5;      // Limit targets for performance
-const ZAP_JAVA_OPTS = '-Xmx2g -XX:+UseG1GC'; // Optimize for 4GB container
+const ARTIFACTS_DIR = './artifacts'; // Directory for ZAP outputs
 
 /**
  * Main ZAP scanning function
@@ -68,23 +68,26 @@ export async function runZAPScan(job: {
   const { domain, scanId } = job;
   log(`Starting OWASP ZAP web application security scan for ${domain}`);
 
-  // Check if ZAP baseline script is available
-  if (!isZAPAvailable()) {
-    log(`ZAP baseline script not found at ${ZAP_BASELINE_SCRIPT} - skipping web application scan`);
+  // Check if Docker is available for ZAP
+  if (!await isDockerAvailable()) {
+    log(`Docker not available for ZAP scanning - skipping web application scan`);
     
     await insertArtifact({
       type: 'scan_warning',
-      val_text: `ZAP baseline script not available - web application security testing skipped`,
+      val_text: `Docker not available - ZAP web application security testing skipped`,
       severity: 'LOW',
       meta: {
         scan_id: scanId,
         scan_module: 'zapScan',
-        reason: 'zap_baseline_unavailable'
+        reason: 'docker_unavailable'
       }
     });
     
     return 0;
   }
+
+  // Ensure ZAP Docker image is available
+  await ensureZAPImage();
 
   try {
     // Get high-value web application targets
@@ -160,10 +163,65 @@ export async function runZAPScan(job: {
 }
 
 /**
- * Check if ZAP baseline script is available
+ * Check if Docker is available
  */
-function isZAPAvailable(): boolean {
-  return existsSync(ZAP_BASELINE_SCRIPT);
+async function isDockerAvailable(): Promise<boolean> {
+  try {
+    const result = await new Promise<boolean>((resolve) => {
+      const dockerProcess = spawn('docker', ['--version'], { stdio: 'pipe' });
+      dockerProcess.on('exit', (code) => {
+        resolve(code === 0);
+      });
+      dockerProcess.on('error', () => {
+        resolve(false);
+      });
+    });
+    return result;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure ZAP Docker image is available
+ */
+async function ensureZAPImage(): Promise<void> {
+  try {
+    log(`Ensuring ZAP Docker image ${ZAP_DOCKER_IMAGE} is available`);
+    
+    await new Promise<void>((resolve, reject) => {
+      // Try to pull the image, but don't fail if it already exists
+      const pullProcess = spawn('docker', ['pull', ZAP_DOCKER_IMAGE], { 
+        stdio: ['ignore', 'pipe', 'pipe'] 
+      });
+      
+      pullProcess.on('exit', (code) => {
+        if (code === 0) {
+          log(`ZAP Docker image pulled successfully`);
+          resolve();
+        } else {
+          // Image might already exist, try to verify
+          const inspectProcess = spawn('docker', ['image', 'inspect', ZAP_DOCKER_IMAGE], {
+            stdio: 'pipe'
+          });
+          
+          inspectProcess.on('exit', (inspectCode) => {
+            if (inspectCode === 0) {
+              log(`ZAP Docker image already available`);
+              resolve();
+            } else {
+              reject(new Error(`Failed to pull or find ZAP Docker image`));
+            }
+          });
+        }
+      });
+      
+      pullProcess.on('error', reject);
+    });
+  } catch (error) {
+    log(`Warning: Could not ensure ZAP Docker image: ${(error as Error).message}`);
+    // Don't fail completely, image might still work
+  }
 }
 
 /**
@@ -220,35 +278,33 @@ async function getZAPTargets(scanId: string, domain: string): Promise<Array<{url
 }
 
 /**
- * Execute ZAP baseline scan using the zap-baseline.py script
+ * Execute ZAP baseline scan using Docker
  */
 async function executeZAPBaseline(target: string, assetType: string, scanId: string): Promise<number> {
   const sessionId = randomBytes(8).toString('hex');
-  const outputFile = `/tmp/zap_report_${sessionId}.json`;
+  const outputFile = `zap_report_${sessionId}.json`;
   
   try {
     log(`Running ZAP baseline scan for ${target} (${assetType})`);
     
-    // Build ZAP baseline command arguments
-    const zapArgs = [
+    // Ensure artifacts directory exists
+    await mkdir(ARTIFACTS_DIR, { recursive: true });
+    
+    // Build Docker command arguments
+    const dockerArgs = [
+      'run', '--rm',
+      '-v', `${process.cwd()}/${ARTIFACTS_DIR}:/zap/wrk:rw`,
+      ZAP_DOCKER_IMAGE,
+      'zap-baseline.py',
       '-t', target,           // Target URL
       '-J', outputFile,       // JSON output file
-      '-I',                   // Ignore warnings
-      '-d'                    // Debug mode for better error reporting
+      '-I'                    // Ignore warnings
     ];
     
-    // Set environment for optimal performance
-    const env = {
-      ...process.env,
-      JAVA_OPTS: ZAP_JAVA_OPTS,
-      ZAP_PORT: '0'           // Use random port to avoid conflicts
-    };
-    
-    // Execute ZAP baseline scan using spawn for better control
+    // Execute ZAP baseline scan using Docker
     await new Promise<void>((resolve, reject) => {
-      const zapProcess = spawn('python3', [ZAP_BASELINE_SCRIPT, ...zapArgs], {
+      const zapProcess = spawn('docker', dockerArgs, {
         stdio: ['ignore', 'pipe', 'pipe'],
-        env,
         timeout: ZAP_TIMEOUT_MS
       });
       
@@ -256,7 +312,12 @@ async function executeZAPBaseline(target: string, assetType: string, scanId: str
       let stderr = '';
       
       zapProcess.stdout?.on('data', (data) => {
-        stdout += data.toString();
+        const output = data.toString();
+        stdout += output;
+        // Log ZAP progress
+        if (output.includes('PASS:') || output.includes('WARN:') || output.includes('FAIL:')) {
+          log(`ZAP: ${output.trim()}`);
+        }
       });
       
       zapProcess.stderr?.on('data', (data) => {
@@ -271,18 +332,19 @@ async function executeZAPBaseline(target: string, assetType: string, scanId: str
         } else {
           log(`ZAP scan failed for ${target} (exit code: ${code})`);
           if (stderr) log(`ZAP stderr: ${stderr}`);
-          if (stdout) log(`ZAP stdout: ${stdout}`);
+          if (stdout) log(`ZAP stdout summary: ${stdout.slice(-500)}`); // Last 500 chars
           reject(new Error(`ZAP baseline scan failed with exit code ${code}: ${stderr}`));
         }
       });
       
       zapProcess.on('error', (error) => {
-        reject(new Error(`ZAP process error: ${error.message}`));
+        reject(new Error(`ZAP Docker process error: ${error.message}`));
       });
     });
     
     // Parse results and create findings
-    const findings = await parseZAPResults(outputFile, target, assetType, scanId);
+    const outputPath = `${ARTIFACTS_DIR}/${outputFile}`;
+    const findings = await parseZAPResults(outputPath, target, assetType, scanId);
     
     return findings;
     
@@ -293,8 +355,9 @@ async function executeZAPBaseline(target: string, assetType: string, scanId: str
   } finally {
     // Cleanup temporary files
     try {
-      if (existsSync(outputFile)) {
-        await unlink(outputFile);
+      const outputPath = `${ARTIFACTS_DIR}/${outputFile}`;
+      if (existsSync(outputPath)) {
+        await unlink(outputPath);
       }
     } catch (cleanupError) {
       log(`Failed to cleanup ZAP output file: ${cleanupError}`);

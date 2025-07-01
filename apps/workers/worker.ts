@@ -62,7 +62,7 @@ const ALL_MODULES_IN_ORDER = [
   'accessibility_scan',
   'denial_wallet_scan',
   'tls_scan',
-  // 'zap_scan',    // Web application security testing (disabled due to build issues)
+  'zap_scan',    // Web application security testing (now working with Docker)
   'nuclei',      // Primary vulnerability scanner (upgraded to v3.4.5)
   // 'openvas_scan',  // Available but disabled until needed for deeper vulnerability assessment
   'rate_limit_scan',
