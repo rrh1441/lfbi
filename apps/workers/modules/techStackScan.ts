@@ -1523,6 +1523,9 @@ export async function runTechStackScan(job: {
     const totalDuration = fastResults.reduce((sum, r) => sum + r.duration, 0);
     log(`techstack=fast_detection_complete total_techs=${totalDetectedTechs} total_duration=${totalDuration}ms avg_per_url=${Math.round(totalDuration / fastResults.length)}ms`);
     
+    // Store tech count for Nuclei optimization
+    const detectedTechList = Array.from(techMap.values()).map(t => t.name.toLowerCase());
+    
     // If WebTech found no technologies, fall back to header analysis for key URLs
     if (totalDetectedTechs === 0) {
       log(`techstack=fallback_headers starting header analysis for ${Math.min(allTargets.length, 3)} URLs`);

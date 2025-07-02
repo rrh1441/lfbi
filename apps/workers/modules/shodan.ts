@@ -222,19 +222,32 @@ async function persistMatch(
   });
   inserted += 1;
 
-  if (findings.length === 0) findings.push(`Exposed service on port ${m.port}`);
+  // Only create findings for genuinely concerning services, not common web ports
+  const COMMON_WEB_PORTS = [80, 443, 8080, 8443];
+  const shouldCreateFinding = isICSProtocol || 
+                             sev === 'CRITICAL' || 
+                             sev === 'HIGH' || 
+                             !COMMON_WEB_PORTS.includes(m.port) ||
+                             findings.length > 0; // Has specific security issues
 
-  for (const f of findings) {
-    // Use specific finding type for ICS/OT protocols
-    const findingType = isICSProtocol ? 'OT_PROTOCOL_EXPOSED' : 'EXPOSED_SERVICE';
-    
-    await insertFinding(
-      artId,
-      findingType,
-      buildRecommendation(m.port, f, m.product ?? '', m.version ?? ''),
-      f,
-    );
-    inserted += 1;
+  if (shouldCreateFinding) {
+    // Only create generic finding if no specific issues found
+    if (findings.length === 0) {
+      findings.push(`Exposed service on port ${m.port}`);
+    }
+
+    for (const f of findings) {
+      // Use specific finding type for ICS/OT protocols
+      const findingType = isICSProtocol ? 'OT_PROTOCOL_EXPOSED' : 'EXPOSED_SERVICE';
+      
+      await insertFinding(
+        artId,
+        findingType,
+        buildRecommendation(m.port, f, m.product ?? '', m.version ?? ''),
+        f,
+      );
+      inserted += 1;
+    }
   }
   return inserted;
 }
@@ -267,6 +280,7 @@ export async function runShodanScan(job: {
   log(`[Shodan] Querying ${targets.size} targets (PAGE_LIMIT=${PAGE_LIMIT})`);
 
   let totalItems = 0;
+  const seenServices = new Set<string>(); // Deduplication for similar services
 
   for (const tgt of targets) {
     let fetched = 0;
@@ -280,6 +294,13 @@ export async function runShodanScan(job: {
         if (data.matches.length === 0) break;
 
         for (const m of data.matches) {
+          // Deduplicate similar services to prevent spam
+          const serviceKey = `${m.ip_str}:${m.port}:${m.product || 'unknown'}`;
+          if (seenServices.has(serviceKey)) {
+            continue; // Skip duplicate service
+          }
+          seenServices.add(serviceKey);
+
           // eslint-disable-next-line no-await-in-loop
           totalItems += await persistMatch(m, scanId, tgt);
         }
@@ -295,18 +316,19 @@ export async function runShodanScan(job: {
 
   await insertArtifact({
     type: 'scan_summary',
-    val_text: `Shodan scan: ${totalItems} items`,
+    val_text: `Shodan scan: ${totalItems} services found, ${seenServices.size} unique after deduplication`,
     severity: 'INFO',
     meta: { 
       scan_id: scanId, 
       total_items: totalItems, 
+      unique_services: seenServices.size,
       api_calls_used: apiCallsCount,
       targets_queried: targets.size,
       timestamp: new Date().toISOString() 
     },
   });
 
-  log(`[Shodan] Done — ${totalItems} rows persisted, ${apiCallsCount} API calls used for ${targets.size} targets`);
+  log(`[Shodan] Done — ${totalItems} services found, ${seenServices.size} unique after deduplication, ${apiCallsCount} API calls for ${targets.size} targets`);
   return totalItems;
 }
 

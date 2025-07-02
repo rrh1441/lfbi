@@ -465,72 +465,85 @@ export async function runDocumentExposure(job: {
 
   const seen = new Set<string>();
   let total = 0;
-  let queries = 0;
 
+  // Collect all queries to batch in parallel
+  const allQueries: Array<{query: string, category: string}> = [];
   for (const [category, qs] of dorks.entries()) {
     for (const q of qs) {
-      if (queries >= MAX_SEARCH_QUERIES) {
-        log(`[documentExposure] Reached search query limit (${MAX_SEARCH_QUERIES}) - stopping to control costs`);
-        break;
-      }
-      queries++;
-      try {
-        log(`[documentExposure] Serper API call ${queries}: "${q}"`);
-        const { data } = await axios.post(SERPER_URL, { q, num: 20 }, { headers });
-        const results = data.organic ?? [];
-        log(`[documentExposure] Serper returned ${results.length} results for query ${queries}`);
-        for (const hit of results) {
-          const urlStr: string = hit.link;
-          if (seen.has(urlStr)) continue;
-          seen.add(urlStr);
-
-          if (!isSearchHitRelevant(urlStr, hit.title ?? '', hit.snippet ?? '', sig)) continue;
-
-          const platform = getPlatform(urlStr);
-          const res = await downloadAndAnalyze(urlStr, sig, industryLabel, scanId);
-          if (!res) continue;
-
-          const key = `exposed_docs/${platform.toLowerCase()}/${res.sha256}${path.extname(urlStr)}`;
-          const storageUrl = await uploadFile(res.localPath, key, res.mimeInfo.verified);
-
-          const artifactId = await insertArtifact({
-            type: 'exposed_document',
-            val_text: `${platform} exposed file: ${path.basename(urlStr)}`,
-            severity: sev(res.sensitivity),
-            src_url: urlStr,
-            sha256: res.sha256,
-            mime: res.mimeInfo.verified,
-            meta: {
-              scan_id: scanId,
-              scan_module: 'documentExposure',
-              platform,
-              storage_url: storageUrl,
-              sensitivity_score: res.sensitivity,
-              analysis_findings: res.findings,
-              industry_label: industryLabel
-            }
-          });
-
-          if (res.sensitivity >= 15) {
-            await insertFinding(
-              artifactId,
-              'DATA_EXPOSURE',
-              `Secure the ${platform} service by reviewing file permissions.`,
-              `Sensitive document found on ${platform}. Score: ${res.sensitivity}.`
-            );
-          }
-          total++;
-        }
-      } catch (err) {
-        log('[documentExposure] Serper error:', (err as Error).message);
-      }
-      await new Promise((r) => setTimeout(r, 1_500));
+      if (allQueries.length >= MAX_SEARCH_QUERIES) break;
+      allQueries.push({query: q, category});
     }
-    if (queries >= MAX_SEARCH_QUERIES) break; // Break outer loop too
   }
 
-  const estimatedCost = (queries * 0.003).toFixed(3); // Rough estimate at $0.003/search
-  log(`[documentExposure] Completed: ${total} files found, ${queries} Serper calls (~$${estimatedCost})`);
+  log(`[documentExposure] Starting ${allQueries.length} parallel Serper queries`);
+  
+  // Execute all queries in parallel
+  const queryResults = await Promise.allSettled(
+    allQueries.map(async ({query, category}, index) => {
+      try {
+        log(`[documentExposure] Serper API call ${index + 1}: "${query}"`);
+        const { data } = await axios.post(SERPER_URL, { q: query, num: 20 }, { headers });
+        const results = data.organic ?? [];
+        log(`[documentExposure] Query ${index + 1} returned ${results.length} results`);
+        return { category, query, results, success: true };
+      } catch (error) {
+        log(`[documentExposure] Query ${index + 1} failed: ${(error as Error).message}`);
+        return { category, query, results: [], success: false, error };
+      }
+    })
+  );
+
+  // Process all results
+  for (const result of queryResults) {
+    if (result.status === 'rejected') continue;
+    
+    const { results } = result.value;
+    for (const hit of results) {
+      const urlStr: string = hit.link;
+      if (seen.has(urlStr)) continue;
+      seen.add(urlStr);
+
+      if (!isSearchHitRelevant(urlStr, hit.title ?? '', hit.snippet ?? '', sig)) continue;
+
+      const platform = getPlatform(urlStr);
+      const res = await downloadAndAnalyze(urlStr, sig, industryLabel, scanId);
+      if (!res) continue;
+
+      const key = `exposed_docs/${platform.toLowerCase()}/${res.sha256}${path.extname(urlStr)}`;
+      const storageUrl = await uploadFile(res.localPath, key, res.mimeInfo.verified);
+
+      const artifactId = await insertArtifact({
+        type: 'exposed_document',
+        val_text: `${platform} exposed file: ${path.basename(urlStr)}`,
+        severity: sev(res.sensitivity),
+        src_url: urlStr,
+        sha256: res.sha256,
+        mime: res.mimeInfo.verified,
+        meta: {
+          scan_id: scanId,
+          scan_module: 'documentExposure',
+          platform,
+          storage_url: storageUrl,
+          sensitivity_score: res.sensitivity,
+          analysis_findings: res.findings,
+          industry_label: industryLabel
+        }
+      });
+
+      if (res.sensitivity >= 15) {
+        await insertFinding(
+          artifactId,
+          'DATA_EXPOSURE',
+          `Secure the ${platform} service by reviewing file permissions.`,
+          `Sensitive document found on ${platform}. Score: ${res.sensitivity}.`
+        );
+      }
+      total++;
+    }
+  }
+
+  const estimatedCost = (allQueries.length * 0.003).toFixed(3); // Rough estimate at $0.003/search
+  log(`[documentExposure] Completed: ${total} files found, ${allQueries.length} parallel Serper calls (~$${estimatedCost})`);
 
   await insertArtifact({
     type: 'scan_summary',
@@ -540,7 +553,7 @@ export async function runDocumentExposure(job: {
       scan_id: scanId,
       scan_module: 'documentExposure',
       total_findings: total,
-      queries_executed: queries,
+      queries_executed: allQueries.length,
       estimated_cost_usd: estimatedCost,
       timestamp: new Date().toISOString(),
       industry_label: industryLabel

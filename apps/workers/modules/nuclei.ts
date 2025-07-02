@@ -94,13 +94,25 @@ async function runNucleiTagScan(target: { url: string; tech?: string[] }, scanId
     log(`[nuclei] [Enhanced Two-Pass Scan] Running on ${target.url}`);
 
     try {
-        // Use the new two-pass scanning approach
-        const result = await runTwoPassScan(target.url, {
-            timeout: 180, // 3 minutes for headless Chrome operations
+        // Smart guard: adjust scan parameters based on detected technologies
+        const hasTechs = target.tech && target.tech.length > 0;
+        const scanConfig = hasTechs ? {
+            timeout: 180, // 3 minutes for headless Chrome operations when techs detected
             retries: 2,
             concurrency: 6,
-            scanId: scanId // Pass scanId for artifact persistence
-        });
+            scanId: scanId
+        } : {
+            timeout: 20, // Quick pass for basic misconfigs when no techs detected
+            retries: 1,
+            concurrency: 6,
+            scanId: scanId,
+            headless: false // Skip headless scanning when no techs detected
+        };
+        
+        log(`[nuclei] Smart guard: techs=${hasTechs ? target.tech!.join(',') : 'none'} timeout=${scanConfig.timeout}s headless=${scanConfig.headless !== false}`);
+        
+        // Use the new two-pass scanning approach with smart configuration
+        const result = await runTwoPassScan(target.url, scanConfig);
 
         // Return persisted count if scanId was provided, otherwise fall back to processing results manually
         if (scanId && result.totalPersistedCount !== undefined) {

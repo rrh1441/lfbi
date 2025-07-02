@@ -19,6 +19,7 @@ export interface Finding {
   finding_type: string;
   recommendation: string;
   description: string;
+  repro_command?: string;
 }
 
 // Insert artifact into database and return ID
@@ -41,7 +42,10 @@ export async function insertArtifact(artifact: ArtifactInput): Promise<number> {
     
     const artifactId = result.rows[0].id;
     
-    console.log(`[artifactStore] Inserted ${artifact.type} artifact: ${artifact.val_text.slice(0, 60)}...`);
+    // Only log significant artifacts to reduce log spam
+    if (['scan_error', 'scan_summary'].includes(artifact.type) || artifact.severity === 'CRITICAL') {
+      console.log(`[artifactStore] Inserted ${artifact.type} artifact: ${artifact.val_text.slice(0, 60)}...`);
+    }
     return artifactId;
   } catch (error) {
     console.error('[artifactStore] Insert artifact error:', error);
@@ -55,29 +59,20 @@ export async function insertFinding(
   findingType: string, 
   recommendation: string, 
   description: string,
-  severity?: string
+  reproCommand?: string
 ): Promise<number> {
   try {
-    let query: string;
-    let params: any[];
-    
-    if (severity) {
-      // Override severity for this specific finding
-      query = `INSERT INTO findings (artifact_id, finding_type, recommendation, description, severity, created_at) 
-               VALUES ($1, $2, $3, $4, $5, NOW()) 
-               RETURNING id`;
-      params = [artifactId, findingType, recommendation, description, severity];
-    } else {
-      // Use default behavior (inherits severity from artifact)
-      query = `INSERT INTO findings (artifact_id, finding_type, recommendation, description, created_at) 
-               VALUES ($1, $2, $3, $4, NOW()) 
-               RETURNING id`;
-      params = [artifactId, findingType, recommendation, description];
-    }
+    const query = `INSERT INTO findings (artifact_id, finding_type, recommendation, description, repro_command, created_at) 
+                   VALUES ($1, $2, $3, $4, $5, NOW()) 
+                   RETURNING id`;
+    const params = [artifactId, findingType, recommendation, description, reproCommand || null];
     
     const result = await pool.query(query, params);
     
-    console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}${severity ? ` with severity ${severity}` : ''}`);
+    // Only log HIGH/CRITICAL findings to reduce log spam
+    if (findingType.includes('CRITICAL') || findingType.includes('MALICIOUS') || findingType.includes('EXPOSED')) {
+      console.log(`[artifactStore] Inserted finding ${findingType} for artifact ${artifactId}${reproCommand ? ' with repro command' : ''}`);
+    }
     return result.rows[0].id;
   } catch (error) {
     console.error('[artifactStore] Insert finding error:', error);
@@ -111,9 +106,28 @@ export async function initializeDatabase(): Promise<void> {
         finding_type VARCHAR(50) NOT NULL,
         recommendation TEXT NOT NULL,
         description TEXT NOT NULL,
+        repro_command TEXT,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
+
+    // Add repro_command column to existing findings table if it doesn't exist
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'findings' AND column_name = 'repro_command'
+          ) THEN
+            ALTER TABLE findings ADD COLUMN repro_command TEXT;
+            RAISE NOTICE 'Added repro_command column to findings table';
+          END IF;
+        END$$;
+      `);
+    } catch (error) {
+      console.log('[artifactStore] Warning: Could not add repro_command column:', (error as Error).message);
+    }
 
     // Create scans_master table for tracking scan status
     await pool.query(`

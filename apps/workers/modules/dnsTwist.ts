@@ -40,7 +40,7 @@ const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms
 const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
 const SKIP_DEEP_ANALYSIS = true; // Skip time-consuming phishing analysis
 const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
-const ENABLE_WHOIS_ENRICHMENT = process.env.ENABLE_WHOIS_ENRICHMENT === 'true'; // Cost control for WHOIS ($0.015/call WhoisXML or $0.002/call Whoxy)
+const ENABLE_WHOIS_ENRICHMENT = process.env.ENABLE_WHOIS_ENRICHMENT !== 'false'; // Enable by default for phishing assessment (critical for security)
 const USE_WHOXY_RESOLVER = process.env.USE_WHOXY_RESOLVER === 'true'; // Switch to Whoxy for 87% cost savings
 
 // -----------------------------------------------------------------------------

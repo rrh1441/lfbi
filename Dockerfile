@@ -20,7 +20,9 @@ RUN apk add --no-cache \
     chromium nss freetype freetype-dev harfbuzz \
     ca-certificates ttf-freefont coreutils procps \
     libx11 libxcomposite libxdamage libxext libxrandr libxfixes \
-    libxkbcommon libdrm libxcb libxrender pango cairo alsa-lib udev
+    libxkbcommon libdrm libxcb libxrender pango cairo alsa-lib udev \
+    sqlite sqlite-dev \
+    && ln -sf /usr/bin/sqlite3 /usr/local/bin/sqlite3
 
 # Puppeteer points to system Chrome
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
@@ -72,8 +74,8 @@ ENV NUCLEI_TEMPLATES=/opt/nuclei-templates
 # dnstwist (Python) – use --break-system-packages to avoid venv bloat
 RUN pip3 install --break-system-packages dnstwist
 
-# WebTech and WhatWeb for fast technology detection (replaces heavy Nuclei tech scanning)
-RUN pip3 install --break-system-packages webtech && \
+# WebTech v3 and WhatWeb for fast technology detection (replaces heavy Nuclei tech scanning)
+RUN pip3 install --break-system-packages --upgrade webtech && \
     apk add --no-cache ruby ruby-dev make gcc musl-dev && \
     git clone https://github.com/urbanadventurer/WhatWeb.git /opt/whatweb && \
     ln -s /opt/whatweb/whatweb /usr/local/bin/whatweb && \
@@ -91,6 +93,9 @@ RUN apk add --no-cache sslscan
 
 # OpenVAS/Greenbone CE - Enterprise vulnerability scanner
 RUN pip3 install --break-system-packages python-gvm gvm-tools
+
+# WHOIS resolver dependencies - needed for dnsTwist phishing assessment
+RUN pip3 install --break-system-packages aiohttp
 
 # OWASP ZAP - Web application security scanner with all dependencies
 RUN apk add --no-cache openjdk11-jre && \

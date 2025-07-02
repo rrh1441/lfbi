@@ -42,7 +42,7 @@ export async function detectTechnologiesWithWebTech(url: string): Promise<TechDe
     log(`Starting WebTech detection for ${url}`);
     
     // Use webtech with JSON output
-    const { stdout } = await exec('python3', ['-m', 'webtech', '-u', url, '-j'], {
+    const { stdout } = await exec('python3', ['-m', 'webtech', '-u', url, '--json'], {
       timeout: 5000 // 5 second timeout for speed
     });
     
@@ -408,10 +408,25 @@ export async function detectFromHeaders(url: string): Promise<FastTechResult[]> 
 }
 
 /**
- * Main fast tech detection - tries WebTech, falls back to WhatWeb, then headers
+ * Main fast tech detection - tries headers first, then WebTech if needed
  */
 export async function detectTechnologiesFast(url: string): Promise<TechDetectionResult> {
-  // Try WebTech first (fastest and most accurate)
+  // Try header detection first (fastest)
+  try {
+    const headerTechs = await detectFromHeaders(url);
+    if (headerTechs.length > 0) {
+      log(`Header detection found ${headerTechs.length} techs, skipping WebTech for ${url}`);
+      return {
+        url,
+        technologies: headerTechs,
+        duration: 0 // Instant header detection
+      };
+    }
+  } catch (error) {
+    log(`Header detection failed for ${url}: ${(error as Error).message}`);
+  }
+
+  // Try WebTech if headers didn't find anything
   try {
     const webTechResult = await detectTechnologiesWithWebTech(url);
     if (webTechResult.technologies.length > 0) {

@@ -718,19 +718,11 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
           .filter((timeline, index, array) => array.indexOf(timeline) === index) // dedupe
           .join(', ');
         
-        const description = `${users.length} employees with ${severity.toLowerCase()} breach exposure: ${userList}`;
-        
-        let evidence = `Sources: ${allSources} | Exposure: ${allExposureTypes}`;
-        if (timelineInfo) {
-          evidence += ` | Timeline: ${timelineInfo}`;
-        }
-        
         await insertFinding(
           artifactId,
           mapSeverityToFindingType(severity),
           getRecommendationText(severity),
-          description,
-          severity === 'CRITICAL' ? 'CRITICAL' : severity === 'MEDIUM' ? 'MEDIUM' : 'LOW'
+          `${users.length} ${severity.toLowerCase()} breach exposures found`
         );
         
         findingsCount++;
