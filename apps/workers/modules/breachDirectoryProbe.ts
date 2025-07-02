@@ -641,42 +641,6 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
     
     log(`Combined breach analysis complete: BD=${analysis.breached_total}, LC=${analysis.leakcheck_total}, Total=${analysis.combined_total}`);
     
-    // Determine artifact severity based on highest risk finding that will be created
-    let severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO' = 'INFO';
-    if (analysis.leakcheck_results && analysis.leakcheck_results.length > 0) {
-      // Use consolidated user analysis for consistent severity
-      const consolidatedUsers = consolidateBreachesByUser(analysis.leakcheck_results);
-      const hasCritical = consolidatedUsers.some(user => user.highestSeverity === 'CRITICAL');
-      const hasMedium = consolidatedUsers.some(user => user.highestSeverity === 'MEDIUM');
-      
-      if (hasCritical) {
-        severity = 'CRITICAL';
-      } else if (hasMedium) {
-        severity = 'MEDIUM';
-      } else {
-        severity = 'INFO';
-      }
-    } else if (analysis.combined_total >= 100) {
-      severity = 'HIGH';
-    } else if (analysis.combined_total > 0) {
-      severity = 'MEDIUM';
-    }
-    
-    const artifactId = await insertArtifact({
-      type: 'breach_directory_summary',
-      val_text: `Breach probe: ${analysis.combined_total} total breached accounts (BD: ${analysis.breached_total}, LC: ${analysis.leakcheck_total}) for ${domain}`,
-      severity,
-      meta: {
-        scan_id: scanId,
-        scan_module: 'breachDirectoryProbe',
-        domain,
-        breach_analysis: analysis,
-        summary,
-        breach_sources: analysis.leakcheck_sources,
-        scan_duration_ms: Date.now() - startTime
-      }
-    });
-    
     let findingsCount = 0;
     
     // Process breach findings with proper deduplication and severity logic
@@ -696,9 +660,27 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         usersBySeverity.get(severity)!.push(user);
       });
       
-      // Step 3: Create one finding per severity level (deduplication complete)
-      for (const [severity, users] of usersBySeverity) {
+      // Step 3: Create separate artifact for each severity level (fixes severity inheritance bug)
+      for (const [severityLevel, users] of usersBySeverity) {
         if (users.length === 0) continue;
+        
+        // Create artifact with correct severity for this specific level
+        const artifactId = await insertArtifact({
+          type: 'breach_directory_summary',
+          val_text: `Breach probe: ${users.length} ${severityLevel.toLowerCase()} breach exposures for ${domain}`,
+          severity: severityLevel as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO',
+          meta: {
+            scan_id: scanId,
+            scan_module: 'breachDirectoryProbe',
+            domain,
+            breach_analysis: analysis,
+            summary,
+            breach_sources: analysis.leakcheck_sources,
+            scan_duration_ms: Date.now() - startTime,
+            severity_level: severityLevel,
+            user_count: users.length
+          }
+        });
         
         // Create consolidated finding with all users of this severity
         const userList = users.map(u => u.userId).join(', ');
@@ -720,16 +702,34 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         
         await insertFinding(
           artifactId,
-          mapSeverityToFindingType(severity),
-          getRecommendationText(severity),
-          `${users.length} ${severity.toLowerCase()} breach exposures found`
+          mapSeverityToFindingType(severityLevel),
+          getRecommendationText(severityLevel),
+          `${users.length} ${severityLevel.toLowerCase()} breach exposures found`
         );
         
         findingsCount++;
         
-        log(`Created ${severity} finding for ${users.length} users: ${users.map(u => u.userId).slice(0, 5).join(', ')}${users.length > 5 ? '...' : ''}`);
+        log(`Created ${severityLevel} finding for ${users.length} users: ${users.map(u => u.userId).slice(0, 5).join(', ')}${users.length > 5 ? '...' : ''}`);
       }
     }
+    
+    // Create summary artifact with overall stats
+    const overallSeverity = analysis.combined_total >= 100 ? 'HIGH' : analysis.combined_total > 0 ? 'MEDIUM' : 'INFO';
+    await insertArtifact({
+      type: 'breach_directory_summary',
+      val_text: `Breach probe complete: ${analysis.combined_total} total breached accounts (BD: ${analysis.breached_total}, LC: ${analysis.leakcheck_total}) for ${domain}`,
+      severity: overallSeverity,
+      meta: {
+        scan_id: scanId,
+        scan_module: 'breachDirectoryProbe',
+        domain,
+        breach_analysis: analysis,
+        summary,
+        breach_sources: analysis.leakcheck_sources,
+        scan_duration_ms: Date.now() - startTime,
+        is_summary: true
+      }
+    });
     
     const duration = Date.now() - startTime;
     log(`Breach probe completed: ${findingsCount} findings in ${duration}ms`);

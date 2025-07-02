@@ -89,11 +89,15 @@ def _parse_whoxy(json_body: Mapping[str, Any]) -> tuple[str | None, str | None, 
     """
     Extract registrant and registrar from a Whoxy response.
     """
-    result = json_body.get("whois_record", {})
-    registrant_name = result.get("registrant_name")
-    registrant_org = result.get("registrant_organization")
-    registrar_name = result.get("registrar_name")
-    creation_date = result.get("created_date")
+    # Whoxy returns data in different structure than expected
+    registrant_contact = json_body.get("registrant_contact", {})
+    domain_registrar = json_body.get("domain_registrar", {})
+    
+    registrant_name = registrant_contact.get("full_name") or registrant_contact.get("name")
+    registrant_org = registrant_contact.get("company_name") or registrant_contact.get("organization")
+    registrar_name = domain_registrar.get("registrar_name")
+    creation_date = json_body.get("create_date")
+    
     return registrant_name, registrant_org, registrar_name, creation_date
 
 
@@ -115,12 +119,12 @@ class WhoisResolver:
             tasks = [self._resolve_single(session, d.lower().strip()) for d in domains]
             results = await asyncio.gather(*tasks)
             
-            # Log cost savings
+            # Log cost savings to stderr to avoid JSON parsing issues
             total_calls = self.rdap_calls + self.whoxy_calls
             whoxy_cost = self.whoxy_calls * 0.002
             saved_vs_whoisxml = total_calls * 0.015 - whoxy_cost
-            print(f"WHOIS Resolution: {self.rdap_calls} RDAP (free) + {self.whoxy_calls} Whoxy (~${whoxy_cost:.3f})")
-            print(f"Saved ${saved_vs_whoisxml:.3f} vs WhoisXML")
+            print(f"WHOIS Resolution: {self.rdap_calls} RDAP (free) + {self.whoxy_calls} Whoxy (~${whoxy_cost:.3f})", file=sys.stderr)
+            print(f"Saved ${saved_vs_whoisxml:.3f} vs WhoisXML", file=sys.stderr)
             
             return results
 

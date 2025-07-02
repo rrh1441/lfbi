@@ -38,7 +38,6 @@ const exec = promisify(execFile);
 const MAX_CONCURRENT_CHECKS = 15; // Increased from 5 to 15 for speed
 const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms  
 const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
-const SKIP_DEEP_ANALYSIS = true; // Skip time-consuming phishing analysis
 const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
 const ENABLE_WHOIS_ENRICHMENT = process.env.ENABLE_WHOIS_ENRICHMENT !== 'false'; // Enable by default for phishing assessment (critical for security)
 const USE_WHOXY_RESOLVER = process.env.USE_WHOXY_RESOLVER === 'true'; // Switch to Whoxy for 87% cost savings
@@ -131,6 +130,131 @@ async function checkForWildcard(domain: string): Promise<boolean> {
   }
 }
 
+/**
+ * Check if domain actually resolves (has A/AAAA records)
+ */
+async function checkDomainResolution(domain: string): Promise<boolean> {
+  try {
+    const { stdout: aRecords } = await exec('dig', ['A', '+short', domain]);
+    const { stdout: aaaaRecords } = await exec('dig', ['AAAA', '+short', domain]);
+    return aRecords.trim().length > 0 || aaaaRecords.trim().length > 0;
+  } catch (err) {
+    log(`[dnstwist] DNS resolution check failed for ${domain}:`, (err as Error).message);
+    return false;
+  }
+}
+
+/**
+ * Check for MX records (email capability)
+ */
+async function checkMxRecords(domain: string): Promise<boolean> {
+  try {
+    const { stdout } = await exec('dig', ['MX', '+short', domain]);
+    return stdout.trim().length > 0;
+  } catch (err) {
+    log(`[dnstwist] MX check failed for ${domain}:`, (err as Error).message);
+    return false;
+  }
+}
+
+/**
+ * Check if domain has TLS certificate (active hosting indicator)
+ */
+async function checkTlsCertificate(domain: string): Promise<boolean> {
+  try {
+    const { data } = await axios.get(`https://crt.sh/?q=%25.${domain}&output=json`, { timeout: 10_000 });
+    return Array.isArray(data) && data.length > 0;
+  } catch (err) {
+    log(`[dnstwist] TLS cert check failed for ${domain}:`, (err as Error).message);
+    return false;
+  }
+}
+
+/**
+ * Detect algorithmic/unusual domain patterns
+ */
+function isAlgorithmicPattern(domain: string): { isAlgorithmic: boolean; pattern: string; confidence: number } {
+  // Split-word subdomain patterns (lodgin.g-source.com)
+  const splitWordPattern = /^[a-z]+\.[a-z]{1,3}-[a-z]+\.com$/i;
+  if (splitWordPattern.test(domain)) {
+    return { isAlgorithmic: true, pattern: 'split-word-subdomain', confidence: 0.9 };
+  }
+
+  // Hyphen insertion patterns (lodging-sou.rce.com)
+  const hyphenInsertPattern = /^[a-z]+-[a-z]{1,4}\.[a-z]{3,6}\.com$/i;
+  if (hyphenInsertPattern.test(domain)) {
+    return { isAlgorithmic: true, pattern: 'hyphen-insertion-subdomain', confidence: 0.85 };
+  }
+
+  // Multiple dots indicating subdomain structure
+  const dotCount = (domain.match(/\./g) || []).length;
+  if (dotCount >= 3) {
+    return { isAlgorithmic: true, pattern: 'multi-level-subdomain', confidence: 0.7 };
+  }
+
+  // Random character patterns (common in DGA)
+  const randomPattern = /^[a-z]{12,20}\.com$/i;
+  if (randomPattern.test(domain)) {
+    return { isAlgorithmic: true, pattern: 'dga-style', confidence: 0.8 };
+  }
+
+  return { isAlgorithmic: false, pattern: 'standard', confidence: 0.1 };
+}
+
+/**
+ * Perform HTTP content analysis
+ */
+async function analyzeHttpContent(domain: string): Promise<{ 
+  responds: boolean; 
+  hasLoginForm: boolean; 
+  redirectsToOriginal: boolean; 
+  statusCode?: number;
+  contentType?: string;
+}> {
+  const result = {
+    responds: false,
+    hasLoginForm: false,
+    redirectsToOriginal: false,
+    statusCode: undefined as number | undefined,
+    contentType: undefined as string | undefined
+  };
+
+  for (const proto of ['https', 'http'] as const) {
+    try {
+      const response = await axios.get(`${proto}://${domain}`, {
+        timeout: 10_000,
+        maxRedirects: 5,
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+        validateStatus: () => true // Accept any status code
+      });
+
+      result.responds = true;
+      result.statusCode = response.status;
+      result.contentType = response.headers['content-type'] || '';
+
+      // Check for login forms in HTML content
+      if (typeof response.data === 'string') {
+        const htmlContent = response.data.toLowerCase();
+        result.hasLoginForm = htmlContent.includes('<input') && 
+                             (htmlContent.includes('type="password"') || htmlContent.includes('login'));
+      }
+
+      // Check if final URL redirects to original domain
+      if (response.request?.res?.responseUrl) {
+        const finalUrl = response.request.res.responseUrl;
+        result.redirectsToOriginal = finalUrl.includes(domain.replace(/^[^.]+\./, ''));
+      }
+
+      break; // Success, no need to try other protocol
+    } catch (err) {
+      // Try next protocol
+      continue;
+    }
+  }
+
+  return result;
+}
+
 /** Simple HTTPS→HTTP fetch with relaxed TLS for phishing sites. */
 async function fetchWithFallback(domain: string): Promise<string | null> {
   for (const proto of ['https', 'http'] as const) {
@@ -171,7 +295,7 @@ async function getWhoisData(domain: string): Promise<{ registrar?: string; regis
       
       return {
         registrar: record.registrar,
-        registrant: record.registrant_org || record.registrant_name || 'Unknown'
+        registrant: record.registrant_org || record.registrant_name || undefined
       };
       
     } catch (error) {
@@ -202,7 +326,7 @@ async function getWhoisData(domain: string): Promise<{ registrar?: string; regis
       
       return {
         registrar: whoisRecord.registrarName,
-        registrant: whoisRecord.registrant?.organization || whoisRecord.registrant?.name || 'Unknown'
+        registrant: whoisRecord.registrant?.organization || whoisRecord.registrant?.name || undefined
       };
       
     } catch (error: any) {
@@ -299,37 +423,50 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
         batch.map(async (entry) => {
           totalFindings += 1;
 
-          // ---------------- Fast mode enrichment ----------------
+          // ---------------- Threat Classification Analysis ----------------
+          log(`[dnstwist] Analyzing threat signals for ${entry.domain}`);
+          
+          // Pattern detection
+          const algorithmicCheck = isAlgorithmicPattern(entry.domain);
+          
+          // Domain reality checks
+          const [domainResolves, hasMxRecords, hasTlsCert, httpAnalysis] = await Promise.allSettled([
+            checkDomainResolution(entry.domain),
+            checkMxRecords(entry.domain),
+            checkTlsCertificate(entry.domain),
+            analyzeHttpContent(entry.domain)
+          ]);
+          
+          const threatSignals = {
+            resolves: domainResolves.status === 'fulfilled' ? domainResolves.value : false,
+            hasMx: hasMxRecords.status === 'fulfilled' ? hasMxRecords.value : false,
+            hasCert: hasTlsCert.status === 'fulfilled' ? hasTlsCert.value : false,
+            httpContent: httpAnalysis.status === 'fulfilled' ? httpAnalysis.value : { responds: false, hasLoginForm: false, redirectsToOriginal: false },
+            isAlgorithmic: algorithmicCheck.isAlgorithmic,
+            algorithmicPattern: algorithmicCheck.pattern,
+            confidence: algorithmicCheck.confidence
+          };
+
+          // ---------------- Standard enrichment ----------------
           const mxRecords: string[] = [];
           const nsRecords: string[] = [];
           const ctCerts: Array<{ issuer_name: string; common_name: string }> = [];
           let wildcard = false;
           let phishing = { score: 0, evidence: [] as string[] };
           let redirects = false;
-          let typoWhois: any = { error: 'Skipped in fast mode' };
+          let typoWhois: any = null;
           
-          if (!SKIP_DEEP_ANALYSIS) {
-            // Only do expensive operations if deep analysis is enabled
-            const dnsResults = await getDnsRecords(entry.domain);
-            mxRecords.push(...dnsResults.mx);
-            nsRecords.push(...dnsResults.ns);
-            
-            ctCerts.push(...await checkCTLogs(entry.domain));
-            wildcard = await checkForWildcard(entry.domain);
-            phishing = await analyzeWebPageForPhishing(entry.domain, job.domain);
-            redirects = await redirectsToOrigin(entry.domain, job.domain);
+          // Standard DNS check (still needed for legacy data)
+          const dnsResults = await getDnsRecords(entry.domain);
+          mxRecords.push(...dnsResults.mx);
+          nsRecords.push(...dnsResults.ns);
+          
+          // Quick redirect check
+          redirects = await redirectsToOrigin(entry.domain, job.domain) || threatSignals.httpContent.redirectsToOriginal;
+          
+          // WHOIS enrichment (if enabled)
+          if (ENABLE_WHOIS_ENRICHMENT) {
             typoWhois = await getWhoisData(entry.domain);
-            
-            // Rate limiting for WhoisXML API
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } else {
-            // Fast mode: minimal DNS check only
-            const fastDns = await getDnsRecords(entry.domain);
-            mxRecords.push(...fastDns.mx);
-            nsRecords.push(...fastDns.ns);
-            
-            // Quick redirect check only
-            redirects = await redirectsToOrigin(entry.domain, job.domain);
           }
 
           // ---------------- Registrar-based risk assessment ----------------
@@ -345,7 +482,7 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
               if (registrarMatch) {
                 evidence.push(`Same registrar as original domain: ${typoWhois.registrar}`);
               } else {
-                evidence.push(`Different registrar: ${typoWhois.registrar} (original: ${originWhois.registrar})`);
+                evidence.push(`Different registrars - Original: ${originWhois.registrar}, Typosquat: ${typoWhois.registrar}`);
               }
             }
 
@@ -380,7 +517,7 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
                 if (registrantMatch) {
                   evidence.push(`Same registrant as original domain: ${typoWhois.registrant}`);
                 } else {
-                  evidence.push(`Different registrant: ${typoWhois.registrant} (original: ${originWhois.registrant})`);
+                  evidence.push(`Different registrants - Original: ${originWhois.registrant}, Typosquat: ${typoWhois.registrant}`);
                 }
               } else {
                 // Mixed privacy - one protected, one not (suspicious pattern)
@@ -392,53 +529,140 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
             evidence.push(`WHOIS lookup failed: ${typoWhois.error}`);
           }
 
-          // ---------------- Severity calculation -------------
-          let score = 10;
-          if (mxRecords.length) score += 20;
-          if (ctCerts.length) score += 15;
-          if (wildcard) score += 30;
-          score += phishing.score;
-
-          // Registrar-based scoring with privacy protection awareness
-          if (registrarMatch && registrantMatch) {
-            // Likely defensive registration by same organization
-            score = Math.max(score - 40, 5); // Significantly reduce suspicion
-            evidence.push('Likely defensive registration by same organization');
-          } else if (registrarMatch && privacyProtected) {
-            // Same registrar + both privacy protected = likely defensive
-            score = Math.max(score - 25, 10); // Moderate reduction in suspicion
-            evidence.push('Same registrar with privacy protection - likely defensive');
-          } else if (!registrarMatch && !privacyProtected && originWhois && typoWhois && !typoWhois.error) {
-            // Different registrar AND clear registrant info = high suspicion
-            score += 35;
-            evidence.push('Different registrar and registrant - potential typosquat threat');
-          } else if (!registrarMatch && privacyProtected) {
-            // Different registrar + privacy = moderate suspicion
-            score += 20;
-            evidence.push('Different registrar with privacy protection - moderate threat');
-          }
-
+          // ---------------- Intelligent Threat Classification & Severity -------------
+          let threatClass: 'MONITOR' | 'INVESTIGATE' | 'TAKEDOWN';
           let severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-          if (redirects && mxRecords.length === 0) {
-            severity = 'MEDIUM'; // verify ownership case
-          } else if (registrarMatch && registrantMatch) {
-            severity = 'LOW'; // Defensive registration
-          } else if (score >= 70) {
-            severity = 'CRITICAL';
-          } else if (score >= 50) {
-            severity = 'HIGH';
-          } else if (score >= 25) {
-            severity = 'MEDIUM';
+          let threatReasoning: string[] = [];
+          let score = 10;
+
+          // Algorithmic domain handling
+          if (threatSignals.isAlgorithmic) {
+            threatReasoning.push(`Algorithmic pattern detected: ${threatSignals.algorithmicPattern}`);
+            
+            if (!threatSignals.resolves) {
+              // Algorithmic + doesn't resolve = noise
+              threatClass = 'MONITOR';
+              severity = 'LOW';
+              score = 5;
+              threatReasoning.push('Domain does not resolve (NXDOMAIN) - likely algorithmic noise');
+            } else if (threatSignals.resolves && !threatSignals.httpContent.responds) {
+              // Resolves but no HTTP = parked
+              threatClass = 'MONITOR';
+              severity = 'LOW';
+              score = 15;
+              threatReasoning.push('Domain resolves but no HTTP response - likely parked');
+            } else {
+              // Algorithmic but active = investigate
+              threatClass = 'INVESTIGATE';
+              severity = 'MEDIUM';
+              score = 35;
+              threatReasoning.push('Unusual pattern but actively hosting content');
+            }
           } else {
-            severity = 'LOW';
+            // Real domain patterns - assess based on activity and ownership
+            
+            // Base scoring for real domains
+            score = 30;
+            
+            // Domain activity signals
+            if (threatSignals.resolves) {
+              score += 15;
+              threatReasoning.push('Domain resolves to IP address');
+            }
+            
+            if (threatSignals.hasMx) {
+              score += 25;
+              threatReasoning.push('Has MX records (email capability)');
+            }
+            
+            if (threatSignals.hasCert) {
+              score += 20;
+              threatReasoning.push('Has TLS certificate (active hosting)');
+            }
+            
+            if (threatSignals.httpContent.responds) {
+              score += 20;
+              threatReasoning.push('Responds to HTTP requests');
+              
+              if (threatSignals.httpContent.hasLoginForm) {
+                score += 40;
+                threatReasoning.push('Contains login forms (high phishing risk)');
+              }
+            }
+
+            // Registrar-based risk assessment
+            if (registrarMatch && registrantMatch) {
+              score = Math.max(score - 35, 10);
+              threatReasoning.push('Same registrar and registrant (likely defensive)');
+            } else if (registrarMatch && privacyProtected) {
+              score = Math.max(score - 20, 15);
+              threatReasoning.push('Same registrar with privacy protection (likely defensive)');
+            } else if (!registrarMatch && originWhois && typoWhois && !typoWhois.error) {
+              score += 30;
+              threatReasoning.push('Different registrar and registrant - potential threat');
+            }
+
+            // Redirect analysis
+            if (redirects || threatSignals.httpContent.redirectsToOriginal) {
+              if (registrarMatch) {
+                score = Math.max(score - 25, 10);
+                threatReasoning.push('Redirects to original domain with same registrar (likely legitimate)');
+              } else {
+                score += 15;
+                threatReasoning.push('Redirects to original domain but different registrar (verify ownership)');
+              }
+            }
+
+            // Determine threat classification
+            if (score >= 80 || threatSignals.httpContent.hasLoginForm) {
+              threatClass = 'TAKEDOWN';
+              severity = 'CRITICAL';
+            } else if (score >= 50 || (threatSignals.resolves && threatSignals.hasMx && !registrarMatch)) {
+              threatClass = 'TAKEDOWN';
+              severity = 'HIGH';
+            } else if (score >= 25 || (threatSignals.resolves && !registrarMatch)) {
+              threatClass = 'INVESTIGATE';
+              severity = 'MEDIUM';
+            } else {
+              threatClass = 'MONITOR';
+              severity = 'LOW';
+            }
           }
 
           // ---------------- Artifact creation ---------------
+          let artifactText: string;
+          
+          // Create artifact text based on threat classification
+          if (threatClass === 'MONITOR') {
+            artifactText = `${threatSignals.isAlgorithmic ? 'Algorithmic' : 'Low-risk'} typosquat detected: ${entry.domain} [${threatClass}]`;
+          } else if (threatClass === 'INVESTIGATE') {
+            artifactText = `Suspicious typosquat requiring investigation: ${entry.domain} [${threatClass}]`;
+          } else {
+            artifactText = `Active typosquat threat detected: ${entry.domain} [${threatClass}]`;
+          }
+          
+          // Add registrar information (even if partial)
+          if (originWhois?.registrar || typoWhois?.registrar) {
+            const originInfo = originWhois?.registrar || '[WHOIS lookup failed]';
+            const typoInfo = typoWhois?.registrar || '[WHOIS lookup failed]';
+            artifactText += ` | Original registrar: ${originInfo}, Typosquat registrar: ${typoInfo}`;
+          }
+          
+          // Add registrant information (even if partial)
+          if ((originWhois?.registrant || typoWhois?.registrant) && !privacyProtected) {
+            const originRegInfo = originWhois?.registrant || '[WHOIS lookup failed]';
+            const typoRegInfo = typoWhois?.registrant || '[WHOIS lookup failed]';
+            artifactText += ` | Original registrant: ${originRegInfo}, Typosquat registrant: ${typoRegInfo}`;
+          }
+          
+          // Add threat reasoning
+          if (threatReasoning.length > 0) {
+            artifactText += ` | Analysis: ${threatReasoning.join('; ')}`;
+          }
+
           const artifactId = await insertArtifact({
             type: 'typo_domain',
-            val_text: registrarMatch && registrantMatch
-              ? `Defensive typosquat registration detected: ${entry.domain} (same registrar/registrant)`
-              : `Potentially malicious typosquatted domain detected: ${entry.domain}`,
+            val_text: artifactText,
             severity,
             meta: {
               scan_id: job.scanId,
@@ -462,35 +686,88 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
               origin_registrar: originWhois?.registrar,
               origin_registrant: originWhois?.registrant,
               whois_evidence: evidence,
+              // Threat classification data
+              threat_class: threatClass,
+              threat_reasoning: threatReasoning,
+              threat_signals: {
+                resolves: threatSignals.resolves,
+                has_mx: threatSignals.hasMx,
+                has_cert: threatSignals.hasCert,
+                responds_http: threatSignals.httpContent.responds,
+                has_login_form: threatSignals.httpContent.hasLoginForm,
+                redirects_to_original: threatSignals.httpContent.redirectsToOriginal,
+                is_algorithmic: threatSignals.isAlgorithmic,
+                algorithmic_pattern: threatSignals.algorithmicPattern,
+                pattern_confidence: threatSignals.confidence,
+                http_status: threatSignals.httpContent.statusCode,
+                content_type: threatSignals.httpContent.contentType
+              }
             },
           });
 
           // ---------------- Finding creation ----------------
-          if (severity !== 'LOW') {
-            let findingType: string;
-            let description: string;
+          // Create findings for all severity levels, but with different types
+          let findingType: string;
+          let description: string;
+          let recommendation: string;
 
-            if (registrarMatch && registrantMatch) {
-              // Defensive registration - informational finding
-              findingType = 'DEFENSIVE_TYPOSQUAT';
-              description = `Defensive domain registration by same organization. Registrar: ${typoWhois?.registrar}, Registrant: ${typoWhois?.registrant}`;
-            } else if (redirects) {
-              findingType = 'TYPOSQUAT_REDIRECT';
-              description = `Domain redirects to ${job.domain}; verify legitimate ownership. Evidence: ${evidence.join(', ')}`;
+          // Determine finding type and recommendation based on threat classification
+          if (threatClass === 'MONITOR') {
+            findingType = threatSignals.isAlgorithmic ? 'ALGORITHMIC_TYPOSQUAT' : 'PARKED_TYPOSQUAT';
+            recommendation = `Monitor for changes - add to watchlist and check monthly for activation`;
+            
+            if (threatSignals.isAlgorithmic) {
+              description = `Algorithmic typosquat pattern detected (${threatSignals.algorithmicPattern}). ${threatReasoning.join('. ')}`;
             } else {
-              findingType = 'PHISHING_SETUP';
-              description = `Potential typosquat threat with different ownership. Risk factors: ${evidence.join(', ')}`;
+              description = `Low-risk typosquat domain identified. ${threatReasoning.join('. ')}`;
             }
-
-            await insertFinding(
-              artifactId,
-              findingType,
-              registrarMatch && registrantMatch
-                ? `Monitor defensive registration: ${entry.domain}`
-                : `Investigate and potentially initiate takedown procedures for ${entry.domain}`,
-              description,
-            );
+            
+          } else if (threatClass === 'INVESTIGATE') {
+            findingType = 'SUSPICIOUS_TYPOSQUAT';
+            recommendation = `Investigate further - verify ownership, check content, and assess for active abuse`;
+            description = `Suspicious typosquat requiring investigation. ${threatReasoning.join('. ')}`;
+            
+          } else { // TAKEDOWN
+            if (threatSignals.httpContent.hasLoginForm) {
+              findingType = 'ACTIVE_PHISHING_SITE';
+              recommendation = `Immediate takedown recommended - active phishing site detected with login forms`;
+            } else if (threatSignals.hasMx && !registrarMatch) {
+              findingType = 'EMAIL_PHISHING_CAPABILITY';
+              recommendation = `Urgent: Initiate takedown procedures - email phishing capability with different registrar`;
+            } else {
+              findingType = 'ACTIVE_TYPOSQUAT_THREAT';
+              recommendation = `Initiate takedown procedures - active threat with suspicious indicators`;
+            }
+            description = `Active typosquat threat requiring immediate action. ${threatReasoning.join('. ')}`;
           }
+
+          // Add registrar details to description
+          let registrarDetails = '';
+          if (originWhois?.registrar && typoWhois?.registrar) {
+            registrarDetails = ` | Original registrar: ${originWhois.registrar}, Typosquat registrar: ${typoWhois.registrar}`;
+          } else if (originWhois?.registrar) {
+            registrarDetails = ` | Original registrar: ${originWhois.registrar}, Typosquat registrar: [WHOIS lookup failed]`;
+          } else if (typoWhois?.registrar) {
+            registrarDetails = ` | Original registrar: [WHOIS lookup failed], Typosquat registrar: ${typoWhois.registrar}`;
+          }
+
+          let registrantDetails = '';
+          if (originWhois?.registrant && typoWhois?.registrant && !privacyProtected) {
+            registrantDetails = ` | Original registrant: ${originWhois.registrant}, Typosquat registrant: ${typoWhois.registrant}`;
+          } else if (originWhois?.registrant && !privacyProtected) {
+            registrantDetails = ` | Original registrant: ${originWhois.registrant}, Typosquat registrant: [WHOIS lookup failed]`;
+          } else if (typoWhois?.registrant && !privacyProtected) {
+            registrantDetails = ` | Original registrant: [WHOIS lookup failed], Typosquat registrant: ${typoWhois.registrant}`;
+          }
+
+          description += registrarDetails + registrantDetails;
+
+          await insertFinding(
+            artifactId,
+            findingType,
+            recommendation,
+            description,
+          );
         })
       );
 

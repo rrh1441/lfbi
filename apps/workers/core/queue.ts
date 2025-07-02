@@ -48,7 +48,10 @@ export class UpstashQueue {
   }
 
   async getNextJob(): Promise<ScanJob | null> {
+    const workerId = process.env.FLY_MACHINE_ID || `worker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
     try {
+      // Atomic pop with immediate locking
       const jobData = await this.redis.rpop('scan.jobs');
       if (!jobData) {
         return null;
@@ -76,6 +79,19 @@ export class UpstashQueue {
       
       const job = JSON.parse(jobString) as ScanJob;
       console.log('[queue] Parsed job:', job);
+      
+      // Immediately claim the job with worker lock - atomic operation
+      const lockKey = `lock:job:${job.id}`;
+      const lockSet = await this.redis.set(lockKey, workerId, { ex: 1200, nx: true }); // 20 minute lock
+      
+      if (!lockSet) {
+        console.log(`[queue] Job ${job.id} already locked by another worker, re-queuing job`);
+        // Put the job back in the queue if we couldn't lock it
+        await this.redis.lpush('scan.jobs', jobString);
+        return null;
+      }
+      
+      console.log(`[queue] Job ${job.id} successfully locked by worker ${workerId}`);
       return job;
     } catch (error) {
       console.error('[queue] Error in getNextJob:', error);
@@ -95,6 +111,17 @@ export class UpstashQueue {
 
     await this.redis.hset(`job:${id}`, statusUpdate);
     console.log(`[queue] Updated job ${id} status: ${state}${message ? ` - ${message}` : ''}`);
+    
+    // Release job lock when job is completed or failed
+    if (state === 'done' || state === 'failed') {
+      await this.releaseJobLock(id);
+    }
+  }
+
+  async releaseJobLock(jobId: string): Promise<void> {
+    const lockKey = `lock:job:${jobId}`;
+    await this.redis.del(lockKey);
+    console.log(`[queue] Released lock for job ${jobId}`);
   }
 
   async getStatus(id: string): Promise<JobStatus | null> {
