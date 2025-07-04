@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { X, Plus } from 'lucide-react'
 
 export default function NewScanPage() {
@@ -18,6 +19,7 @@ export default function NewScanPage() {
   })
   const [newTag, setNewTag] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
 
   const addTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
@@ -38,7 +40,12 @@ export default function NewScanPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setShowConfirmDialog(true)
+  }
+
+  const startScan = async () => {
     setIsLoading(true)
+    setShowConfirmDialog(false)
 
     try {
       const response = await fetch('/api/scans', {
@@ -97,6 +104,7 @@ export default function NewScanPage() {
                   ...prev,
                   companyName: e.target.value
                 }))}
+                autoCorrect="off"
                 required
               />
               <p className="text-sm text-muted-foreground">
@@ -114,6 +122,7 @@ export default function NewScanPage() {
                   ...prev,
                   domain: e.target.value
                 }))}
+                autoCorrect="off"
                 required
               />
               <p className="text-sm text-muted-foreground">
@@ -135,6 +144,7 @@ export default function NewScanPage() {
                       addTag()
                     }
                   }}
+                  autoCorrect="off"
                 />
                 <Button type="button" variant="outline" onClick={addTag}>
                   <Plus className="h-4 w-4" />
@@ -223,6 +233,39 @@ export default function NewScanPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Security Scan</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to start a security scan for this target?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+              <div>
+                <span className="font-medium">Company:</span> {formData.companyName}
+              </div>
+              <div>
+                <span className="font-medium">Domain:</span> {formData.domain}
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. The scan will begin immediately and may take some time to complete.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={startScan} disabled={isLoading}>
+              {isLoading ? 'Starting Scan...' : 'Start Scan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
