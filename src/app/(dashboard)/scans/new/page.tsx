@@ -236,7 +236,7 @@ export default function NewScanPage() {
 
       {/* Confirmation Dialog */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
+        <DialogContent className="bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle>Confirm Security Scan</DialogTitle>
             <DialogDescription>
@@ -244,7 +244,7 @@ export default function NewScanPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-2">
               <div>
                 <span className="font-medium">Company:</span> {formData.companyName}
               </div>
