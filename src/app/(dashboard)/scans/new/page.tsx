@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, Upload, FileSpreadsheet } from 'lucide-react'
 
 export default function NewScanPage() {
   const router = useRouter()
@@ -20,6 +20,10 @@ export default function NewScanPage() {
   const [newTag, setNewTag] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<any[]>([])
+  const [showCsvPreview, setShowCsvPreview] = useState(false)
+  const [uploadMode, setUploadMode] = useState<'single' | 'bulk'>('single')
 
   const addTag = () => {
     if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
@@ -48,22 +52,36 @@ export default function NewScanPage() {
     setShowConfirmDialog(false)
 
     try {
-      const response = await fetch('/api/scans', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          companyName: formData.companyName,
-          domain: formData.domain
-        }),
-      })
+      if (uploadMode === 'bulk' && csvData.length > 0) {
+        const response = await fetch('/api/scans/bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ scans: csvData }),
+        })
 
-      if (!response.ok) {
-        throw new Error('Failed to start scan')
+        if (!response.ok) {
+          throw new Error('Failed to start bulk scans')
+        }
+      } else {
+        const response = await fetch('/api/scans', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            companyName: formData.companyName,
+            domain: formData.domain,
+            tags: formData.tags
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to start scan')
+        }
       }
 
-      await response.json()
       router.push('/scans')
     } catch (error) {
       console.error('Error starting scan:', error)
@@ -71,6 +89,44 @@ export default function NewScanPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type === 'text/csv') {
+      setCsvFile(file)
+      parseCsvFile(file)
+    }
+  }
+
+  const parseCsvFile = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target?.result as string
+      const lines = text.split('\n').filter(line => line.trim())
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+      
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',').map(v => v.trim())
+        const row: any = {}
+        
+        headers.forEach((header, index) => {
+          if (header === 'company' || header === 'company_name' || header === 'companyname') {
+            row.companyName = values[index]
+          } else if (header === 'domain') {
+            row.domain = values[index]
+          } else if (header === 'tags') {
+            row.tags = values[index] ? values[index].split(';').map(t => t.trim()).filter(t => t) : []
+          }
+        })
+        
+        return row
+      }).filter(row => row.companyName && row.domain)
+      
+      setCsvData(data)
+      setShowCsvPreview(true)
+    }
+    reader.readAsText(file)
   }
 
   const isFormValid = formData.companyName.trim() && formData.domain.trim()
@@ -84,8 +140,40 @@ export default function NewScanPage() {
         </p>
       </div>
 
-      <Card>
-        <form onSubmit={handleSubmit}>
+      {/* Mode Selection */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Scan Type</CardTitle>
+          <CardDescription>
+            Choose between single scan or bulk upload
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            <Button
+              type="button"
+              variant={uploadMode === 'single' ? 'default' : 'outline'}
+              onClick={() => setUploadMode('single')}
+              className="flex-1"
+            >
+              Single Scan
+            </Button>
+            <Button
+              type="button"
+              variant={uploadMode === 'bulk' ? 'default' : 'outline'}
+              onClick={() => setUploadMode('bulk')}
+              className="flex-1"
+            >
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Bulk Upload (CSV)
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {uploadMode === 'single' ? (
+        <Card>
+          <form onSubmit={handleSubmit}>
           <CardHeader>
             <CardTitle>Scan Configuration</CardTitle>
             <CardDescription>
@@ -191,6 +279,82 @@ export default function NewScanPage() {
           </CardFooter>
         </form>
       </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Bulk Scan Upload</CardTitle>
+            <CardDescription>
+              Upload a CSV file with columns: company, domain, tags (optional)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="csv-upload">CSV File</Label>
+              <div className="flex items-center gap-4">
+                <input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCsvUpload}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => document.getElementById('csv-upload')?.click()}
+                  className="w-full"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  {csvFile ? csvFile.name : 'Choose CSV File'}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                CSV should have headers: company, domain, tags (tags separated by semicolons)
+              </p>
+            </div>
+
+            {showCsvPreview && csvData.length > 0 && (
+              <div className="space-y-2">
+                <Label>Preview ({csvData.length} scans)</Label>
+                <div className="border rounded-lg p-4 max-h-64 overflow-y-auto">
+                  <div className="space-y-2">
+                    {csvData.slice(0, 5).map((scan, index) => (
+                      <div key={index} className="text-sm border-b pb-2">
+                        <div><strong>Company:</strong> {scan.companyName}</div>
+                        <div><strong>Domain:</strong> {scan.domain}</div>
+                        {scan.tags && scan.tags.length > 0 && (
+                          <div><strong>Tags:</strong> {scan.tags.join(', ')}</div>
+                        )}
+                      </div>
+                    ))}
+                    {csvData.length > 5 && (
+                      <div className="text-xs text-muted-foreground">
+                        ... and {csvData.length - 5} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="bg-muted/50 flex justify-between">
+            <Button 
+              type="button" 
+              variant="outline"
+              onClick={() => router.back()}
+            >
+              Cancel
+            </Button>
+            <Button 
+              type="button" 
+              disabled={!csvFile || csvData.length === 0 || isLoading}
+              onClick={() => setShowConfirmDialog(true)}
+            >
+              {isLoading ? 'Starting Scans...' : `Start ${csvData.length} Scans`}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
 
       {/* Scan Information */}
       <Card className="mt-6">
@@ -244,16 +408,32 @@ export default function NewScanPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-              <div>
-                <span className="font-medium">Company:</span> {formData.companyName}
+            {uploadMode === 'single' ? (
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div>
+                  <span className="font-medium">Company:</span> {formData.companyName}
+                </div>
+                <div>
+                  <span className="font-medium">Domain:</span> {formData.domain}
+                </div>
+                {formData.tags.length > 0 && (
+                  <div>
+                    <span className="font-medium">Tags:</span> {formData.tags.join(', ')}
+                  </div>
+                )}
               </div>
-              <div>
-                <span className="font-medium">Domain:</span> {formData.domain}
+            ) : (
+              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                <div>
+                  <span className="font-medium">Scans to create:</span> {csvData.length}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Companies: {csvData.map(s => s.companyName).join(', ')}
+                </div>
               </div>
-            </div>
+            )}
             <p className="text-sm text-muted-foreground">
-              This action cannot be undone. The scan will begin immediately and may take some time to complete.
+              This action cannot be undone. The scan{uploadMode === 'bulk' ? 's' : ''} will begin immediately and may take some time to complete.
             </p>
           </div>
           <DialogFooter>

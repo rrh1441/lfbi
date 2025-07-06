@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
-    const { companyName, domain } = await request.json()
+    const { companyName, domain, tags } = await request.json()
 
     if (!companyName || !domain) {
       return NextResponse.json(
@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         companyName,
-        domain
+        domain,
+        tags: tags || []
       })
     })
 
