@@ -10,6 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { X, Plus, Upload, FileSpreadsheet } from 'lucide-react'
 
+interface CsvScanData {
+  companyName: string
+  domain: string
+  tags: string[]
+}
+
 export default function NewScanPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
@@ -21,7 +27,7 @@ export default function NewScanPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [csvFile, setCsvFile] = useState<File | null>(null)
-  const [csvData, setCsvData] = useState<any[]>([])
+  const [csvData, setCsvData] = useState<CsvScanData[]>([])
   const [showCsvPreview, setShowCsvPreview] = useState(false)
   const [uploadMode, setUploadMode] = useState<'single' | 'bulk'>('single')
 
@@ -108,7 +114,7 @@ export default function NewScanPage() {
       
       const data = lines.slice(1).map(line => {
         const values = line.split(',').map(v => v.trim())
-        const row: any = {}
+        const row: Partial<CsvScanData> = {}
         
         headers.forEach((header, index) => {
           if (header === 'company' || header === 'company_name' || header === 'companyname') {
@@ -121,7 +127,9 @@ export default function NewScanPage() {
         })
         
         return row
-      }).filter(row => row.companyName && row.domain)
+      }).filter((row): row is CsvScanData => 
+        Boolean(row.companyName && row.domain)
+      )
       
       setCsvData(data)
       setShowCsvPreview(true)
