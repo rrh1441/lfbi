@@ -277,7 +277,7 @@ class NVDMirror {
       await this.execSQL(`
         INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) VALUES 
           ('last_sync', '${new Date().toISOString()}', CURRENT_TIMESTAMP),
-          ('total_cves', (SELECT COUNT(*) FROM vulnerabilities));
+          ('total_cves', (SELECT COUNT(*) FROM vulnerabilities), CURRENT_TIMESTAMP);
       `);
       
       const duration = Date.now() - startTime;
@@ -371,12 +371,31 @@ class NVDMirror {
    * Query vulnerabilities with fast local lookup
    */
   async queryVulnerabilities(query: CVEQuery): Promise<CVEQueryResult> {
-    await this.initialize();
-    await this.checkAndUpdateIfNeeded();
-    
     const startTime = Date.now();
     
     try {
+      // Try to initialize if not already done, but don't block if it fails
+      if (!this.isInitialized) {
+        try {
+          await this.initialize();
+        } catch (error) {
+          log('NVD mirror initialization failed, using fallback:', (error as Error).message);
+          return {
+            vulnerabilities: [],
+            totalCount: 0,
+            queryTimeMs: Date.now() - startTime,
+            source: 'local'
+          };
+        }
+      }
+      
+      // Try to check for updates, but don't block if it fails
+      try {
+        await this.checkAndUpdateIfNeeded();
+      } catch (error) {
+        log('NVD mirror update check failed, continuing with existing data:', (error as Error).message);
+      }
+      
       let sql = `
         SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
                v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
@@ -398,7 +417,7 @@ class NVDMirror {
         conditions.push(`cm.cpe_uri LIKE '%:${query.vendor}:${query.product}:%' AND cm.vulnerable = 1`);
       }
       
-      if (query.severity?.length) {
+      if (query.severity && query.severity.length) {
         const severityList = query.severity.map(s => `'${s}'`).join(',');
         conditions.push(`v.severity IN (${severityList})`);
       }

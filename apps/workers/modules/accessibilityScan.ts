@@ -440,7 +440,7 @@ async function createAccessibilityArtifact(
 /**
  * Generate findings for accessibility violations
  */
-async function createAccessibilityFindings(artifactId: number, pageResults: AccessibilityPageResult[]): Promise<number> {
+async function createAccessibilityFindings(artifactId: number, pageResults: AccessibilityPageResult[], scanId?: string): Promise<number> {
   let findingsCount = 0;
   
   // Group violations by rule for cleaner reporting
@@ -455,25 +455,89 @@ async function createAccessibilityFindings(artifactId: number, pageResults: Acce
     });
   });
   
-  // Create findings for each rule violation
+  // Aggregate violations by severity for legal contingent liability assessment
+  const violationsBySeverity = {
+    critical: 0,
+    serious: 0,
+    moderate: 0,
+    minor: 0
+  };
+  
+  let totalViolationCount = 0;
+  let worstImpact = 'minor';
+  const violationDetails: string[] = [];
+  
   for (const [ruleId, violations] of violationsByRule) {
     const impact = violations[0].impact;
-    const severity = impact === 'critical' ? 'HIGH' : impact === 'serious' ? 'MEDIUM' : 'LOW';
-    
     const affectedPages = [...new Set(violations.map(v => v.pageUrl))];
     const totalElements = violations.reduce((sum, v) => sum + v.elements.length, 0);
     
-    const description = `${violations[0].description} (${totalElements} elements across ${affectedPages.length} pages)`;
-    const evidence = `Rule: ${ruleId} | Impact: ${impact} | Help: ${violations[0].helpUrl}`;
+    // Count violations by severity
+    violationsBySeverity[impact] += totalElements;
+    totalViolationCount += totalElements;
     
+    // Track worst impact for overall severity determination
+    if (impact === 'critical' || (impact === 'serious' && worstImpact !== 'critical') || 
+        (impact === 'moderate' && worstImpact !== 'critical' && worstImpact !== 'serious')) {
+      worstImpact = impact;
+    }
+    
+    // Collect violation details for description
+    violationDetails.push(`${violations[0].description} (${totalElements} elements, ${affectedPages.length} pages)`);
+  }
+  
+  // Only create ADA finding if violations exist
+  if (totalViolationCount > 0) {
+    // Determine overall legal risk severity based on worst violations
+    let legalRiskSeverity: string;
+    if (violationsBySeverity.critical > 0 || violationsBySeverity.serious > 0) {
+      legalRiskSeverity = 'HIGH';  // $40k - Critical barriers create high lawsuit risk
+    } else if (violationsBySeverity.moderate > 0) {
+      legalRiskSeverity = 'MEDIUM';  // $30k - Moderate violations create moderate lawsuit risk
+    } else {
+      legalRiskSeverity = 'LOW';  // $20k - Minor violations only create lower lawsuit risk
+    }
+    
+    // Create comprehensive description
+    const severitySummary = [
+      violationsBySeverity.critical > 0 ? `${violationsBySeverity.critical} critical` : '',
+      violationsBySeverity.serious > 0 ? `${violationsBySeverity.serious} serious` : '',
+      violationsBySeverity.moderate > 0 ? `${violationsBySeverity.moderate} moderate` : '',
+      violationsBySeverity.minor > 0 ? `${violationsBySeverity.minor} minor` : ''
+    ].filter(Boolean).join(', ');
+    
+    const description = `ADA compliance violations create legal contingent liability: ${severitySummary} violations (${totalViolationCount} total elements affected)`;
+    
+    // Include top violation details (limit for readability)
+    const topViolations = violationDetails.slice(0, 3).join(' | ');
+    const evidence = totalViolationCount > 0 ? 
+      `Legal exposure: Defense costs + settlement + remediation + attorney fees. Top violations: ${topViolations}${violationDetails.length > 3 ? ` and ${violationDetails.length - 3} more` : ''}` :
+      'No accessibility violations detected';
+    
+    // Create artifact for ADA legal contingent liability
+    const adaArtifactId = await insertArtifact({
+      type: 'ada_legal_contingent_liability',
+      val_text: `ADA compliance violations create ${legalRiskSeverity.toLowerCase()} legal contingent liability risk`,
+      severity: legalRiskSeverity as 'LOW' | 'MEDIUM' | 'HIGH',
+      meta: {
+        scan_id: scanId, // Use actual scan ID
+        scan_module: 'accessibilityScan',
+        violation_summary: violationsBySeverity,
+        total_violations: totalViolationCount,
+        worst_impact: worstImpact,
+        legal_risk_tier: legalRiskSeverity,
+        estimated_legal_exposure: legalRiskSeverity === 'HIGH' ? '$40,000' : legalRiskSeverity === 'MEDIUM' ? '$30,000' : '$20,000'
+      }
+    });
+
     await insertFinding(
-      artifactId,
-      'ACCESSIBILITY_VIOLATION',
-      description,
-      evidence
+      adaArtifactId,
+      'ADA_LEGAL_CONTINGENT_LIABILITY',
+      `Strengthen WCAG 2.1 AA compliance to reduce lawsuit risk - prioritize ${worstImpact} violations`,
+      description
     );
     
-    findingsCount++;
+    findingsCount = 1; // Single aggregated finding
   }
   
   return findingsCount;
@@ -568,7 +632,7 @@ export async function runAccessibilityScan(job: { domain: string; scanId: string
     
     // Create artifacts and findings
     const artifactId = await createAccessibilityArtifact(scanId, domain, summary, pageResults, currentHashes);
-    const findingsCount = await createAccessibilityFindings(artifactId, pageResults);
+    const findingsCount = await createAccessibilityFindings(artifactId, pageResults, scanId);
     
     const duration = Date.now() - startTime;
     log(`Accessibility scan completed: ${findingsCount} findings from ${summary.pagesSuccessful}/${summary.totalPages} pages in ${duration}ms`);

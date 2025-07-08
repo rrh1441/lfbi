@@ -8,6 +8,7 @@ import { UpstashQueue } from '../workers/core/queue.js';
 import { nanoid } from 'nanoid';
 import { pool } from '../workers/core/artifactStore.js';
 import { normalizeDomain } from '../workers/util/domainNormalizer.js';
+import axios from 'axios';
 
 config();
 
@@ -20,6 +21,150 @@ const queue = new UpstashQueue(process.env.REDIS_URL!);
 function log(...args: any[]) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}]`, ...args);
+}
+
+// Queue-depth-driven worker auto-scaling
+async function getQueueDepth(): Promise<number> {
+  try {
+    const depth = await queue.redis.llen('scan.jobs');
+    return depth || 0;
+  } catch (error) {
+    log('[queue-monitor] Error getting queue depth:', (error as Error).message);
+    return 0;
+  }
+}
+
+async function getRunningWorkers(): Promise<number> {
+  try {
+    const token = process.env.FLY_API_TOKEN;
+    if (!token) {
+      log('[queue-monitor] FLY_API_TOKEN not set – cannot detect running workers');
+      return 0;
+    }
+
+    const APP = process.env.FLY_APP_NAME ?? 'dealbrief-scanner';
+    const GROUP = 'scanner_worker';
+    
+    const response = await fetch(`https://api.machines.dev/v1/apps/${APP}/machines`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (!response.ok) {
+      log('[queue-monitor] Failed to fetch machines:', response.status, await response.text());
+      return 0;
+    }
+    
+    const machines = await response.json();
+    const runningWorkers = machines.filter((m: any) => 
+      m.process_group === GROUP && m.state === 'started'
+    );
+    
+    log(`[queue-monitor] Found ${runningWorkers.length} running workers`);
+    return runningWorkers.length;
+  } catch (error) {
+    log('[queue-monitor] Error getting running workers:', (error as Error).message);
+    return 0;
+  }
+}
+
+async function spawnWorkers(backlog: number): Promise<void> {
+  const token = process.env.FLY_API_TOKEN;
+  if (!token) {
+    log('[queue-monitor] FLY_API_TOKEN missing – skipping scale');
+    return;
+  }
+
+  const APP = process.env.FLY_APP_NAME ?? 'dealbrief-scanner';
+  const GROUP = 'scanner_worker';
+  const REGION = 'sea';
+  const MAX_PAR = 10;
+  const BASE_URL = `https://api.machines.dev/v1/apps/${APP}/machines`;
+  const HDRS = { Authorization: `Bearer ${token}` };
+
+  log(`[queue-monitor] Scaling to handle ${backlog} jobs...`);
+
+  try {
+    // 1 — list Machines once
+    const res = await fetch(BASE_URL, { headers: HDRS });
+    if (!res.ok) {
+      log('[queue-monitor] list failed', res.status, await res.text());
+      return;
+    }
+    const all = await res.json();
+
+    const isWorker = (m: any) => m.process_group === GROUP;
+    const running = all.filter((m: any) => isWorker(m) && m.state === 'started');
+    const stopped = all.filter((m: any) => isWorker(m) && m.state === 'stopped');
+
+    const want = Math.min(backlog, MAX_PAR);        // cap parallelism
+    const need = want - running.length;
+    
+    log(`[queue-monitor] Current: ${running.length} running, ${stopped.length} stopped, want ${want}, need ${need}`);
+    
+    if (need <= 0) {
+      log('[queue-monitor] Already have enough workers');
+      return;                          // already enough
+    }
+
+    // 2 — start stopped Machines first
+    for (const m of stopped.slice(0, need)) {
+      const r = await fetch(`${BASE_URL}/${m.id}/start`, {
+        method: 'POST', 
+        headers: HDRS 
+      });
+      log(`[queue-monitor] start ${m.id}`, r.ok ? '✔︎' : `${r.status} ${await r.text()}`);
+    }
+
+    // 3 — clone if still short
+    const template = running[0] ?? stopped[0];
+    if (!template) {
+      log('[queue-monitor] No template machine to clone from');
+      return;                          // none to clone from
+    }
+    
+    const stillNeed = want - running.length - stopped.length;
+    for (let i = 0; i < stillNeed; i++) {
+      const r = await fetch(`${BASE_URL}/${template.id}/clone`, {
+        method: 'POST',
+        headers: { ...HDRS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ region: REGION }),
+      });
+      log(`[queue-monitor] clone ${i + 1}`, r.ok ? '✔︎' : `${r.status} ${await r.text()}`);
+    }
+
+  } catch (error) {
+    log('[queue-monitor] Error scaling workers:', (error as Error).message);
+  }
+}
+
+async function shutdownWorkers(count: number): Promise<void> {
+  // Let Fly handle worker shutdown automatically when idle
+  // No need to manually stop workers - they'll auto-stop when no jobs
+  log(`[queue-monitor] Letting Fly auto-shutdown ${count} idle workers...`);
+}
+
+// Queue monitoring cron job - runs every minute
+async function queueMonitorCron(): Promise<void> {
+  try {
+    const queueDepth = await getQueueDepth();
+    const runningWorkers = await getRunningWorkers();
+    const neededWorkers = Math.min(queueDepth, 10); // Test limit: 10 workers
+
+    log(`[queue-monitor] Queue: ${queueDepth} jobs, Workers: ${runningWorkers} running, ${neededWorkers} needed`);
+
+    if (neededWorkers > runningWorkers) {
+      await spawnWorkers(neededWorkers - runningWorkers);
+    }
+
+  } catch (error) {
+    log('[queue-monitor] Error in monitoring:', (error as Error).message);
+  }
+}
+
+// Legacy function - now handled by queue monitor
+async function ensureScannerWorkerRunning(): Promise<void> {
+  // Queue monitor handles worker scaling automatically
+  log('[api] Worker scaling handled by queue monitor');
 }
 
 // Register CORS for frontend access
@@ -49,7 +194,7 @@ fastify.get('/health', async (request, reply) => {
 // Create a new scan (main endpoint)
 fastify.post('/scan', async (request, reply) => {
   try {
-    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain, tags } = request.body as { companyName: string; domain: string; tags?: string[] };
     
     if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
@@ -85,6 +230,7 @@ fastify.post('/scan', async (request, reply) => {
       companyName,
       domain: normalizedDomain,
       originalDomain: rawDomain,
+      tags: tags || [],
       createdAt: new Date().toISOString()
     };
 
@@ -93,6 +239,9 @@ fastify.post('/scan', async (request, reply) => {
     try {
       await queue.addJob(scanId, job);
       log(`[api] ✅ Successfully created scan job ${scanId} for ${companyName}`);
+      
+      // Ensure scanner worker is running to process the job
+      await ensureScannerWorkerRunning();
     } catch (queueError) {
       log('[api] CRITICAL: Failed to add job to queue:', (queueError as Error).message);
       reply.status(500);
@@ -127,7 +276,7 @@ fastify.post('/scan', async (request, reply) => {
 // Create a new scan (alias for frontend compatibility)
 fastify.post('/scans', async (request, reply) => {
   try {
-    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain, tags } = request.body as { companyName: string; domain: string; tags?: string[] };
     
     if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
@@ -164,6 +313,7 @@ fastify.post('/scans', async (request, reply) => {
       companyName,
       domain: normalizedDomain,
       originalDomain: rawDomain,
+      tags: tags || [],
       createdAt: new Date().toISOString()
     };
 
@@ -172,6 +322,9 @@ fastify.post('/scans', async (request, reply) => {
     try {
       await queue.addJob(scanId, job);
       log(`[api] ✅ Successfully created scan job ${scanId} for ${companyName}`);
+      
+      // Ensure scanner worker is running to process the job
+      await ensureScannerWorkerRunning();
     } catch (queueError) {
       log('[api] CRITICAL: Failed to add job to queue:', (queueError as Error).message);
       reply.status(500);
@@ -290,10 +443,254 @@ fastify.get('/scan/:scanId/findings', async (request, reply) => {
   }
 });
 
+// Bulk scan endpoint for JSON arrays
+fastify.post('/scan/bulk', async (request, reply) => {
+  try {
+    const { companies } = request.body as { companies: Array<{ companyName: string; domain: string; tags?: string[] }> };
+    
+    if (!companies || !Array.isArray(companies) || companies.length === 0) {
+      log('[api] Bulk scan failed: Missing or empty companies array');
+      reply.status(400);
+      return { error: 'Companies array is required and must not be empty' };
+    }
+
+    const results = [];
+    const errors = [];
+
+    for (const company of companies) {
+      try {
+        const { companyName, domain: rawDomain } = company;
+        
+        if (!companyName || !rawDomain) {
+          errors.push({ 
+            company, 
+            error: 'Company name and domain are required',
+            scanId: null 
+          });
+          continue;
+        }
+
+        // Normalize and validate domain
+        const validation = normalizeDomain(rawDomain);
+        
+        if (!validation.isValid) {
+          errors.push({ 
+            company, 
+            error: 'Invalid domain format',
+            details: validation.validationErrors,
+            scanId: null 
+          });
+          continue;
+        }
+
+        const normalizedDomain = validation.normalizedDomain;
+        const scanId = nanoid(11);
+        
+        if (!scanId || typeof scanId !== 'string' || scanId.trim().length === 0) {
+          errors.push({ 
+            company, 
+            error: 'Failed to generate scan ID',
+            scanId: null 
+          });
+          continue;
+        }
+        
+        const job = {
+          id: scanId,
+          companyName,
+          domain: normalizedDomain,
+          originalDomain: rawDomain,
+          tags: company.tags || [],
+          createdAt: new Date().toISOString()
+        };
+
+        await queue.addJob(scanId, job);
+        
+        results.push({
+          scanId,
+          status: 'queued',
+          companyName,
+          domain: normalizedDomain,
+          originalDomain: rawDomain,
+          message: 'Scan started successfully'
+        });
+        
+        log(`[api] ✅ Successfully created bulk scan job ${scanId} for ${companyName}`);
+        
+      } catch (error) {
+        errors.push({ 
+          company, 
+          error: 'Failed to create scan',
+          details: (error as Error).message,
+          scanId: null 
+        });
+      }
+    }
+
+    // Queue monitor will automatically scale workers based on queue depth
+
+    return {
+      total: companies.length,
+      successful: results.length,
+      failed: errors.length,
+      results,
+      errors
+    };
+
+  } catch (error) {
+    log('[api] Error in bulk scan:', (error as Error).message);
+    reply.status(500);
+    return { error: 'Failed to process bulk scan', details: (error as Error).message };
+  }
+});
+
+// CSV upload endpoint
+fastify.register(async function (fastify) {
+  await fastify.register(import('@fastify/multipart'));
+  
+  fastify.post('/scan/csv', async (request, reply) => {
+    try {
+      const data = await request.file();
+      
+      if (!data) {
+        reply.status(400);
+        return { error: 'No file uploaded' };
+      }
+      
+      if (!data.filename?.endsWith('.csv')) {
+        reply.status(400);
+        return { error: 'Only CSV files are allowed' };
+      }
+      
+      const buffer = await data.toBuffer();
+      const csvContent = buffer.toString('utf-8');
+      
+      // Enhanced CSV parsing (supports Company,Domain,Tags header)
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      const companies = [];
+      
+      for (let i = 1; i < lines.length; i++) { // Skip header
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        const parts = line.split(',').map(part => part.trim().replace(/^"(.*)"$/, '$1'));
+        if (parts.length >= 2) {
+          const company: { companyName: string; domain: string; tags?: string[] } = {
+            companyName: parts[0],
+            domain: parts[1].replace(/^https?:\/\//, '').replace(/\/$/, '')
+          };
+          
+          // Parse tags if provided (3rd column)
+          if (parts.length >= 3 && parts[2].trim()) {
+            company.tags = parts[2].split(';').map(tag => tag.trim()).filter(tag => tag);
+          }
+          
+          companies.push(company);
+        }
+      }
+      
+      if (companies.length === 0) {
+        reply.status(400);
+        return { error: 'No valid companies found in CSV file' };
+      }
+      
+      // Process the companies using the same logic as bulk endpoint
+      const results = [];
+      const errors = [];
+
+      for (const company of companies) {
+        try {
+          const { companyName, domain: rawDomain } = company;
+          
+          if (!companyName || !rawDomain) {
+            errors.push({ 
+              company, 
+              error: 'Company name and domain are required',
+              scanId: null 
+            });
+            continue;
+          }
+
+          // Normalize and validate domain
+          const validation = normalizeDomain(rawDomain);
+          
+          if (!validation.isValid) {
+            errors.push({ 
+              company, 
+              error: 'Invalid domain format',
+              details: validation.validationErrors,
+              scanId: null 
+            });
+            continue;
+          }
+
+          const normalizedDomain = validation.normalizedDomain;
+          const scanId = nanoid(11);
+          
+          if (!scanId || typeof scanId !== 'string' || scanId.trim().length === 0) {
+            errors.push({ 
+              company, 
+              error: 'Failed to generate scan ID',
+              scanId: null 
+            });
+            continue;
+          }
+          
+          const job = {
+            id: scanId,
+            companyName,
+            domain: normalizedDomain,
+            originalDomain: rawDomain,
+            tags: company.tags || [],
+            createdAt: new Date().toISOString()
+          };
+
+          await queue.addJob(scanId, job);
+          
+          results.push({
+            scanId,
+            status: 'queued',
+            companyName,
+            domain: normalizedDomain,
+            originalDomain: rawDomain,
+            message: 'Scan started successfully'
+          });
+          
+          log(`[api] ✅ Successfully created CSV scan job ${scanId} for ${companyName}`);
+          
+        } catch (error) {
+          errors.push({ 
+            company, 
+            error: 'Failed to create scan',
+            details: (error as Error).message,
+            scanId: null 
+          });
+        }
+      }
+
+      // Queue monitor will automatically scale workers based on queue depth
+
+      return {
+        filename: data.filename,
+        total: companies.length,
+        successful: results.length,
+        failed: errors.length,
+        results,
+        errors
+      };
+      
+    } catch (error) {
+      log('[api] Error in CSV upload:', (error as Error).message);
+      reply.status(500);
+      return { error: 'Failed to process CSV file', details: (error as Error).message };
+    }
+  });
+});
+
 // API endpoint alias for frontend compatibility (/api/scans)
 fastify.post('/api/scans', async (request, reply) => {
   try {
-    const { companyName, domain: rawDomain } = request.body as { companyName: string; domain: string };
+    const { companyName, domain: rawDomain, tags } = request.body as { companyName: string; domain: string; tags?: string[] };
     
     if (!companyName || !rawDomain) {
       log('[api] Scan creation failed: Missing required fields - companyName or domain');
@@ -329,6 +726,7 @@ fastify.post('/api/scans', async (request, reply) => {
       companyName,
       domain: normalizedDomain,
       originalDomain: rawDomain,
+      tags: tags || [],
       createdAt: new Date().toISOString()
     };
 
@@ -407,6 +805,82 @@ fastify.post('/admin/sync', async (request, reply) => {
   }
 });
 
+// Debug endpoint to manually trigger queue monitor
+fastify.post('/admin/debug-queue', async (request, reply) => {
+  try {
+    log('[api] Manual queue monitor trigger requested');
+    
+    const queueDepth = await getQueueDepth();
+    const runningWorkers = await getRunningWorkers();
+    const neededWorkers = Math.min(queueDepth, 10);
+    
+    log(`[api] DEBUG - Queue: ${queueDepth} jobs, Workers: ${runningWorkers} running, ${neededWorkers} needed`);
+    
+    let result = {
+      queueDepth,
+      runningWorkers,
+      neededWorkers,
+      action: 'none',
+      error: null as string | null
+    };
+    
+    if (neededWorkers > runningWorkers) {
+      result.action = `spawn ${neededWorkers - runningWorkers} workers`;
+      try {
+        await spawnWorkers(neededWorkers - runningWorkers);
+        log('[api] DEBUG - Successfully spawned workers');
+      } catch (error) {
+        result.error = (error as Error).message;
+        log('[api] DEBUG - Error spawning workers:', (error as Error).message);
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    log('[api] Error in debug queue trigger:', (error as Error).message);
+    reply.status(500);
+    return { error: 'Failed to debug queue', details: (error as Error).message };
+  }
+});
+
+// Debug endpoint to see actual machine data
+fastify.get('/admin/debug-machines', async (request, reply) => {
+  try {
+    const token = process.env.FLY_API_TOKEN;
+    if (!token) {
+      return { error: 'No FLY_API_TOKEN' };
+    }
+
+    const APP = process.env.FLY_APP_NAME ?? 'dealbrief-scanner';
+    const response = await fetch(`https://api.machines.dev/v1/apps/${APP}/machines`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    if (!response.ok) {
+      return { error: 'Failed to fetch machines', status: response.status };
+    }
+    
+    const machines = await response.json();
+    
+    // Return the first scanner_worker machine data for debugging
+    const scannerMachine = machines.find((m: any) => m.id === '286565eb5406d8');
+    
+    return {
+      total_machines: machines.length,
+      scanner_machine: scannerMachine ? {
+        id: scannerMachine.id,
+        state: scannerMachine.state,
+        config_processes: scannerMachine.config?.processes,
+        config_metadata: scannerMachine.config?.metadata,
+        config_env: scannerMachine.config?.env,
+        full_config: scannerMachine.config
+      } : 'not found'
+    };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+});
+
 // Webhook callback endpoint (for future use)
 fastify.post('/scan/:id/callback', async (request, reply) => {
   try {
@@ -423,6 +897,16 @@ const start = async () => {
   try {
     await fastify.listen({ port: 3000, host: '0.0.0.0' });
     log('[api] Server listening on port 3000');
+    
+    // Start queue monitoring cron job - runs every minute
+    log('[api] Starting queue monitoring cron job (every 60 seconds)...');
+    
+    // Run immediately on startup
+    queueMonitorCron();
+    
+    // Then run every minute
+    setInterval(queueMonitorCron, 60000); // 60 seconds
+    
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

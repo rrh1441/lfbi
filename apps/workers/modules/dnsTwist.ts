@@ -40,7 +40,7 @@ const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms
 const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
 const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
 const ENABLE_WHOIS_ENRICHMENT = process.env.ENABLE_WHOIS_ENRICHMENT !== 'false'; // Enable by default for phishing assessment (critical for security)
-const USE_WHOXY_RESOLVER = process.env.USE_WHOXY_RESOLVER === 'true'; // Switch to Whoxy for 87% cost savings
+const USE_WHOXY_RESOLVER = process.env.USE_WHOXY_RESOLVER !== 'false'; // Use Whoxy by default for 87% cost savings
 
 // -----------------------------------------------------------------------------
 // Utility helpers
@@ -171,7 +171,7 @@ async function checkTlsCertificate(domain: string): Promise<boolean> {
 }
 
 /**
- * Detect algorithmic/unusual domain patterns
+ * Detect algorithmic/unusual domain patterns AND calculate domain similarity
  */
 function isAlgorithmicPattern(domain: string): { isAlgorithmic: boolean; pattern: string; confidence: number } {
   // Split-word subdomain patterns (lodgin.g-source.com)
@@ -199,6 +199,155 @@ function isAlgorithmicPattern(domain: string): { isAlgorithmic: boolean; pattern
   }
 
   return { isAlgorithmic: false, pattern: 'standard', confidence: 0.1 };
+}
+
+/**
+ * Calculate domain name similarity and email phishing potential
+ */
+function analyzeDomainSimilarity(typosquatDomain: string, originalDomain: string): {
+  similarityScore: number;
+  emailPhishingRisk: number;
+  evidence: string[];
+  domainType: 'impersonation' | 'variant' | 'related' | 'unrelated';
+} {
+  const evidence: string[] = [];
+  let similarityScore = 0;
+  let emailPhishingRisk = 0;
+  
+  const originalBase = originalDomain.split('.')[0].toLowerCase();
+  const typosquatBase = typosquatDomain.split('.')[0].toLowerCase();
+  const originalTLD = originalDomain.split('.').slice(1).join('.');
+  const typosquatTLD = typosquatDomain.split('.').slice(1).join('.');
+  
+  // 1. Exact base match with different TLD (high impersonation risk)
+  if (originalBase === typosquatBase && originalTLD !== typosquatTLD) {
+    similarityScore += 90;
+    emailPhishingRisk += 85;
+    evidence.push(`Exact name match with different TLD: ${originalBase}.${originalTLD} vs ${typosquatBase}.${typosquatTLD}`);
+  }
+  
+  // 2. Character-level similarity (Levenshtein-like)
+  const editDistance = calculateEditDistance(originalBase, typosquatBase);
+  const maxLength = Math.max(originalBase.length, typosquatBase.length);
+  const charSimilarity = 1 - (editDistance / maxLength);
+  
+  if (charSimilarity > 0.8) {
+    similarityScore += 70;
+    emailPhishingRisk += 60;
+    evidence.push(`High character similarity: ${Math.round(charSimilarity * 100)}% (${editDistance} character changes)`);
+  } else if (charSimilarity > 0.6) {
+    similarityScore += 40;
+    emailPhishingRisk += 35;
+    evidence.push(`Moderate character similarity: ${Math.round(charSimilarity * 100)}% (${editDistance} character changes)`);
+  }
+  
+  // 3. Common typosquat patterns
+  const typosquatPatterns = [
+    // Character substitution/addition patterns
+    { pattern: originalBase.replace(/o/g, '0'), type: 'character-substitution' },
+    { pattern: originalBase.replace(/i/g, '1'), type: 'character-substitution' },
+    { pattern: originalBase.replace(/e/g, '3'), type: 'character-substitution' },
+    { pattern: originalBase + 's', type: 'pluralization' },
+    { pattern: originalBase.slice(0, -1), type: 'character-omission' },
+    { pattern: originalBase + originalBase.slice(-1), type: 'character-repetition' }
+  ];
+  
+  for (const { pattern, type } of typosquatPatterns) {
+    if (typosquatBase === pattern) {
+      similarityScore += 60;
+      emailPhishingRisk += 50;
+      evidence.push(`Common typosquat pattern: ${type}`);
+      break;
+    }
+  }
+  
+  // 4. Prefix/suffix additions (email phishing indicators)
+  const emailPatterns = [
+    'billing', 'invoice', 'payment', 'accounting', 'finance', 'admin',
+    'support', 'help', 'service', 'portal', 'secure', 'verify',
+    'update', 'confirm', 'notification', 'alert', 'urgent'
+  ];
+  
+  const domainParts = typosquatBase.replace(/[-_]/g, ' ').toLowerCase();
+  for (const pattern of emailPatterns) {
+    if (domainParts.includes(pattern) && domainParts.includes(originalBase)) {
+      emailPhishingRisk += 70;
+      similarityScore += 30;
+      evidence.push(`Email phishing keyword detected: "${pattern}" combined with brand name`);
+      break;
+    }
+  }
+  
+  // 5. Subdomain impersonation (brand.attacker.com)
+  if (typosquatDomain.toLowerCase().startsWith(originalBase + '.')) {
+    similarityScore += 80;
+    emailPhishingRisk += 75;
+    evidence.push(`Subdomain impersonation: ${originalBase} used as subdomain`);
+  }
+  
+  // 6. Homograph attacks (unicode lookalikes)
+  const homographs = {
+    'a': ['а', 'α'], 'e': ['е', 'ε'], 'o': ['о', 'ο'], 'p': ['р', 'ρ'],
+    'c': ['с', 'ϲ'], 'x': ['х', 'χ'], 'y': ['у', 'γ']
+  };
+  
+  for (const [latin, lookalikes] of Object.entries(homographs)) {
+    if (originalBase.includes(latin)) {
+      for (const lookalike of lookalikes) {
+        if (typosquatBase.includes(lookalike)) {
+          similarityScore += 85;
+          emailPhishingRisk += 80;
+          evidence.push(`Homograph attack detected: "${latin}" replaced with lookalike character`);
+          break;
+        }
+      }
+    }
+  }
+  
+  // 7. Determine domain type
+  let domainType: 'impersonation' | 'variant' | 'related' | 'unrelated';
+  if (similarityScore >= 70) {
+    domainType = 'impersonation';
+  } else if (similarityScore >= 40) {
+    domainType = 'variant';
+  } else if (similarityScore >= 20) {
+    domainType = 'related';
+  } else {
+    domainType = 'unrelated';
+  }
+  
+  return { similarityScore, emailPhishingRisk, evidence, domainType };
+}
+
+/**
+ * Calculate edit distance between two strings (simplified Levenshtein)
+ */
+function calculateEditDistance(str1: string, str2: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
 }
 
 /**
@@ -272,6 +421,150 @@ async function fetchWithFallback(domain: string): Promise<string | null> {
 }
 
 /**
+ * Get site description/snippet using Serper.dev search API
+ */
+async function getSiteSnippet(domain: string): Promise<{ snippet: string; title: string; error?: string }> {
+  const serperApiKey = process.env.SERPER_KEY || process.env.SERPER_API_KEY;
+  if (!serperApiKey) {
+    log(`[dnstwist] Serper API key not configured for ${domain}`);
+    return { snippet: '', title: '', error: 'SERPER_KEY not configured' };
+  }
+
+  try {
+    log(`[dnstwist] 🔍 Calling Serper API for ${domain}`);
+    const response = await axios.post('https://google.serper.dev/search', {
+      q: `site:${domain}`,
+      num: 1
+    }, {
+      headers: {
+        'X-API-KEY': serperApiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 5000
+    });
+
+    const result = response.data?.organic?.[0];
+    if (!result) {
+      log(`[dnstwist] ❌ Serper API: No search results found for ${domain}`);
+      return { snippet: '', title: '', error: 'No search results found' };
+    }
+
+    log(`[dnstwist] ✅ Serper API: Found result for ${domain} - "${result.title?.substring(0, 50)}..."`);
+    return {
+      snippet: result.snippet || '',
+      title: result.title || '',
+    };
+  } catch (error) {
+    log(`[dnstwist] ❌ Serper API error for ${domain}: ${(error as Error).message}`);
+    return { snippet: '', title: '', error: `Serper API error: ${(error as Error).message}` };
+  }
+}
+
+/**
+ * Use OpenAI to compare site content similarity for phishing detection
+ */
+async function compareContentWithAI(
+  originalDomain: string, 
+  typosquatDomain: string, 
+  originalSnippet: string, 
+  typosquatSnippet: string,
+  originalTitle: string,
+  typosquatTitle: string
+): Promise<{ similarityScore: number; reasoning: string; confidence: number }> {
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (!openaiApiKey) {
+    log(`[dnstwist] OpenAI API key not configured for ${originalDomain} vs ${typosquatDomain}`);
+    return { similarityScore: 0, reasoning: 'OpenAI API key not configured', confidence: 0 };
+  }
+
+  const prompt = `You are a cybersecurity expert analyzing typosquat domains for phishing threat potential. Compare these two domains:
+
+ORIGINAL: ${originalDomain}
+Title: "${originalTitle}"  
+Description: "${originalSnippet}"
+
+TYPOSQUAT: ${typosquatDomain}
+Title: "${typosquatTitle}"
+Description: "${typosquatSnippet}"
+
+Key threat assessment priorities:
+1. ACTIVE IMPERSONATION: Is the typosquat copying/mimicking the original brand/content?
+2. PARKED THREAT: Generic/minimal content on a similar domain = phishing risk potential
+3. LEGITIMATE DIFFERENT BUSINESS: Established company with unique products/services
+
+Rate the PHISHING THREAT RISK considering:
+- Content impersonation (copying brand, services, design)
+- Generic/parked content that could be weaponized later  
+- Clear legitimate business operations that are genuinely different
+- Domain sale/auction pages (registrar sale pages, marketplace listings)
+
+SPECIAL CASE: If this is a domain registrar sale page (contains phrases like "domain for sale", "buy this domain", "domain auction", GoDaddy/Sedo listings), note this in reasoning as "domain sale page"
+
+Respond with ONLY a JSON object:
+{
+  "similarityScore": 0-100,
+  "reasoning": "brief threat assessment",
+  "confidence": 0-100,
+  "isImpersonation": true/false
+}`;
+
+  try {
+    log(`[dnstwist] 🤖 Calling OpenAI API to compare ${originalDomain} vs ${typosquatDomain}`);
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o-mini-2024-07-18',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 300,
+      temperature: 0.1
+    }, {
+      headers: {
+        'Authorization': `Bearer ${openaiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 10000
+    });
+
+    const content = response.data.choices[0]?.message?.content;
+    if (!content) {
+      log(`[dnstwist] ❌ OpenAI API: No response content for ${originalDomain} vs ${typosquatDomain}`);
+      return { similarityScore: 0, reasoning: 'No OpenAI response', confidence: 0 };
+    }
+
+    // Clean up markdown code blocks that OpenAI sometimes adds - handle all variations
+    let cleanContent = content.trim();
+    
+    // More aggressive cleanup to handle all markdown variations
+    // Remove markdown code block wrappers (```json ... ```)
+    cleanContent = cleanContent.replace(/^```(?:json|JSON)?\s*\n?/i, '');
+    cleanContent = cleanContent.replace(/\n?\s*```\s*$/i, '');
+    
+    // Remove any remaining backticks at start/end
+    cleanContent = cleanContent.replace(/^`+/g, '').replace(/`+$/g, '');
+    
+    // Remove any remaining newlines or whitespace
+    cleanContent = cleanContent.trim();
+    
+    // Additional safety: if content starts with non-JSON characters, try to find JSON block
+    if (!cleanContent.startsWith('{')) {
+      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cleanContent = jsonMatch[0];
+      }
+    }
+    
+    const analysis = JSON.parse(cleanContent);
+    log(`[dnstwist] ✅ OpenAI API: Analysis complete for ${originalDomain} vs ${typosquatDomain} - Score: ${analysis.similarityScore}%, Confidence: ${analysis.confidence}%`);
+    return {
+      similarityScore: analysis.similarityScore || 0,
+      reasoning: analysis.reasoning || 'AI analysis completed',
+      confidence: analysis.confidence || 0
+    };
+  } catch (error) {
+    log(`[dnstwist] ❌ OpenAI API error for ${originalDomain} vs ${typosquatDomain}: ${(error as Error).message}`);
+    return { similarityScore: 0, reasoning: `AI analysis failed: ${(error as Error).message}`, confidence: 0 };
+  }
+}
+
+/**
  * Get WHOIS data for registrar comparison using hybrid RDAP+Whoxy or legacy WhoisXML
  */
 async function getWhoisData(domain: string): Promise<{ registrar?: string; registrant?: string; error?: string } | null> {
@@ -282,7 +575,7 @@ async function getWhoisData(domain: string): Promise<{ registrar?: string; regis
   if (USE_WHOXY_RESOLVER) {
     // New hybrid RDAP+Whoxy resolver (87% cost savings)
     if (!process.env.WHOXY_API_KEY) {
-      return { error: 'WHOXY_API_KEY required for Whoxy resolver' };
+      return { error: 'WHOXY_API_KEY required for Whoxy resolver - configure API key or set USE_WHOXY_RESOLVER=false' };
     }
     
     try {
@@ -306,7 +599,7 @@ async function getWhoisData(domain: string): Promise<{ registrar?: string; regis
     // Legacy WhoisXML API
     const apiKey = process.env.WHOISXML_API_KEY || process.env.WHOISXML_KEY;
     if (!apiKey) {
-      return { error: 'WHOISXML_API_KEY required for WhoisXML resolver' };
+      return { error: 'WHOISXML_API_KEY required for WhoisXML resolver - configure API key or set USE_WHOXY_RESOLVER=true' };
     }
 
     try {
@@ -338,47 +631,146 @@ async function getWhoisData(domain: string): Promise<{ registrar?: string; regis
   }
 }
 
-/** Very lightweight phishing heuristics – username & password fields, hotlink favicon, etc. */
-async function analyzeWebPageForPhishing(domain: string, originDomain: string): Promise<{ score: number; evidence: string[] }> {
+/** Similarity-based phishing detection - focuses on impersonation of original site */
+async function analyzeWebPageForPhishing(domain: string, originDomain: string): Promise<{ score: number; evidence: string[]; similarityScore: number; impersonationEvidence: string[] }> {
   const evidence: string[] = [];
+  const impersonationEvidence: string[] = [];
   let score = 0;
+  let similarityScore = 0;
 
   const html = await fetchWithFallback(domain);
-  if (!html) return { score, evidence };
+  if (!html) return { score, evidence, similarityScore, impersonationEvidence };
 
   try {
     const root = parse(html);
+    const pageText = root.text.toLowerCase();
+    const title = (root.querySelector('title')?.text || '').toLowerCase();
+    
+    const originalBrand = originDomain.split('.')[0].toLowerCase();
+    const originalCompanyName = originalBrand.replace(/[-_]/g, ' ');
 
-    const pwdInput = root.querySelector('input[type="password"]');
-    const userInput = root.querySelector(
-      'input[type="email"], input[type="text"], input[name*="user" i], input[name*="login" i]'
-    );
+    // SIMILARITY & IMPERSONATION DETECTION
+    
+    // 1. Brand name impersonation in title/content
+    const brandVariations = [
+      originalBrand,
+      originalCompanyName,
+      originalBrand.replace(/[-_]/g, ''),
+      ...originalBrand.split(/[-_]/) // Handle multi-word brands
+    ].filter(v => v.length > 2); // Ignore short words
+    
+    let brandMentions = 0;
+    for (const variation of brandVariations) {
+      if (title.includes(variation) || pageText.includes(variation)) {
+        brandMentions++;
+        impersonationEvidence.push(`References original brand: "${variation}"`);
+      }
+    }
+    
+    if (brandMentions > 0) {
+      similarityScore += brandMentions * 30;
+      evidence.push(`Brand impersonation detected: ${brandMentions} references to original company`);
+    }
 
-    if (pwdInput && userInput) {
-      score += 40;
-      evidence.push('Page contains both username/email and password fields.');
+    // 2. Favicon/logo hotlinking (strong indicator of impersonation)
+    const favicon = root.querySelector('link[rel*="icon" i]');
+    const faviconHref = favicon?.getAttribute('href') ?? '';
+    if (faviconHref.includes(originDomain)) {
+      similarityScore += 50;
+      evidence.push('Favicon hotlinked from original domain - clear impersonation');
+      impersonationEvidence.push(`Hotlinked favicon: ${faviconHref}`);
+    }
 
-      const form = pwdInput.closest('form');
-      if (form) {
-        const action = form.getAttribute('action') ?? '';
-        if (action && !action.startsWith('/') && !action.includes(domain)) {
-          score += 20;
-          evidence.push(`Form posts to third‑party domain: ${action}`);
-        }
+    // 3. Image hotlinking from original domain
+    const images = root.querySelectorAll('img[src*="' + originDomain + '"]');
+    if (images.length > 0) {
+      similarityScore += 40;
+      evidence.push(`${images.length} images hotlinked from original domain`);
+      impersonationEvidence.push(`Hotlinked images from ${originDomain}`);
+    }
+
+    // 4. CSS/JS resource hotlinking
+    const stylesheets = root.querySelectorAll(`link[href*="${originDomain}"], script[src*="${originDomain}"]`);
+    if (stylesheets.length > 0) {
+      similarityScore += 60;
+      evidence.push('Stylesheets/scripts hotlinked from original domain - likely copied site');
+      impersonationEvidence.push(`Hotlinked resources from ${originDomain}`);
+    }
+
+    // 5. Exact title match or very similar title
+    if (title.length > 5) {
+      // Get original site title for comparison (would need to fetch original site)
+      // For now, check if title contains exact brand match
+      if (title === originalBrand || title.includes(`${originalBrand} |`) || title.includes(`| ${originalBrand}`)) {
+        similarityScore += 40;
+        evidence.push('Page title impersonates original site');
+        impersonationEvidence.push(`Suspicious title: "${title}"`);
       }
     }
 
-    const favicon = root.querySelector('link[rel*="icon" i]');
-    const href = favicon?.getAttribute('href') ?? '';
-    if (href.includes(originDomain)) {
-      score += 15;
-      evidence.push('Favicon hotlinked from original domain.');
+    // 6. Contact form that mentions original company
+    const forms = root.querySelectorAll('form');
+    for (const form of forms) {
+      const formText = form.text.toLowerCase();
+      if (brandVariations.some(brand => formText.includes(brand))) {
+        similarityScore += 35;
+        evidence.push('Contact form references original company name');
+        impersonationEvidence.push('Form impersonation detected');
+        break;
+      }
     }
+
+    // 7. Meta description impersonation
+    const metaDesc = root.querySelector('meta[name="description"]')?.getAttribute('content')?.toLowerCase() || '';
+    if (metaDesc && brandVariations.some(brand => metaDesc.includes(brand))) {
+      similarityScore += 25;
+      evidence.push('Meta description references original brand');
+      impersonationEvidence.push(`Meta description: "${metaDesc.substring(0, 100)}"`);
+    }
+
+    // ANTI-INDICATORS (reduce score for legitimate differences)
+    
+    // 8. Clear competitor/alternative branding
+    const competitorKeywords = [
+      'competitor', 'alternative', 'vs', 'compare', 'review', 'rating',
+      'better than', 'similar to', 'like', 'replacement for'
+    ];
+    
+    const hasCompetitorLanguage = competitorKeywords.some(keyword => 
+      pageText.includes(keyword) || title.includes(keyword)
+    );
+    
+    if (hasCompetitorLanguage) {
+      similarityScore = Math.max(0, similarityScore - 30);
+      evidence.push('Site appears to be legitimate competitor/review site');
+    }
+
+    // 9. Unique business identity
+    const hasOwnBranding = root.querySelectorAll('img[alt*="logo"], .logo, #logo, [class*="brand"]').length > 0;
+    if (hasOwnBranding && similarityScore < 50) {
+      similarityScore = Math.max(0, similarityScore - 20);
+      evidence.push('Site has its own branding elements');
+    }
+
+    // 10. Professional business content unrelated to original
+    const uniqueBusinessContent = [
+      'our team', 'our mission', 'our story', 'we are', 'we provide',
+      'established in', 'founded in', 'years of experience'
+    ].filter(phrase => pageText.includes(phrase));
+    
+    if (uniqueBusinessContent.length >= 2 && similarityScore < 70) {
+      similarityScore = Math.max(0, similarityScore - 25);
+      evidence.push('Site has unique business narrative');
+    }
+
+    // Final score is the similarity score (how much it looks like impersonation)
+    score = similarityScore;
+
   } catch (err) {
     log(`[dnstwist] HTML parsing failed for ${domain}:`, (err as Error).message);
   }
 
-  return { score, evidence };
+  return { score, evidence, similarityScore, impersonationEvidence };
 }
 
 // -----------------------------------------------------------------------------
@@ -402,6 +794,10 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
     log(`[dnstwist] WHOIS enrichment disabled (saves ~${potentialSavings} per scan) - set ENABLE_WHOIS_ENRICHMENT=true to enable`);
   }
   const originWhois = await getWhoisData(job.domain);
+  
+  // Get original site content for AI comparison
+  log('[dnstwist] Fetching original site content for AI comparison');
+  const originalSiteInfo = await getSiteSnippet(job.domain);
 
   try {
     const { stdout } = await exec('dnstwist', ['-r', job.domain, '--format', 'json'], { timeout: 120_000 }); // Restored to 120s - was working before
@@ -429,6 +825,9 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           // Pattern detection
           const algorithmicCheck = isAlgorithmicPattern(entry.domain);
           
+          // Domain similarity analysis (FIRST - most important)
+          const domainSimilarity = analyzeDomainSimilarity(entry.domain, job.domain);
+          
           // Domain reality checks
           const [domainResolves, hasMxRecords, hasTlsCert, httpAnalysis] = await Promise.allSettled([
             checkDomainResolution(entry.domain),
@@ -444,7 +843,12 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
             httpContent: httpAnalysis.status === 'fulfilled' ? httpAnalysis.value : { responds: false, hasLoginForm: false, redirectsToOriginal: false },
             isAlgorithmic: algorithmicCheck.isAlgorithmic,
             algorithmicPattern: algorithmicCheck.pattern,
-            confidence: algorithmicCheck.confidence
+            confidence: algorithmicCheck.confidence,
+            // Add domain similarity data
+            domainSimilarity: domainSimilarity.similarityScore,
+            emailPhishingRisk: domainSimilarity.emailPhishingRisk,
+            domainType: domainSimilarity.domainType,
+            similarityEvidence: domainSimilarity.evidence
           };
 
           // ---------------- Standard enrichment ----------------
@@ -455,6 +859,10 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           let phishing = { score: 0, evidence: [] as string[] };
           let redirects = false;
           let typoWhois: any = null;
+          
+          // Declare variables for special case detection
+          let isDomainForSale = false;
+          let redirectsToOriginal = false;
           
           // Standard DNS check (still needed for legacy data)
           const dnsResults = await getDnsRecords(entry.domain);
@@ -468,6 +876,10 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           if (ENABLE_WHOIS_ENRICHMENT) {
             typoWhois = await getWhoisData(entry.domain);
           }
+
+          // Initialize AI analysis variables (used in artifact metadata)
+          let aiContentAnalysis = { similarityScore: 0, reasoning: 'No AI analysis performed', confidence: 0 };
+          let typosquatSiteInfo: { snippet: string; title: string; error?: string } = { snippet: '', title: '', error: 'Not fetched' };
 
           // ---------------- Registrar-based risk assessment ----------------
           let registrarMatch = false;
@@ -531,7 +943,7 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
 
           // ---------------- Intelligent Threat Classification & Severity -------------
           let threatClass: 'MONITOR' | 'INVESTIGATE' | 'TAKEDOWN';
-          let severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+          let severity: 'INFO' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
           let threatReasoning: string[] = [];
           let score = 10;
 
@@ -552,42 +964,158 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
               score = 15;
               threatReasoning.push('Domain resolves but no HTTP response - likely parked');
             } else {
-              // Algorithmic but active = investigate
-              threatClass = 'INVESTIGATE';
-              severity = 'MEDIUM';
-              score = 35;
+              // Algorithmic but active = low priority (per rubric)
+              threatClass = 'MONITOR';
+              severity = 'LOW';
+              score = 25;
               threatReasoning.push('Unusual pattern but actively hosting content');
             }
           } else {
-            // Real domain patterns - assess based on activity and ownership
+            // Real domain patterns - assess based on similarity first, then activity
             
-            // Base scoring for real domains
-            score = 30;
+            // STEP 1: Domain Name Similarity Analysis (Primary threat indicator)
+            score = 10; // Base score
             
-            // Domain activity signals
-            if (threatSignals.resolves) {
+            if (threatSignals.domainType === 'impersonation') {
+              score += 60;
+              threatReasoning.push(`Domain impersonation: ${threatSignals.similarityEvidence.join(', ')}`);
+            } else if (threatSignals.domainType === 'variant') {
+              score += 35;
+              threatReasoning.push(`Domain variant: ${threatSignals.similarityEvidence.join(', ')}`);
+            } else if (threatSignals.domainType === 'related') {
               score += 15;
+              threatReasoning.push(`Related domain: ${threatSignals.similarityEvidence.join(', ')}`);
+            } else {
+              score += 5;
+              threatReasoning.push('Low domain similarity - likely unrelated business');
+            }
+            
+            // STEP 2: Email Phishing Risk Assessment
+            if (threatSignals.emailPhishingRisk > 50 && threatSignals.hasMx) {
+              score += 40;
+              threatReasoning.push(`High email phishing risk with MX capability`);
+            } else if (threatSignals.emailPhishingRisk > 30 && threatSignals.hasMx) {
+              score += 20;
+              threatReasoning.push(`Moderate email phishing risk with MX capability`);
+            }
+            
+            // STEP 3: Domain Activity Signals
+            if (threatSignals.resolves) {
+              score += 10;
               threatReasoning.push('Domain resolves to IP address');
             }
             
             if (threatSignals.hasMx) {
-              score += 25;
+              score += 15;
               threatReasoning.push('Has MX records (email capability)');
             }
             
             if (threatSignals.hasCert) {
-              score += 20;
+              score += 10;
               threatReasoning.push('Has TLS certificate (active hosting)');
             }
             
+            // STEP 4: Content Similarity Analysis (Secondary verification)
             if (threatSignals.httpContent.responds) {
-              score += 20;
+              score += 10;
               threatReasoning.push('Responds to HTTP requests');
               
-              if (threatSignals.httpContent.hasLoginForm) {
-                score += 40;
-                threatReasoning.push('Contains login forms (high phishing risk)');
+              // Get typosquat site content for AI comparison
+              typosquatSiteInfo = await getSiteSnippet(entry.domain);
+              
+              if (!originalSiteInfo.error && !typosquatSiteInfo.error && 
+                  originalSiteInfo.snippet && typosquatSiteInfo.snippet) {
+                // AI comparison available
+                aiContentAnalysis = await compareContentWithAI(
+                  job.domain,
+                  entry.domain,
+                  originalSiteInfo.snippet,
+                  typosquatSiteInfo.snippet,
+                  originalSiteInfo.title,
+                  typosquatSiteInfo.title
+                );
+                
+                if (aiContentAnalysis.similarityScore > 70 && aiContentAnalysis.confidence > 60) {
+                  // High AI confidence of impersonation - active threat
+                  score += 60;
+                  threatReasoning.push(`🤖 AI-confirmed impersonation (${aiContentAnalysis.similarityScore}% similarity): ${aiContentAnalysis.reasoning}`);
+                } else if (aiContentAnalysis.similarityScore > 40 && aiContentAnalysis.confidence > 50) {
+                  // Moderate AI confidence - suspicious activity
+                  score += 30;
+                  threatReasoning.push(`🤖 AI-detected content similarity (${aiContentAnalysis.similarityScore}%): ${aiContentAnalysis.reasoning}`);
+                } else if (aiContentAnalysis.similarityScore < 30 && aiContentAnalysis.confidence > 60) {
+                  // AI confirms it's a different business
+                  if (aiContentAnalysis.reasoning.toLowerCase().includes('parked') || 
+                      aiContentAnalysis.reasoning.toLowerCase().includes('minimal content')) {
+                    // Parked domain = still a threat regardless of AI confidence
+                    score = Math.max(score - 10, 35);
+                    threatReasoning.push(`🤖 AI-detected parked domain with phishing potential: ${aiContentAnalysis.reasoning}`);
+                  } else {
+                    // Legitimate different business - dramatically reduce threat
+                    score = Math.max(score - 50, 15); // Much larger reduction
+                    threatReasoning.push(`🤖 AI-verified legitimate different business: ${aiContentAnalysis.reasoning}`);
+                  }
+                }
+                
+                phishing = {
+                  score: Math.max(threatSignals.domainSimilarity, aiContentAnalysis.similarityScore),
+                  evidence: [...threatSignals.similarityEvidence, `AI Analysis: ${aiContentAnalysis.reasoning}`]
+                };
+              } else {
+                // Fallback to basic HTML analysis for sites without search results
+                const contentSimilarity = await analyzeWebPageForPhishing(entry.domain, job.domain);
+                
+                // Check if we got readable content
+                const html = await fetchWithFallback(entry.domain);
+                if (!html || html.length < 100) {
+                  // Site responds but we can't read content (JS-heavy, blocked, etc.)
+                  if (threatSignals.domainSimilarity > 40) {
+                    // Similar domain but unreadable - flag for manual review
+                    score = Math.min(score + 15, 65); // Cap at MEDIUM to avoid cost spike
+                    threatReasoning.push('⚠️  Site unreadable (no search results + no HTML) - manual review recommended');
+                    phishing = {
+                      score: threatSignals.domainSimilarity,
+                      evidence: [...threatSignals.similarityEvidence, 'Content unreadable - requires manual verification']
+                    };
+                  } else {
+                    // Low similarity + unreadable = probably legitimate
+                    score += 5;
+                    threatReasoning.push('Content unreadable but domain dissimilar - likely legitimate');
+                    phishing = {
+                      score: threatSignals.domainSimilarity,
+                      evidence: threatSignals.similarityEvidence
+                    };
+                  }
+                } else if (contentSimilarity.similarityScore > 50) {
+                  // High HTML-based content similarity
+                  score += 30; // Lower than AI confidence
+                  threatReasoning.push(`HTML-based impersonation detected: ${contentSimilarity.evidence.join(', ')}`);
+                  phishing = {
+                    score: Math.max(threatSignals.domainSimilarity, contentSimilarity.similarityScore),
+                    evidence: [...threatSignals.similarityEvidence, ...contentSimilarity.evidence, ...contentSimilarity.impersonationEvidence]
+                  };
+                } else {
+                  // Low HTML similarity
+                  phishing = {
+                    score: threatSignals.domainSimilarity,
+                    evidence: threatSignals.similarityEvidence
+                  };
+                }
               }
+            } else if (threatSignals.resolves && threatSignals.domainSimilarity > 40) {
+              // Domain resolves but no HTTP response + similar name = suspicious
+              score += 15;
+              threatReasoning.push('⚠️  Domain resolves but no HTTP response - requires manual verification');
+              phishing = {
+                score: threatSignals.domainSimilarity,
+                evidence: [...threatSignals.similarityEvidence, 'No HTTP response - manual verification needed']
+              };
+            } else {
+              // No HTTP response but store domain similarity data
+              phishing = {
+                score: threatSignals.domainSimilarity,
+                evidence: threatSignals.similarityEvidence
+              };
             }
 
             // Registrar-based risk assessment
@@ -597,9 +1125,12 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
             } else if (registrarMatch && privacyProtected) {
               score = Math.max(score - 20, 15);
               threatReasoning.push('Same registrar with privacy protection (likely defensive)');
-            } else if (!registrarMatch && originWhois && typoWhois && !typoWhois.error) {
+            } else if (!registrarMatch && originWhois && typoWhois && !typoWhois.error && originWhois.registrar && typoWhois.registrar) {
               score += 30;
               threatReasoning.push('Different registrar and registrant - potential threat');
+            } else if ((originWhois && !typoWhois) || (typoWhois?.error) || (!originWhois?.registrar || !typoWhois?.registrar)) {
+              score += 10;
+              threatReasoning.push('WHOIS verification needed - unable to confirm registrar ownership');
             }
 
             // Redirect analysis
@@ -613,16 +1144,62 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
               }
             }
 
-            // Determine threat classification
-            if (score >= 80 || threatSignals.httpContent.hasLoginForm) {
+            // DOMAIN SALE PAGE DETECTION: Detect registrar sale pages and mark as LOW risk
+            isDomainForSale = threatReasoning.some(r => 
+              r.toLowerCase().includes('for sale') || 
+              r.toLowerCase().includes('domain sale') ||
+              r.toLowerCase().includes('registrar sale') ||
+              r.toLowerCase().includes('domain marketplace') ||
+              r.toLowerCase().includes('domain sale page') ||
+              r.toLowerCase().includes('sedo') ||
+              r.toLowerCase().includes('godaddy auction') ||
+              r.toLowerCase().includes('domain auction')
+            );
+
+            if (isDomainForSale) {
+              threatClass = 'MONITOR';
+              severity = 'LOW';
+              score = Math.min(score, 25); // Cap score at 25 for sale pages
+              log(`[dnstwist] 🏷️ DOMAIN SALE DETECTED: ${entry.domain} marked as LOW severity - registrar sale page`);
+            }
+
+            // LEGITIMATE REDIRECT DETECTION: If domain redirects to original, it's likely legitimate
+            redirectsToOriginal = threatSignals.httpContent.redirectsToOriginal || 
+                                threatReasoning.some(r => r.includes('redirects to original'));
+            
+            if (redirectsToOriginal && !isDomainForSale) {
+              threatClass = 'MONITOR';
+              severity = 'INFO';
+              score = Math.min(score, 20); // Very low score for redirects
+              log(`[dnstwist] ↪️ LEGITIMATE REDIRECT: ${entry.domain} marked as INFO severity - redirects to original`);
+            }
+
+            // AI OVERRIDE: Only override to INFO for actual legitimate businesses with real content
+            // Do NOT override parked domains - they remain threats regardless of AI analysis
+            const isLegitimateBusinessByAI = threatReasoning.some(r => 
+              (r.includes('AI-verified legitimate different business') ||
+               r.includes('legitimate different business')) &&
+              !r.includes('parked') && 
+              !r.includes('minimal content') &&
+              !r.includes('for sale')
+            );
+            
+            if (isLegitimateBusinessByAI) {
+              threatClass = 'MONITOR';
+              severity = 'INFO';
+              log(`[dnstwist] 🤖 AI OVERRIDE: ${entry.domain} marked as INFO severity - legitimate different business`);
+            } else if (score >= 80 || threatSignals.httpContent.hasLoginForm) {
               threatClass = 'TAKEDOWN';
               severity = 'CRITICAL';
-            } else if (score >= 50 || (threatSignals.resolves && threatSignals.hasMx && !registrarMatch)) {
+            } else if (score >= 50) {
               threatClass = 'TAKEDOWN';
               severity = 'HIGH';
-            } else if (score >= 25 || (threatSignals.resolves && !registrarMatch)) {
+            } else if (score >= 30) {
               threatClass = 'INVESTIGATE';
               severity = 'MEDIUM';
+            } else if (score >= 20) {
+              threatClass = 'MONITOR';
+              severity = 'LOW';
             } else {
               threatClass = 'MONITOR';
               severity = 'LOW';
@@ -643,8 +1220,8 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           
           // Add registrar information (even if partial)
           if (originWhois?.registrar || typoWhois?.registrar) {
-            const originInfo = originWhois?.registrar || '[WHOIS lookup failed]';
-            const typoInfo = typoWhois?.registrar || '[WHOIS lookup failed]';
+            const originInfo = originWhois?.registrar || '[WHOIS verification needed]';
+            const typoInfo = typoWhois?.registrar || '[WHOIS verification needed]';
             artifactText += ` | Original registrar: ${originInfo}, Typosquat registrar: ${typoInfo}`;
           }
           
@@ -701,7 +1278,11 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
                 pattern_confidence: threatSignals.confidence,
                 http_status: threatSignals.httpContent.statusCode,
                 content_type: threatSignals.httpContent.contentType
-              }
+              },
+              // AI Content Analysis
+              ai_content_analysis: aiContentAnalysis,
+              original_site_info: originalSiteInfo,
+              typosquat_site_info: typosquatSiteInfo
             },
           });
 
@@ -712,33 +1293,52 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           let recommendation: string;
 
           // Determine finding type and recommendation based on threat classification
-          if (threatClass === 'MONITOR') {
-            findingType = threatSignals.isAlgorithmic ? 'ALGORITHMIC_TYPOSQUAT' : 'PARKED_TYPOSQUAT';
-            recommendation = `Monitor for changes - add to watchlist and check monthly for activation`;
-            
-            if (threatSignals.isAlgorithmic) {
-              description = `Algorithmic typosquat pattern detected (${threatSignals.algorithmicPattern}). ${threatReasoning.join('. ')}`;
+          if (severity === 'INFO') {
+            // AI-verified legitimate different business OR legitimate redirect
+            if (redirectsToOriginal) {
+              findingType = 'LEGITIMATE_REDIRECT';
+              recommendation = `Low Priority: Domain redirects to original - verify it's officially managed by the brand owner`;
+              description = `LEGITIMATE REDIRECT: ${entry.domain} redirects to the original domain - likely legitimate business operation or redirect service. ${threatReasoning.join('. ')}`;
             } else {
-              description = `Low-risk typosquat domain identified. ${threatReasoning.join('. ')}`;
+              findingType = 'SIMILAR_DOMAIN';
+              recommendation = `Monitor for potential brand confusion - ${entry.domain} is a legitimate different business`;
+              description = `SIMILAR DOMAIN: ${entry.domain} is a legitimate different business with similar domain name. ${threatReasoning.join('. ')}`;
+            }
+          } else if (threatClass === 'MONITOR') {
+            if (isDomainForSale) {
+              findingType = 'DOMAIN_FOR_SALE';
+              recommendation = `Monitor: Domain is currently for sale - verify if acquired by malicious actors in the future`;
+              description = `DOMAIN FOR SALE: ${entry.domain} appears to be a domain registrar sale page - low immediate threat but monitor for future acquisition. ${threatReasoning.join('. ')}`;
+            } else {
+              findingType = threatSignals.isAlgorithmic ? 'ALGORITHMIC_TYPOSQUAT' : 'PARKED_TYPOSQUAT';
+              recommendation = `Monitor for changes - add to watchlist and check monthly for activation`;
+              
+              if (threatSignals.isAlgorithmic) {
+                description = `ALGORITHMIC TYPOSQUAT: ${entry.domain} shows automated generation pattern (${threatSignals.algorithmicPattern}). ${threatReasoning.join('. ')}`;
+              } else {
+                description = `LOW-RISK TYPOSQUAT: ${entry.domain} identified for monitoring. ${threatReasoning.join('. ')}`;
+              }
             }
             
           } else if (threatClass === 'INVESTIGATE') {
             findingType = 'SUSPICIOUS_TYPOSQUAT';
-            recommendation = `Investigate further - verify ownership, check content, and assess for active abuse`;
-            description = `Suspicious typosquat requiring investigation. ${threatReasoning.join('. ')}`;
+            recommendation = `Investigate domain ${entry.domain} further - verify ownership, check content, and assess for active abuse`;
+            description = `SUSPICIOUS TYPOSQUAT: ${entry.domain} requires investigation due to suspicious indicators. ${threatReasoning.join('. ')}`;
             
-          } else { // TAKEDOWN
+          } else { // TAKEDOWN - All malicious typosquats use same finding type
+            findingType = 'MALICIOUS_TYPOSQUAT';
+            
             if (threatSignals.httpContent.hasLoginForm) {
-              findingType = 'ACTIVE_PHISHING_SITE';
-              recommendation = `Immediate takedown recommended - active phishing site detected with login forms`;
-            } else if (threatSignals.hasMx && !registrarMatch) {
-              findingType = 'EMAIL_PHISHING_CAPABILITY';
-              recommendation = `Urgent: Initiate takedown procedures - email phishing capability with different registrar`;
+              recommendation = `Immediate takedown recommended - active phishing site detected with login forms at ${entry.domain}`;
+              description = `MALICIOUS TYPOSQUAT (Phishing Site): ${entry.domain} is hosting login forms and actively targeting your customers. ${threatReasoning.join('. ')}`;
+            } else if (threatSignals.hasMx && !registrarMatch && !threatReasoning.some(r => r.includes('AI-verified legitimate different business'))) {
+              // Only label as email phishing if AI hasn't verified it's a legitimate business
+              recommendation = `Urgent: Initiate takedown procedures - email phishing capability detected at ${entry.domain}`;
+              description = `MALICIOUS TYPOSQUAT (Email Phishing): ${entry.domain} has email functionality and different registrar - high risk for email-based attacks. ${threatReasoning.join('. ')}`;
             } else {
-              findingType = 'ACTIVE_TYPOSQUAT_THREAT';
-              recommendation = `Initiate takedown procedures - active threat with suspicious indicators`;
+              recommendation = `Initiate takedown procedures - active threat with suspicious indicators at ${entry.domain}`;
+              description = `MALICIOUS TYPOSQUAT (Active Threat): ${entry.domain} showing suspicious activity requiring immediate action. ${threatReasoning.join('. ')}`;
             }
-            description = `Active typosquat threat requiring immediate action. ${threatReasoning.join('. ')}`;
           }
 
           // Add registrar details to description
@@ -746,18 +1346,20 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
           if (originWhois?.registrar && typoWhois?.registrar) {
             registrarDetails = ` | Original registrar: ${originWhois.registrar}, Typosquat registrar: ${typoWhois.registrar}`;
           } else if (originWhois?.registrar) {
-            registrarDetails = ` | Original registrar: ${originWhois.registrar}, Typosquat registrar: [WHOIS lookup failed]`;
+            registrarDetails = ` | Original registrar: ${originWhois.registrar}, Typosquat registrar: [WHOIS verification needed]`;
           } else if (typoWhois?.registrar) {
-            registrarDetails = ` | Original registrar: [WHOIS lookup failed], Typosquat registrar: ${typoWhois.registrar}`;
+            registrarDetails = ` | Original registrar: [WHOIS verification needed], Typosquat registrar: ${typoWhois.registrar}`;
+          } else {
+            registrarDetails = ` | WHOIS verification needed for both domains`;
           }
 
           let registrantDetails = '';
           if (originWhois?.registrant && typoWhois?.registrant && !privacyProtected) {
             registrantDetails = ` | Original registrant: ${originWhois.registrant}, Typosquat registrant: ${typoWhois.registrant}`;
           } else if (originWhois?.registrant && !privacyProtected) {
-            registrantDetails = ` | Original registrant: ${originWhois.registrant}, Typosquat registrant: [WHOIS lookup failed]`;
+            registrantDetails = ` | Original registrant: ${originWhois.registrant}, Typosquat registrant: [WHOIS verification needed]`;
           } else if (typoWhois?.registrant && !privacyProtected) {
-            registrantDetails = ` | Original registrant: [WHOIS lookup failed], Typosquat registrant: ${typoWhois.registrant}`;
+            registrantDetails = ` | Original registrant: [WHOIS verification needed], Typosquat registrant: ${typoWhois.registrant}`;
           }
 
           description += registrarDetails + registrantDetails;

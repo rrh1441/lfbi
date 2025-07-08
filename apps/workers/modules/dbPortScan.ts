@@ -19,7 +19,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { XMLParser } from 'fast-xml-parser';
-import { insertArtifact, insertFinding } from '../core/artifactStore.js';
+import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
@@ -220,6 +220,97 @@ async function scanTarget(target: Target, totalTargets: number, scanId?: string,
 }
 
 
+/**
+ * Query for dynamically discovered database targets from secret analysis
+ */
+async function getDiscoveredDatabaseTargets(scanId: string): Promise<Target[]> {
+    const discoveredTargets: Target[] = [];
+    
+    try {
+        log('[dbPortScan] Querying for dynamically discovered database targets...');
+        
+        // Query for database service targets discovered from secrets
+        const dbTargetsResult = await pool.query(`
+            SELECT meta FROM artifacts 
+            WHERE meta->>'scan_id' = $1 
+            AND type = 'db_service_target'
+            ORDER BY created_at DESC
+        `, [scanId]);
+        
+        for (const row of dbTargetsResult.rows) {
+            const meta = row.meta;
+            if (meta.host && meta.port) {
+                discoveredTargets.push({
+                    host: meta.host,
+                    port: meta.port
+                });
+                log(`[dbPortScan] Added discovered target: ${meta.host}:${meta.port} (${meta.service_type})`);
+            }
+        }
+        
+        // Query for API endpoint targets that might be databases
+        const apiTargetsResult = await pool.query(`
+            SELECT meta FROM artifacts 
+            WHERE meta->>'scan_id' = $1 
+            AND type = 'api_endpoint_target'
+            AND (meta->>'service_hint' = 'supabase' OR meta->>'service_hint' = 'aws_rds')
+            ORDER BY created_at DESC
+        `, [scanId]);
+        
+        for (const row of apiTargetsResult.rows) {
+            const meta = row.meta;
+            if (meta.endpoint) {
+                try {
+                    const url = new URL(meta.endpoint);
+                    const host = url.hostname;
+                    const port = url.port || (meta.service_hint === 'supabase' ? '443' : '5432');
+                    
+                    discoveredTargets.push({ host, port });
+                    log(`[dbPortScan] Added API endpoint target: ${host}:${port} (${meta.service_hint})`);
+                } catch (error) {
+                    log(`[dbPortScan] Invalid endpoint URL: ${meta.endpoint}`);
+                }
+            }
+        }
+        
+        log(`[dbPortScan] Found ${discoveredTargets.length} dynamically discovered database targets`);
+        
+    } catch (error) {
+        log('[dbPortScan] Error querying for discovered targets:', (error as Error).message);
+    }
+    
+    return discoveredTargets;
+}
+
+/**
+ * Get credentials for discovered database targets
+ */
+async function getCredentialsForTarget(scanId: string, host: string, port: string): Promise<{username?: string, password?: string} | null> {
+    try {
+        const credResult = await pool.query(`
+            SELECT meta FROM artifacts 
+            WHERE meta->>'scan_id' = $1 
+            AND type = 'credential_target'
+            AND meta->>'host' = $2
+            AND meta->>'port' = $3
+            ORDER BY created_at DESC 
+            LIMIT 1
+        `, [scanId, host, port]);
+        
+        if (credResult.rows.length > 0) {
+            const meta = credResult.rows[0].meta;
+            return {
+                username: meta.username,
+                password: meta.password
+            };
+        }
+    } catch (error) {
+        log(`[dbPortScan] Error querying credentials for ${host}:${port}:`, (error as Error).message);
+    }
+    
+    return null;
+}
+
 export async function runDbPortScan(job: JobData): Promise<number> {
   log('[dbPortScan] Starting enhanced database security scan for', job.domain);
   
@@ -230,7 +321,24 @@ export async function runDbPortScan(job: JobData): Promise<number> {
   }
 
   const defaultPorts = Object.keys(PORT_TO_TECH_MAP);
-  const targets: Target[] = job.targets?.length ? job.targets : defaultPorts.map(port => ({ host: job.domain, port }));
+  let targets: Target[] = job.targets?.length ? job.targets : defaultPorts.map(port => ({ host: job.domain, port }));
+  
+  // NEW: Add dynamically discovered database targets from secret analysis
+  if (job.scanId) {
+      const discoveredTargets = await getDiscoveredDatabaseTargets(job.scanId);
+      targets = [...targets, ...discoveredTargets];
+      
+      // Remove duplicates
+      const seen = new Set<string>();
+      targets = targets.filter(target => {
+          const key = `${target.host}:${target.port}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+      });
+      
+      log(`[dbPortScan] Total targets to scan: ${targets.length} (${discoveredTargets.length} discovered from secrets)`);
+  }
   
   const findingsCounter = { count: 0 };
 

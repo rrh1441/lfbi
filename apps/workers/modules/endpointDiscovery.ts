@@ -115,6 +115,16 @@ interface DiscoveredEndpoint {
   visibility?: 'public_get' | 'auth_required' | 'state_changing';
 }
 
+interface WebAsset {
+  url: string;
+  type: 'javascript' | 'css' | 'html' | 'json' | 'sourcemap' | 'other';
+  size?: number;
+  confidence: 'high' | 'medium' | 'low';
+  source: 'crawl' | 'js_analysis' | 'sourcemap_hunt' | 'targeted_probe';
+  content?: string;
+  mimeType?: string;
+}
+
 interface SafeResult {
   ok: boolean;
   status?: number;
@@ -210,6 +220,7 @@ async function checkEndpoint(urlStr: string): Promise<EndpointReport> {
 // ---------- Discovery Helpers -----------------------------------------------
 
 const discovered = new Map<string, DiscoveredEndpoint>();
+const webAssets = new Map<string, WebAsset>();
 
 const getRandomUA = (): string =>
   USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
@@ -235,6 +246,21 @@ const addEndpoint = (
   const fullUrl = `${baseUrl}${ep.path}`;
   discovered.set(ep.path, { ...ep, url: fullUrl });
   log(`[endpointDiscovery] +${ep.source} ${ep.path} (${ep.statusCode ?? '-'})`);
+};
+
+const addWebAsset = (asset: WebAsset): void => {
+  if (webAssets.has(asset.url)) return;
+  webAssets.set(asset.url, asset);
+  log(`[endpointDiscovery] +web_asset ${asset.type} ${asset.url} (${asset.size ?? '?'} bytes)`);
+};
+
+const getAssetType = (url: string, mimeType?: string): WebAsset['type'] => {
+  if (url.endsWith('.js.map')) return 'sourcemap';
+  if (url.endsWith('.js') || mimeType?.includes('javascript')) return 'javascript';
+  if (url.endsWith('.css') || mimeType?.includes('css')) return 'css';
+  if (url.endsWith('.json') || mimeType?.includes('json')) return 'json';
+  if (url.endsWith('.html') || url.endsWith('.htm') || mimeType?.includes('html')) return 'html';
+  return 'other';
 };
 
 // ---------- Passive Discovery ------------------------------------------------
@@ -299,6 +325,21 @@ const analyzeJsFile = async (jsUrl: string, baseUrl: string): Promise<void> => {
   });
   if (!res.ok || typeof res.data !== 'string') return;
 
+  // Save the JavaScript file as a web asset for secret scanning
+  addWebAsset({
+    url: jsUrl,
+    type: 'javascript',
+    size: res.data.length,
+    confidence: 'high',
+    source: 'js_analysis',
+    content: res.data.length > 50000 ? res.data.substring(0, 50000) + '...[truncated]' : res.data,
+    mimeType: 'application/javascript'
+  });
+
+  // Hunt for corresponding source map
+  await huntSourceMap(jsUrl, baseUrl);
+
+  // Extract endpoint patterns (existing functionality)
   const re = /['"`](\/[a-zA-Z0-9\-._/]*(?:api|auth|v\d|graphql|jwt|token)[a-zA-Z0-9\-._/]*)['"`]/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(res.data)) !== null) {
@@ -307,6 +348,48 @@ const analyzeJsFile = async (jsUrl: string, baseUrl: string): Promise<void> => {
       confidence: 'medium',
       source: 'js_analysis'
     });
+  }
+
+  // Look for potential data endpoints that might contain secrets
+  const dataEndpointRe = /fetch\s*\(['"`]([^'"`]+)['"`]\)|axios\.[get|post|put|delete]+\(['"`]([^'"`]+)['"`]\)|\$\.get\(['"`]([^'"`]+)['"`]\)/g;
+  let dataMatch: RegExpExecArray | null;
+  while ((dataMatch = dataEndpointRe.exec(res.data)) !== null) {
+    const endpoint = dataMatch[1] || dataMatch[2] || dataMatch[3];
+    if (endpoint && endpoint.startsWith('/')) {
+      addEndpoint(baseUrl, {
+        path: endpoint,
+        confidence: 'high',
+        source: 'js_analysis'
+      });
+    }
+  }
+};
+
+// Hunt for source maps that might expose backend secrets
+const huntSourceMap = async (jsUrl: string, baseUrl: string): Promise<void> => {
+  try {
+    const sourceMapUrl = jsUrl + '.map';
+    const res = await safeRequest(sourceMapUrl, {
+      timeout: REQUEST_TIMEOUT,
+      maxContentLength: 10 * 1024 * 1024, // 10MB max for source maps
+      headers: { 'User-Agent': getRandomUA() },
+      validateStatus: () => true
+    });
+    
+    if (res.ok && typeof res.data === 'string') {
+      log(`[endpointDiscovery] Found source map: ${sourceMapUrl}`);
+      addWebAsset({
+        url: sourceMapUrl,
+        type: 'sourcemap',
+        size: res.data.length,
+        confidence: 'high',
+        source: 'sourcemap_hunt',
+        content: res.data.length > 100000 ? res.data.substring(0, 100000) + '...[truncated]' : res.data,
+        mimeType: 'application/json'
+      });
+    }
+  } catch (error) {
+    // Source map hunting is opportunistic - don't log errors
   }
 };
 
@@ -325,6 +408,18 @@ const crawlPage = async (
     validateStatus: () => true
   });
   if (!res.ok || typeof res.data !== 'string') return;
+
+  // Save HTML content as web asset for secret scanning
+  const contentType = res.headers?.['content-type'] || '';
+  addWebAsset({
+    url,
+    type: getAssetType(url, contentType),
+    size: res.data.length,
+    confidence: 'high',
+    source: 'crawl',
+    content: res.data.length > 100000 ? res.data.substring(0, 100000) + '...[truncated]' : res.data,
+    mimeType: contentType
+  });
 
   const root = parse(res.data);
   const pageLinks = new Set<string>();
@@ -354,9 +449,58 @@ const crawlPage = async (
     }
   });
 
+  // Extract CSS files
+  root.querySelectorAll('link[rel="stylesheet"][href]').forEach((link) => {
+    try {
+      const abs = new URL(link.getAttribute('href')!, baseUrl).toString();
+      if (abs.startsWith(baseUrl)) {
+        void analyzeCssFile(abs, baseUrl);
+      }
+    } catch {
+      /* ignore */
+    }
+  });
+
+  // Look for inline scripts with potential secrets
+  root.querySelectorAll('script:not([src])').forEach((script, index) => {
+    const content = script.innerHTML;
+    if (content.length > 100) { // Only save substantial inline scripts
+      addWebAsset({
+        url: `${url}#inline-script-${index}`,
+        type: 'javascript',
+        size: content.length,
+        confidence: 'high',
+        source: 'crawl',
+        content: content.length > 10000 ? content.substring(0, 10000) + '...[truncated]' : content,
+        mimeType: 'application/javascript'
+      });
+    }
+  });
+
   for (const link of pageLinks) {
     await crawlPage(link, depth + 1, baseUrl, seen);
   }
+};
+
+// Analyze CSS files for potential secrets (background URLs with tokens, etc.)
+const analyzeCssFile = async (cssUrl: string, baseUrl: string): Promise<void> => {
+  const res = await safeRequest(cssUrl, {
+    timeout: REQUEST_TIMEOUT,
+    maxContentLength: 2 * 1024 * 1024, // 2MB max for CSS
+    headers: { 'User-Agent': getRandomUA() },
+    validateStatus: () => true
+  });
+  if (!res.ok || typeof res.data !== 'string') return;
+
+  addWebAsset({
+    url: cssUrl,
+    type: 'css',
+    size: res.data.length,
+    confidence: 'medium',
+    source: 'crawl',
+    content: res.data.length > 50000 ? res.data.substring(0, 50000) + '...[truncated]' : res.data,
+    mimeType: 'text/css'
+  });
 };
 
 // ---------- Brute-Force / Auth Probe -----------------------------------------
@@ -438,23 +582,83 @@ async function enrichVisibility(endpoints: DiscoveredEndpoint[]): Promise<void> 
   }
 }
 
+// Target high-value paths that might contain secrets
+const probeHighValuePaths = async (baseUrl: string): Promise<void> => {
+  const highValuePaths = [
+    '/.env',
+    '/config.json',
+    '/app.config.json',
+    '/settings.json',
+    '/manifest.json',
+    '/.env.local',
+    '/.env.production',
+    '/api/config',
+    '/api/settings',
+    '/_next/static/chunks/webpack.js',
+    '/static/js/main.js',
+    '/assets/config.js',
+    '/config.js',
+    '/build/config.json'
+  ];
+
+  const tasks = highValuePaths.map(async (path) => {
+    try {
+      const fullUrl = `${baseUrl}${path}`;
+      const res = await safeRequest(fullUrl, {
+        timeout: 5000,
+        maxContentLength: 5 * 1024 * 1024, // 5MB max
+        headers: { 'User-Agent': getRandomUA() },
+        validateStatus: () => true
+      });
+      
+      if (res.ok && res.data) {
+        const contentType = res.headers?.['content-type'] || '';
+        addWebAsset({
+          url: fullUrl,
+          type: getAssetType(fullUrl, contentType),
+          size: typeof res.data === 'string' ? res.data.length : 0,
+          confidence: 'high',
+          source: 'targeted_probe',
+          content: typeof res.data === 'string' ? 
+            (res.data.length > 50000 ? res.data.substring(0, 50000) + '...[truncated]' : res.data) : 
+            '[binary content]',
+          mimeType: contentType
+        });
+        
+        log(`[endpointDiscovery] Found high-value asset: ${fullUrl}`);
+      }
+    } catch (error) {
+      // Expected for most paths - don't log
+    }
+  });
+
+  await Promise.all(tasks);
+};
+
 // ---------- Main Export ------------------------------------------------------
 
 export async function runEndpointDiscovery(job: { domain: string; scanId?: string }): Promise<number> {
   log(`[endpointDiscovery] ⇢ start ${job.domain}`);
   const baseUrl = `https://${job.domain}`;
   discovered.clear();
+  webAssets.clear();
 
+  // Existing discovery methods
   await parseRobotsTxt(baseUrl);
   await parseSitemap(`${baseUrl}/sitemap.xml`, baseUrl);
   await crawlPage(baseUrl, 1, baseUrl, new Set<string>());
   await bruteForce(baseUrl);
+  
+  // New: Probe high-value paths for secrets
+  await probeHighValuePaths(baseUrl);
 
   const endpoints = [...discovered.values()];
+  const assets = [...webAssets.values()];
 
   /* ------- Visibility enrichment (public/static vs. auth) ---------------- */
   await enrichVisibility(endpoints);
 
+  // Save discovered endpoints
   if (endpoints.length) {
     await insertArtifact({
       type: 'discovered_endpoints',
@@ -468,6 +672,28 @@ export async function runEndpointDiscovery(job: { domain: string; scanId?: strin
     });
   }
 
-  log(`[endpointDiscovery] ⇢ done – ${endpoints.length} endpoints`);
-  return endpoints.length;
+  // Save discovered web assets for secret scanning
+  if (assets.length) {
+    await insertArtifact({
+      type: 'discovered_web_assets',
+      val_text: `Discovered ${assets.length} web assets for secret scanning on ${job.domain}`,
+      severity: 'INFO',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'endpointDiscovery',
+        assets,
+        asset_breakdown: {
+          javascript: assets.filter(a => a.type === 'javascript').length,
+          css: assets.filter(a => a.type === 'css').length,
+          html: assets.filter(a => a.type === 'html').length,
+          json: assets.filter(a => a.type === 'json').length,
+          sourcemap: assets.filter(a => a.type === 'sourcemap').length,
+          other: assets.filter(a => a.type === 'other').length
+        }
+      }
+    });
+  }
+
+  log(`[endpointDiscovery] ⇢ done – ${endpoints.length} endpoints, ${assets.length} web assets`);
+  return endpoints.length + assets.length;
 }

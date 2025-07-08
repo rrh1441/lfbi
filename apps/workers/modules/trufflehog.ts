@@ -24,7 +24,7 @@ import * as path from 'node:path';
 import * as https from 'node:https';
 import axios from 'axios';
 import { parse } from 'node-html-parser';
-import { insertArtifact } from '../core/artifactStore.js';
+import { insertArtifact, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
@@ -42,7 +42,121 @@ const MAX_PAGES = 75; // 75 pages - covers main site + admin sections
 /**
  * Processes the JSON line-by-line output from a TruffleHog scan.
  */
-async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'http' | 'file', src_url: string): Promise<number> {
+/**
+ * Parse database connection strings and create actionable targets
+ */
+async function parseSecretIntoTargets(secret: any, scanId: string): Promise<void> {
+    const rawSecret = secret.Raw;
+    const detector = secret.DetectorName.toLowerCase();
+    
+    // Database connection string patterns
+    const dbPatterns = [
+        // PostgreSQL: postgresql://user:pass@host:port/db
+        /postgresql:\/\/([^:]+):([^@]+)@([^:\/]+):?(\d+)?(?:\/([^?]+))?/i,
+        // MySQL: mysql://user:pass@host:port/db
+        /mysql:\/\/([^:]+):([^@]+)@([^:\/]+):?(\d+)?(?:\/([^?]+))?/i,
+        // MongoDB: mongodb://user:pass@host:port/db
+        /mongodb:\/\/([^:]+):([^@]+)@([^:\/]+):?(\d+)?(?:\/([^?]+))?/i,
+        // Generic database URLs
+        /(?:postgres|mysql|mongodb|redis):\/\/([^:]+):([^@]+)@([^:\/]+):?(\d+)?/i
+    ];
+
+    // Check if this is a database connection string
+    for (const pattern of dbPatterns) {
+        const match = rawSecret.match(pattern);
+        if (match) {
+            const [, username, password, host, port, database] = match;
+            const defaultPorts: Record<string, string> = {
+                'postgresql': '5432',
+                'mysql': '3306', 
+                'mongodb': '27017',
+                'redis': '6379'
+            };
+            
+            const dbType = rawSecret.toLowerCase().includes('postgres') ? 'postgresql' :
+                          rawSecret.toLowerCase().includes('mysql') ? 'mysql' :
+                          rawSecret.toLowerCase().includes('mongodb') ? 'mongodb' :
+                          rawSecret.toLowerCase().includes('redis') ? 'redis' : 'unknown';
+            
+            const finalPort = port || defaultPorts[dbType] || '5432';
+            
+            // Create database service target
+            await insertArtifact({
+                type: 'db_service_target',
+                val_text: `Database service discovered from secrets: ${host}:${finalPort}`,
+                severity: 'HIGH',
+                src_url: `${dbType}://${host}:${finalPort}`,
+                meta: {
+                    scan_id: scanId,
+                    scan_module: 'trufflehog:parser',
+                    host,
+                    port: finalPort,
+                    service_type: dbType,
+                    database: database || 'unknown',
+                    source_secret: secret.DetectorName,
+                    discovered_from: 'secret_analysis'
+                }
+            });
+            
+            // Create credential target
+            await insertArtifact({
+                type: 'credential_target',
+                val_text: `Database credentials extracted: ${username}@${host}`,
+                severity: 'CRITICAL',
+                src_url: `${dbType}://${host}:${finalPort}`,
+                meta: {
+                    scan_id: scanId,
+                    scan_module: 'trufflehog:parser',
+                    username,
+                    password,
+                    host,
+                    port: finalPort,
+                    service_type: dbType,
+                    database: database || 'unknown',
+                    source_secret: secret.DetectorName
+                }
+            });
+            
+            log(`[trufflehog] [Parser] Extracted database target: ${host}:${finalPort} (${dbType})`);
+            return;
+        }
+    }
+    
+    // API endpoint patterns (for future endpoint testing)
+    const apiPatterns = [
+        // Supabase URLs
+        /https:\/\/([a-z0-9]+)\.supabase\.co/i,
+        // Firebase URLs  
+        /https:\/\/([a-z0-9-]+)\.firebaseio\.com/i,
+        // AWS RDS hostnames
+        /([a-z0-9-]+)\.([a-z0-9-]+)\.rds\.amazonaws\.com/i
+    ];
+    
+    for (const pattern of apiPatterns) {
+        const match = rawSecret.match(pattern);
+        if (match) {
+            await insertArtifact({
+                type: 'api_endpoint_target',
+                val_text: `API endpoint discovered from secrets: ${match[0]}`,
+                severity: 'MEDIUM',
+                src_url: match[0],
+                meta: {
+                    scan_id: scanId,
+                    scan_module: 'trufflehog:parser',
+                    endpoint: match[0],
+                    service_hint: rawSecret.toLowerCase().includes('supabase') ? 'supabase' :
+                                 rawSecret.toLowerCase().includes('firebase') ? 'firebase' :
+                                 rawSecret.toLowerCase().includes('rds') ? 'aws_rds' : 'unknown',
+                    source_secret: secret.DetectorName
+                }
+            });
+            log(`[trufflehog] [Parser] Extracted API endpoint: ${match[0]}`);
+            return;
+        }
+    }
+}
+
+async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'http' | 'file' | 'web_asset', src_url: string, scanId?: string): Promise<number> {
     const lines = stdout.trim().split('\n').filter(Boolean);
     let findings = 0;
 
@@ -50,6 +164,8 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
         try {
             const obj = JSON.parse(line);
             findings++;
+            
+            // Create the basic secret artifact
             await insertArtifact({
                 type: 'secret',
                 val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}…`,
@@ -59,10 +175,18 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
                     detector: obj.DetectorName,
                     verified: obj.Verified,
                     source_type: source_type,
+                    extraction_method: source_type === 'web_asset' ? 'endpoint_discovery' : 'direct_probe',
                     file: obj.SourceMetadata?.Data?.Filesystem?.file ?? 'N/A',
-                    line: obj.SourceMetadata?.Data?.Filesystem?.line ?? 0
+                    line: obj.SourceMetadata?.Data?.Filesystem?.line ?? 0,
+                    scan_id: scanId
                 }
             });
+            
+            // NEW: Parse secret into actionable targets for other modules
+            if (scanId) {
+                await parseSecretIntoTargets(obj, scanId);
+            }
+            
         } catch (e) {
             log('[trufflehog] [ERROR] Failed to parse JSON output line:', (e as Error).message);
         }
@@ -71,7 +195,7 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
 }
 
 
-async function scanGit(url: string): Promise<number> {
+async function scanGit(url: string, scanId?: string): Promise<number> {
     log('[trufflehog] [Git Scan] Starting scan for repository:', url);
     try {
         const { stdout } = await exec('trufflehog', [
@@ -81,7 +205,7 @@ async function scanGit(url: string): Promise<number> {
             '--no-verification', 
             `--max-depth=${TRUFFLEHOG_GIT_DEPTH}`
         ], { maxBuffer: 20 * 1024 * 1024 });
-        return await processTrufflehogOutput(stdout, 'git', url);
+        return await processTrufflehogOutput(stdout, 'git', url, scanId);
     } catch (err) {
         log('[trufflehog] [Git Scan] Error scanning repository', url, (err as Error).message);
         return 0;
@@ -163,7 +287,7 @@ async function scanWebsite(domain: string, scanId: string): Promise<number> {
         if (filesWritten > 0) {
             log(`[trufflehog] [Website Scan] Crawl complete. Scanned ${pagesVisited} pages, downloaded ${filesWritten} files.`);
             const { stdout } = await exec('trufflehog', ['filesystem', scanDir, '--json', '--no-verification'], { maxBuffer: 20 * 1024 * 1024 });
-            return await processTrufflehogOutput(stdout, 'http', baseUrl);
+            return await processTrufflehogOutput(stdout, 'http', baseUrl, scanId);
         }
         return 0;
 
@@ -177,14 +301,80 @@ async function scanWebsite(domain: string, scanId: string): Promise<number> {
 
 
 /**
- * REFACTOR: Replaces overly broad glob patterns with more targeted paths based
- * on the known outputs of other scanner modules.
+ * NEW: Scan discovered web assets from endpointDiscovery instead of hardcoded paths
+ */
+async function scanDiscoveredWebAssets(scanId: string): Promise<number> {
+    log('[trufflehog] [Web Asset Scan] Scanning discovered web assets...');
+    let findings = 0;
+
+    try {
+        // Query for discovered web assets from this scan
+        const assetsResult = await pool.query(`
+            SELECT meta FROM artifacts 
+            WHERE meta->>'scan_id' = $1 
+            AND type = 'discovered_web_assets'
+            ORDER BY created_at DESC 
+            LIMIT 1
+        `, [scanId]);
+
+        if (assetsResult.rows.length === 0) {
+            log('[trufflehog] [Web Asset Scan] No discovered web assets found from endpointDiscovery');
+            return 0;
+        }
+
+        const webAssetsData = assetsResult.rows[0].meta;
+        const assets = webAssetsData.assets || [];
+        
+        log(`[trufflehog] [Web Asset Scan] Found ${assets.length} web assets to scan`);
+
+        // Process each web asset
+        for (const asset of assets) {
+            try {
+                // Create temporary file with asset content
+                const tempFile = `/tmp/trufflehog-asset-${scanId}-${Buffer.from(asset.url).toString('base64').substring(0, 20)}.tmp`;
+                
+                if (asset.content && asset.content !== '[binary content]') {
+                    await fs.writeFile(tempFile, asset.content);
+                    
+                    log(`[trufflehog] [Web Asset Scan] Scanning ${asset.type} asset: ${asset.url}`);
+                    
+                    const { stdout } = await exec('trufflehog', [
+                        'filesystem', 
+                        tempFile, 
+                        '--json', 
+                        '--no-verification'
+                    ], { maxBuffer: 20 * 1024 * 1024 });
+                    
+                    const assetFindings = await processTrufflehogOutput(stdout, 'web_asset', asset.url, scanId);
+                    findings += assetFindings;
+                    
+                    log(`[trufflehog] [Web Asset Scan] Found ${assetFindings} secrets in ${asset.url}`);
+                }
+                
+                // Clean up temp file
+                await fs.unlink(tempFile).catch(() => {});
+                
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                log(`[trufflehog] [Web Asset Scan] Error scanning asset ${asset.url}: ${errorMessage}`);
+            }
+        }
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        log(`[trufflehog] [Web Asset Scan] Database query error: ${errorMessage}`);
+    }
+
+    return findings;
+}
+
+/**
+ * Legacy: Scan local files (kept for SpiderFoot integration)
  */
 async function scanLocalFiles(scanId: string): Promise<number> {
     log('[trufflehog] [File Scan] Scanning local artifacts...');
     const filePathsToScan = [
         `/tmp/spiderfoot-links-${scanId}.json`, // SpiderFoot link list
-        // Add paths to other known module outputs here if necessary.
     ];
     let findings = 0;
 
@@ -194,7 +384,7 @@ async function scanLocalFiles(scanId: string): Promise<number> {
             await fs.access(filePath);
             log(`[trufflehog] [File Scan] File exists, proceeding with scan: ${filePath}`);
             const { stdout } = await exec('trufflehog', ['filesystem', filePath, '--json', '--no-verification'], { maxBuffer: 10 * 1024 * 1024 });
-            const fileFindings = await processTrufflehogOutput(stdout, 'file', `local:${filePath}`);
+            const fileFindings = await processTrufflehogOutput(stdout, 'file', `local:${filePath}`, scanId);
             findings += fileFindings;
             log(`[trufflehog] [File Scan] Completed scan of ${filePath}, found ${fileFindings} findings`);
         } catch (error) {
@@ -246,7 +436,7 @@ async function scanHighValueTargets(domain: string, scanId: string): Promise<num
                 await fs.writeFile(tempFile, response.data);
                 
                 const { stdout } = await exec('trufflehog', ['filesystem', tempFile, '--json']);
-                findings += await processTrufflehogOutput(stdout, 'http', url);
+                findings += await processTrufflehogOutput(stdout, 'http', url, scanId);
                 
                 // Clean up temp file
                 await fs.unlink(tempFile).catch(() => {});
@@ -262,18 +452,18 @@ async function scanHighValueTargets(domain: string, scanId: string): Promise<num
 
 
 export async function runTrufflehog(job: { domain: string; scanId?: string }): Promise<number> {
-  log('[trufflehog] Starting targeted secret scan for domain:', job.domain);
+  log('[trufflehog] Starting comprehensive secret scan for domain:', job.domain);
   if (!job.scanId) {
       log('[trufflehog] [ERROR] scanId is required for TruffleHog module.');
       return 0;
   }
   let totalFindings = 0;
 
-  // OPTIMIZATION: Skip redundant website crawling - other modules handle endpoint discovery
-  // totalFindings += await scanWebsite(job.domain, job.scanId);
-  log('[trufflehog] Skipping website crawl - relying on endpoint discovery from other modules');
+  // NEW: Scan discovered web assets from endpointDiscovery module
+  log('[trufflehog] Scanning discovered web assets from endpointDiscovery...');
+  totalFindings += await scanDiscoveredWebAssets(job.scanId);
   
-  // Scan specific high-value targets found by other modules
+  // Legacy: Scan specific high-value targets (for domains that don't use modern frameworks)
   totalFindings += await scanHighValueTargets(job.domain, job.scanId);
 
   try {
@@ -305,7 +495,7 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
     
     log(`[trufflehog] Found ${gitRepos.length} GitHub repositories to scan from ${links.length} total links.`);
     for (const repo of gitRepos) {
-      totalFindings += await scanGit(repo);
+      totalFindings += await scanGit(repo, job.scanId);
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -314,7 +504,7 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
 
   totalFindings += await scanLocalFiles(job.scanId);
 
-  log('[trufflehog] Finished secret scan for', job.domain, 'Total secrets found:', totalFindings);
+  log('[trufflehog] Finished comprehensive secret scan for', job.domain, 'Total secrets found:', totalFindings);
   
   await insertArtifact({
     type: 'scan_summary',

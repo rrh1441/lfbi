@@ -700,11 +700,21 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
           .filter((timeline, index, array) => array.indexOf(timeline) === index) // dedupe
           .join(', ');
         
+        // Create detailed description with user information
+        const userDetails = users.length <= 5 
+          ? users.map(u => u.userId).join(', ')
+          : `${users.map(u => u.userId).slice(0, 5).join(', ')} and ${users.length - 5} more`;
+        
+        const detailedDescription = `${users.length} ${severityLevel.toLowerCase()} breach exposures found: ${userDetails}` +
+          (allExposureTypes ? ` | Exposure types: ${allExposureTypes}` : '') +
+          (allSources ? ` | Sources: ${allSources.slice(0, 100)}${allSources.length > 100 ? '...' : ''}` : '') +
+          (timelineInfo ? ` | Timeline: ${timelineInfo}` : '');
+        
         await insertFinding(
           artifactId,
           mapSeverityToFindingType(severityLevel),
           getRecommendationText(severityLevel),
-          `${users.length} ${severityLevel.toLowerCase()} breach exposures found`
+          detailedDescription
         );
         
         findingsCount++;
