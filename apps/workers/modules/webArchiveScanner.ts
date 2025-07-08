@@ -38,6 +38,9 @@ interface ArchiveResult {
     size: number;
     accessible: boolean;
     archiveTimestamp: string;
+    archiveUrl?: string;
+    confidence?: 'high' | 'medium' | 'low';
+    reason?: string;
 }
 
 const USER_AGENTS = [
@@ -121,6 +124,7 @@ async function getWaybackUrls(domain: string, tier: 'tier1' | 'tier2' = 'tier1')
         log('[webArchiveScanner] Error querying Wayback Machine:', (error as Error).message);
     }
     
+    const maxUrls = tier === 'tier1' ? TIER1_MAX_ARCHIVE_URLS : TIER2_MAX_ARCHIVE_URLS;
     return archiveUrls.slice(0, maxUrls);
 }
 

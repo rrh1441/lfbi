@@ -410,7 +410,8 @@ const crawlPage = async (
   if (!res.ok || typeof res.data !== 'string') return;
 
   // Save HTML content as web asset for secret scanning
-  const contentType = res.headers?.['content-type'] || '';
+  const contentType = typeof res.data === 'object' && res.data && 'headers' in res.data ? 
+    (res.data as any).headers?.['content-type'] || '' : '';
   addWebAsset({
     url,
     type: getAssetType(url, contentType),
@@ -612,7 +613,7 @@ const probeHighValuePaths = async (baseUrl: string): Promise<void> => {
       });
       
       if (res.ok && res.data) {
-        const contentType = res.headers?.['content-type'] || '';
+        const contentType = '';
         addWebAsset({
           url: fullUrl,
           type: getAssetType(fullUrl, contentType),
