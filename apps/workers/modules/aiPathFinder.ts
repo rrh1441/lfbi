@@ -14,7 +14,7 @@ import { insertArtifact, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
 // Configuration
-const AI_MODEL = 'gpt-4-1106-preview'; // Using specified model
+const AI_MODEL = 'gpt-4.1-mini-2025-04-14'; // Using specified model
 const MAX_PATHS_TO_GENERATE = 50;
 const MAX_CONCURRENT_PROBES = 8;
 const PROBE_TIMEOUT = 8000;
