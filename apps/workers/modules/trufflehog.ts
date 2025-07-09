@@ -24,7 +24,7 @@ import * as path from 'node:path';
 import * as https from 'node:https';
 import axios from 'axios';
 import { parse } from 'node-html-parser';
-import { insertArtifact, pool } from '../core/artifactStore.js';
+import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
 
 const exec = promisify(execFile);
@@ -37,6 +37,43 @@ const TRUFFLEHOG_GIT_DEPTH = parseInt(process.env.TRUFFLEHOG_GIT_DEPTH || '3'); 
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3MB - catches most modern SPAs
 const MAX_FILES_PER_CRAWL = 35; // 35 files - good coverage without excess
 const MAX_TOTAL_CRAWL_SIZE_BYTES = 30 * 1024 * 1024; // 30MB total
+
+/**
+ * Generate recommendations based on the secret detector type
+ */
+function getRecommendationForSecret(detectorName: string, verified: boolean): string {
+    const baseRecommendations: { [key: string]: string } = {
+        'Supabase': 'Remove Supabase service keys from client-side code immediately. Use environment variables on server-side only.',
+        'AWS': 'Rotate AWS credentials immediately. Use IAM roles and temporary credentials instead of hardcoded keys.',
+        'Google': 'Rotate Google API keys immediately. Use Google Cloud IAM service accounts with proper scoping.',
+        'GitHub': 'Revoke GitHub personal access tokens immediately. Use short-lived tokens with minimal scopes.',
+        'Slack': 'Revoke Slack API tokens immediately. Use OAuth 2.0 with proper token rotation.',
+        'Discord': 'Revoke Discord bot tokens immediately. Regenerate tokens and use proper secret management.',
+        'Stripe': 'Revoke Stripe API keys immediately. Use webhook endpoints with proper validation.',
+        'Twilio': 'Revoke Twilio credentials immediately. Use SID/Auth Token pairs with proper rotation.',
+        'SendGrid': 'Revoke SendGrid API keys immediately. Use minimal scope keys and rotate regularly.',
+        'JWT': 'Invalidate JWT tokens immediately. Use shorter expiration times and proper secret rotation.',
+        'Database': 'Change database passwords immediately. Use connection pooling and environment variables.',
+        'Redis': 'Change Redis passwords immediately. Use AUTH command with strong passwords.',
+        'MongoDB': 'Change MongoDB connection strings immediately. Use proper authentication and authorization.',
+        'PostgreSQL': 'Change PostgreSQL credentials immediately. Use connection pooling and SSL connections.',
+        'MySQL': 'Change MySQL credentials immediately. Use SSL connections and proper user privileges.',
+    };
+
+    // Find matching detector
+    const detectorKey = Object.keys(baseRecommendations).find(key => 
+        detectorName.toLowerCase().includes(key.toLowerCase())
+    );
+    
+    const baseRecommendation = detectorKey ? baseRecommendations[detectorKey] : 
+        'Immediately revoke and rotate these credentials. Remove from code and use secure secret management.';
+    
+    if (verified) {
+        return `CRITICAL: ${baseRecommendation} This secret has been verified as active and working.`;
+    } else {
+        return `HIGH PRIORITY: ${baseRecommendation} While not verified, assume this secret is active.`;
+    }
+}
 const MAX_PAGES = 75; // 75 pages - covers main site + admin sections
 
 /**
@@ -166,7 +203,7 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
             findings++;
             
             // Create the basic secret artifact
-            await insertArtifact({
+            const artifactId = await insertArtifact({
                 type: 'secret',
                 val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 50)}…`,
                 severity: obj.Verified ? 'CRITICAL' : 'HIGH',
@@ -181,6 +218,14 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
                     scan_id: scanId
                 }
             });
+
+            // Create finding for the secret
+            await insertFinding(
+                artifactId,
+                obj.Verified ? 'VERIFIED_SECRET' : 'POTENTIAL_SECRET',
+                getRecommendationForSecret(obj.DetectorName, obj.Verified),
+                `${obj.DetectorName} secret detected in ${source_type}: ${obj.Raw.slice(0, 100)}...`
+            );
             
             // NEW: Parse secret into actionable targets for other modules
             if (scanId) {
