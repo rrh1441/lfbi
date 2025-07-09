@@ -31,17 +31,33 @@ async function guardTrufflehog() {
 
 /** Convert ggshield JSON → TruffleHog JSON‑lines so we reuse one parser */
 function ggToThJsonLines(ggJson: string) {
-  const g = JSON.parse(ggJson) as any[];
-  return g
-    .map(o =>
-      JSON.stringify({
-        DetectorName: o.policy_break.policy,
-        Raw: o.policy_break.matches[0].match,
-        Verified: false,
-        SourceMetadata: { Data: { Filesystem: { file: 'stdin', line: 0 } } }
-      })
-    )
-    .join('\n');
+  if (!ggJson || !ggJson.trim()) {
+    log('[trufflehog] ggshield returned empty output');
+    return '';
+  }
+  
+  try {
+    const g = JSON.parse(ggJson) as any[];
+    if (!Array.isArray(g) || g.length === 0) {
+      log('[trufflehog] ggshield returned no secrets');
+      return '';
+    }
+    
+    return g
+      .map(o =>
+        JSON.stringify({
+          DetectorName: o.policy_break?.policy || 'unknown',
+          Raw: o.policy_break?.matches?.[0]?.match || 'unknown',
+          Verified: false,
+          SourceMetadata: { Data: { Filesystem: { file: 'stdin', line: 0 } } }
+        })
+      )
+      .join('\n');
+  } catch (e) {
+    log('[trufflehog] Failed to parse ggshield JSON:', (e as Error).message);
+    log('[trufflehog] ggshield raw output:', ggJson.slice(0, 200));
+    return '';
+  }
 }
 
 async function emitFindings(out: string, src: SourceType, url: string) {
