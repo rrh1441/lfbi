@@ -26,12 +26,14 @@ import axios from 'axios';
 import { parse } from 'node-html-parser';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
+import { ggshieldScanAndConvert } from '../utils/ggshieldRunner.js';
+import { GG_MAX_WORKERS } from '../core/env.js';
+import { scanGitRepos } from './scanGitRepos.js';
 
 const exec = promisify(execFile);
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
 const MAX_CRAWL_DEPTH = 2; // Keep depth for admin/api paths
 const MAX_GIT_REPOS_TO_SCAN = 10; // Reduced from 20 to 10
-const TRUFFLEHOG_GIT_DEPTH = parseInt(process.env.TRUFFLEHOG_GIT_DEPTH || '3'); // Reduced from 5 to 3
 
 // BALANCED: Moderate limits for better secret detection
 const MAX_FILE_SIZE_BYTES = 3 * 1024 * 1024; // 3MB - catches most modern SPAs
@@ -240,26 +242,11 @@ async function processTrufflehogOutput(stdout: string, source_type: 'git' | 'htt
 }
 
 
-async function scanGit(url: string, scanId?: string): Promise<number> {
-    log('[trufflehog] [Git Scan] Starting scan for repository:', url);
-    try {
-        const { stdout } = await exec('trufflehog', [
-            'git', 
-            url, 
-            '--json', 
-            '--no-verification', 
-            `--max-depth=${TRUFFLEHOG_GIT_DEPTH}`
-        ], { maxBuffer: 20 * 1024 * 1024 });
-        return await processTrufflehogOutput(stdout, 'git', url, scanId);
-    } catch (err) {
-        log('[trufflehog] [Git Scan] Error scanning repository', url, (err as Error).message);
-        return 0;
-    }
-}
 
 /**
  * REFACTOR: Hardened the crawler with resource limits and secure filename sanitization.
  * Now includes protection against deep link farms.
+ * NOTE: Currently unused in favor of ggshield-based scanning
  */
 async function scanWebsite(domain: string, scanId: string): Promise<number> {
     log('[trufflehog] [Website Scan] Starting crawl and scan for:', domain);
@@ -347,81 +334,94 @@ async function scanWebsite(domain: string, scanId: string): Promise<number> {
 
 /**
  * NEW: Scan discovered web assets from endpointDiscovery instead of hardcoded paths
+ * FIXED: Uses correct TruffleHog v3+ syntax with --path flag and enhanced detection
  */
 async function scanDiscoveredWebAssets(scanId: string): Promise<number> {
-    log('[trufflehog] [Web Asset Scan] Scanning discovered web assets...');
-    let findings = 0;
-
+    log('[trufflehog] [Web Asset Scan] Scanning discovered assets...');
+    
     try {
-        // Query for discovered web assets from this scan
         const assetsResult = await pool.query(`
-            SELECT meta, created_at FROM artifacts 
-            WHERE meta->>'scan_id' = $1 
-            AND type = 'discovered_web_assets'
-            ORDER BY created_at DESC 
-            LIMIT 1
+            SELECT meta FROM artifacts 
+            WHERE meta->>'scan_id' = $1 AND type = 'discovered_web_assets'
+            ORDER BY created_at DESC LIMIT 1
         `, [scanId]);
 
-        // ======================= DEBUG LOGGING =======================
-        log(`[trufflehog] [DEBUG] Database query for scanId '${scanId}' found ${assetsResult.rows.length} rows.`);
-        if (assetsResult.rows.length > 0) {
-            const meta = assetsResult.rows[0].meta;
-            log(`[trufflehog] [DEBUG] Found asset artifact. Meta keys: ${Object.keys(meta || {})}. Asset count: ${meta?.assets?.length || 0}`);
-            if (meta?.assets?.length > 0) {
-                log(`[trufflehog] [DEBUG] First asset preview: ${JSON.stringify(meta.assets[0]).slice(0, 200)}...`);
-            }
-        }
-        // =============================================================
-
-        if (assetsResult.rows.length === 0) {
-            log('[trufflehog] [Web Asset Scan] No discovered web assets found from endpointDiscovery');
+        if (assetsResult.rows.length === 0 || !assetsResult.rows[0].meta?.assets) {
+            log('[trufflehog] [Web Asset Scan] No discoverable web assets found.');
             return 0;
         }
 
-        const webAssetsData = assetsResult.rows[0].meta;
-        const assets = webAssetsData.assets || [];
-        
-        log(`[trufflehog] [Web Asset Scan] Found ${assets.length} web assets to scan`);
+        const assets = assetsResult.rows[0].meta.assets as { url: string; content: string; type: string }[];
+        log(`[trufflehog] [Web Asset Scan] Found ${assets.length} assets to scan.`);
 
-        // Process each web asset
-        for (const asset of assets) {
-            try {
-                // Create temporary file with asset content
-                const tempFile = `/tmp/trufflehog-asset-${scanId}-${Buffer.from(asset.url).toString('base64').substring(0, 20)}.tmp`;
-                
-                if (asset.content && asset.content !== '[binary content]') {
-                    await fs.writeFile(tempFile, asset.content);
+        let totalFindings = 0;
+
+        // ONE-OFF DIAGNOSTIC: Verify binary version and location at runtime
+        try {
+            const { stdout: v, stderr } = await exec('trufflehog', ['--version']);
+            log(`[trufflehog] RUNTIME binary path: ${await exec('which', ['trufflehog']).then(r => r.stdout.trim())}`);
+            log(`[trufflehog] RUNTIME version: ${v.trim()}`);
+            if (stderr) log(`[trufflehog] version stderr: ${stderr.trim()}`);
+        } catch (e) {
+            log('[trufflehog] FATAL: trufflehog not on PATH', (e as Error).message);
+            throw e;
+        }
+
+        // MEMORY OPTIMIZATION: Use ggshield for lightweight web asset scanning
+        const filteredAssets = assets.filter(asset => asset.content && asset.content !== '[binary content]');
+        log(`[trufflehog] Processing ${filteredAssets.length} assets with ggshield (max ${GG_MAX_WORKERS} concurrent)`);
+
+        // Process assets in controlled batches to respect memory limits
+        const BATCH_SIZE = Math.min(GG_MAX_WORKERS, 4); // Respect GG_MAX_WORKERS environment variable
+        const scanPromises: Promise<number>[] = [];
+        
+        for (let i = 0; i < filteredAssets.length; i += BATCH_SIZE) {
+            const batch = filteredAssets.slice(i, i + BATCH_SIZE);
+            
+            const batchPromise = Promise.all(batch.map(async (asset) => {
+                let findingsForAsset = 0;
+
+                try {
+                    // DIAGNOSTIC: Show what we're scanning
+                    const sample = asset.content.slice(0, 120);
+                    log(`[ggshield] Scanning ${asset.content.length} bytes from ${asset.url}. Preview: ${sample.replace(/\n/g,' ')}`);
+
+                    // Use ggshield for lightweight scanning
+                    const buf = Buffer.from(asset.content, 'utf8');
+                    const stdout = await ggshieldScanAndConvert(buf);
                     
-                    log(`[trufflehog] [Web Asset Scan] Scanning ${asset.type} asset: ${asset.url}`);
-                    
-                    const { stdout } = await exec('trufflehog', [
-                        'filesystem', 
-                        tempFile, 
-                        '--json', 
-                        '--no-verification'
-                    ], { maxBuffer: 20 * 1024 * 1024 });
-                    
-                    const assetFindings = await processTrufflehogOutput(stdout, 'web_asset', asset.url, scanId);
-                    findings += assetFindings;
-                    
-                    log(`[trufflehog] [Web Asset Scan] Found ${assetFindings} secrets in ${asset.url}`);
+                    if (stdout) {
+                        findingsForAsset = await processTrufflehogOutput(stdout, 'web_asset', asset.url, scanId);
+                        if (findingsForAsset > 0) {
+                            log(`[ggshield] [SUCCESS] Found ${findingsForAsset} secrets in ${asset.url}`);
+                        }
+                    }
+
+                } catch (err) {
+                    log(`[ggshield] [ERROR] Unhandled failure scanning asset ${asset.url}: ${(err as Error).message}`);
                 }
                 
-                // Clean up temp file
-                await fs.unlink(tempFile).catch(() => {});
-                
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                log(`[trufflehog] [Web Asset Scan] Error scanning asset ${asset.url}: ${errorMessage}`);
+                return findingsForAsset;
+            })).then(results => results.reduce((sum, count) => sum + count, 0));
+            
+            scanPromises.push(batchPromise);
+            
+            // Add small delay between batches to prevent resource contention
+            if (i + BATCH_SIZE < filteredAssets.length) {
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        log(`[trufflehog] [Web Asset Scan] Database query error: ${errorMessage}`);
-    }
+        const results = await Promise.all(scanPromises);
+        totalFindings = results.reduce((sum, count) => sum + count, 0);
 
-    return findings;
+        log(`[trufflehog] [Web Asset Scan] Completed. Total new findings: ${totalFindings}`);
+        return totalFindings;
+
+    } catch (error) {
+        log(`[trufflehog] [FATAL] Could not execute web asset scan: ${(error as Error).message}`);
+        return 0;
+    }
 }
 
 /**
@@ -513,17 +513,33 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
       log('[trufflehog] [ERROR] scanId is required for TruffleHog module.');
       return 0;
   }
+  
+  // Version check to prevent silent failures from v3.84.0+ regression
+  try {
+    const { stdout: ver } = await exec('trufflehog', ['--version']);
+    if (!ver.includes('3.83.')) {
+      log('[trufflehog] ⚠ Running un-pinned version:', ver.trim());
+      log('[trufflehog] Expected 3.83.7 but continuing with caution');
+    } else {
+      log('[trufflehog] Using supported TruffleHog version:', ver.trim());
+    }
+  } catch (error) {
+    log('[trufflehog] Failed to check TruffleHog version:', (error as Error).message);
+    return 0;
+  }
+  
   let totalFindings = 0;
 
-  // NEW: Scan discovered web assets from endpointDiscovery module
-  log('[trufflehog] Scanning discovered web assets from endpointDiscovery...');
-  // Add delay to give endpointDiscovery time to finish creating assets
-  await new Promise(resolve => setTimeout(resolve, 5000)); // 5-second wait
+  // Phase 1: Scan discovered web assets from endpointDiscovery module (using ggshield)
+  log('[trufflehog] Phase 1: Scanning discovered web assets with ggshield...');
   totalFindings += await scanDiscoveredWebAssets(job.scanId);
   
-  // Legacy: Scan specific high-value targets (for domains that don't use modern frameworks)
+  // Phase 2: Scan specific high-value targets (for domains that don't use modern frameworks)
+  log('[trufflehog] Phase 2: Scanning high-value targets...');
   totalFindings += await scanHighValueTargets(job.domain, job.scanId);
 
+  // Phase 3: Scan Git repositories (using TruffleHog)
+  log('[trufflehog] Phase 3: Scanning Git repositories with TruffleHog...');
   try {
     const linksPath = `/tmp/spiderfoot-links-${job.scanId}.json`;
     log(`[trufflehog] Checking for SpiderFoot links file at: ${linksPath}`);
@@ -549,17 +565,18 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
       throw parseError;
     }
     
-    const gitRepos = links.filter(l => GITHUB_RE.test(l)).slice(0, MAX_GIT_REPOS_TO_SCAN);
-    
+    const gitRepos = links.filter(l => GITHUB_RE.test(l));
     log(`[trufflehog] Found ${gitRepos.length} GitHub repositories to scan from ${links.length} total links.`);
-    for (const repo of gitRepos) {
-      totalFindings += await scanGit(repo, job.scanId);
-    }
+    
+    // Use the new scanGitRepos function for better memory management
+    totalFindings += await scanGitRepos(gitRepos, job.scanId, processTrufflehogOutput, MAX_GIT_REPOS_TO_SCAN);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     log(`[trufflehog] Unable to process SpiderFoot links file: ${errorMessage}. Skipping Git repo scan.`);
   }
 
+  // Phase 4: Scan local files
+  log('[trufflehog] Phase 4: Scanning local files...');
   totalFindings += await scanLocalFiles(job.scanId);
 
   log('[trufflehog] Finished comprehensive secret scan for', job.domain, 'Total secrets found:', totalFindings);

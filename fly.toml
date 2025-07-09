@@ -21,6 +21,9 @@ primary_region = "sea"
   # Document scanning
   SERPER_MAX_DOWNLOAD_BYTES = "0"          # Don't fetch binaries in Tier-1
   
+  # Secret scanning - Memory optimization
+  GG_MAX_WORKERS = "4"                     # Limit ggshield concurrency
+  
   NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 # ────────────── Processes ──────────────

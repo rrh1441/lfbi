@@ -278,10 +278,8 @@ async function processScan(job: ScanJob): Promise<void> {
       immediateParallelPromises.spf_dmarc = runSpfDmarc({ domain, scanId });
     }
     
-    if (activeModules.includes('trufflehog')) {
-      log(`[${scanId}] STARTING TruffleHog secret scan for ${domain} (immediate parallel)`);
-      immediateParallelPromises.trufflehog = runTrufflehog({ domain, scanId });
-    }
+    // Note: TruffleHog moved to phase 3 to run after endpointDiscovery completes
+    // This ensures web assets are discovered before TruffleHog scans them
     
     if (activeModules.includes('accessibility_scan')) {
       log(`[${scanId}] STARTING accessibility compliance scan for ${domain} (immediate parallel)`);
@@ -352,7 +350,6 @@ async function processScan(job: ScanJob): Promise<void> {
       m !== 'endpoint_discovery' &&
       m !== 'tls_scan' &&
       m !== 'spf_dmarc' &&
-      m !== 'trufflehog' &&
       m !== 'accessibility_scan' &&
       m !== 'nuclei' &&
       m !== 'tech_stack_scan' &&

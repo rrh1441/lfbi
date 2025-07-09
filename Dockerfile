@@ -52,9 +52,17 @@ ENV NODE_TLS_REJECT_UNAUTHORIZED=0 \
 # Security tooling
 # ------------------------------------------------------------------------
 
-# TruffleHog
-RUN curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh \
-    | sh -s -- -b /usr/local/bin
+# Secret scanning tools - ggshield for web assets, TruffleHog for Git history
+ARG TRUFFLEHOG_VER=3.83.7
+ARG GGSHIELD_VER=1.26.0
+
+# Install pinned TruffleHog binary (Git history only)
+RUN curl -sSL https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VER}/trufflehog_${TRUFFLEHOG_VER}_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin trufflehog
+
+# Install ggshield + slim Python runtime (primary web asset scanner)
+RUN apk add --no-cache python3 py3-pip git && \
+    pip3 install --no-cache-dir --break-system-packages ggshield==${GGSHIELD_VER}
 
 # nuclei v3.4.5
 RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.4.5/nuclei_3.4.5_linux_amd64.zip \
