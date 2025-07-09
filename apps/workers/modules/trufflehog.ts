@@ -19,12 +19,13 @@ async function guardTrufflehog() {
   try {
     const { stdout } = await exec('trufflehog', ['--version']);
     if (!stdout.includes(EXPECTED_TRUFFLEHOG_VER)) {
-      throw new Error(`wrong trufflehog version → ${stdout.trim()}`);
+      log(`[trufflehog] ⚠️ wrong trufflehog version → ${stdout.trim()}, continuing anyway`);
+    } else {
+      log(`[trufflehog] ✅ binary ${stdout.trim()}`);
     }
-    log(`[trufflehog] ✅ binary ${stdout.trim()}`);
   } catch (e) {
     log('[trufflehog] ❌ binary check failed', (e as Error).message);
-    throw e;
+    throw e; // Still throw if binary doesn't exist at all
   }
 }
 

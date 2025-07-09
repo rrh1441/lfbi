@@ -57,12 +57,22 @@ RUN pip3 install --break-system-packages dnstwist webtech python-gvm gvm-tools a
     pip3 install --break-system-packages -r /opt/spiderfoot/requirements.txt && \
     chmod +x /opt/spiderfoot/sf.py && ln -s /opt/spiderfoot/sf.py /usr/local/bin/sf && ln -s /opt/spiderfoot/sf.py /usr/local/bin/spiderfoot.py
 
-# OWASP ZAP baseline script
-RUN apk add --no-cache openjdk11-jre && \
-    pip3 install --break-system-packages python-owasp-zap-v2.4 && \
-    curl -fsSL https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap-baseline.py -o /usr/local/bin/zap-baseline.py && \
-    curl -fsSL https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap_common.py -o /usr/local/lib/python3.12/site-packages/zap_common.py && \
-    chmod +x /usr/local/bin/zap-baseline.py && mkdir -p /root/.ZAP
+# ------------------------------------------------------------------------
+# OWASP ZAP – baseline script (no full GUI)
+# ------------------------------------------------------------------------
+    RUN apk add --no-cache openjdk11-jre \
+    && pip3 install --break-system-packages python-owasp-zap-v2.4 \
+    # make sure the directory chain exists BEFORE we write into it
+    && mkdir -p /usr/local/lib/python3.12/site-packages \
+    # grab the helper scripts with automatic retry/back-off
+    && curl -Lf --retry 5 --retry-delay 2 \
+         https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap-baseline.py \
+         -o /usr/local/bin/zap-baseline.py \
+    && curl -Lf --retry 5 --retry-delay 2 \
+         https://raw.githubusercontent.com/zaproxy/zaproxy/main/docker/zap_common.py \
+         -o /usr/local/lib/python3.12/site-packages/zap_common.py \
+    && chmod +x /usr/local/bin/zap-baseline.py \
+    && mkdir -p /root/.ZAP
 
 # ----- Node tooling & deps -----
 RUN npm install -g pnpm tsx
