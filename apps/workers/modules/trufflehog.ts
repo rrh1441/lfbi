@@ -1,10 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
-import axios from 'axios';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
-import { ggshieldScan } from '../utils/ggshieldRunner.js';
 import { scanGitRepos } from './scanGitRepos.js';
 
 const exec = promisify(execFile);
@@ -12,7 +10,7 @@ const EXPECTED_TRUFFLEHOG_VER = '3.83.7';
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
 const MAX_GIT_REPOS = 10;
 
-type SourceType = 'web_asset' | 'git' | 'file' | 'http';
+type SourceType = 'git' | 'file' | 'http';
 
 /** Ensure TruffleHog binary exists & is the pinned version */
 async function guardTrufflehog() {
@@ -29,42 +27,34 @@ async function guardTrufflehog() {
   }
 }
 
-/** Convert ggshield JSON → TruffleHog JSON‑lines so we reuse one parser */
-function ggToThJsonLines(ggJson: string) {
-  if (!ggJson || !ggJson.trim()) {
-    log('[trufflehog] ggshield returned empty output');
-    return '';
+/** Process TruffleHog JSON-lines output and emit findings */
+function processTruffleHogOutput(output: string): { DetectorName: string; Raw: string; Verified: boolean; SourceMetadata: any }[] {
+  if (!output || !output.trim()) {
+    log('[trufflehog] TruffleHog returned empty output');
+    return [];
   }
   
-  try {
-    const g = JSON.parse(ggJson) as any[];
-    if (!Array.isArray(g) || g.length === 0) {
-      log('[trufflehog] ggshield returned no secrets');
-      return '';
+  const results: { DetectorName: string; Raw: string; Verified: boolean; SourceMetadata: any }[] = [];
+  
+  for (const line of output.split(/\r?\n/).filter(Boolean)) {
+    try {
+      const obj = JSON.parse(line);
+      if (obj.DetectorName && obj.Raw) {
+        results.push(obj);
+      }
+    } catch (e) {
+      log('[trufflehog] Failed to parse TruffleHog JSON line:', (e as Error).message);
+      log('[trufflehog] Raw line:', line.slice(0, 200));
     }
-    
-    return g
-      .map(o =>
-        JSON.stringify({
-          DetectorName: o.policy_break?.policy || 'unknown',
-          Raw: o.policy_break?.matches?.[0]?.match || 'unknown',
-          Verified: false,
-          SourceMetadata: { Data: { Filesystem: { file: 'stdin', line: 0 } } }
-        })
-      )
-      .join('\n');
-  } catch (e) {
-    log('[trufflehog] Failed to parse ggshield JSON:', (e as Error).message);
-    log('[trufflehog] ggshield raw output:', ggJson.slice(0, 200));
-    return '';
   }
+  
+  return results;
 }
 
-async function emitFindings(out: string, src: SourceType, url: string) {
+async function emitFindings(results: { DetectorName: string; Raw: string; Verified: boolean; SourceMetadata: any }[], src: SourceType, url: string) {
   let count = 0;
-  for (const line of out.split(/\r?\n/).filter(Boolean)) {
+  for (const obj of results) {
     count++;
-    const obj = JSON.parse(line);
     const aid = await insertArtifact({
       type: 'secret',
       val_text: `${obj.DetectorName}: ${obj.Raw.slice(0, 40)}…`,
@@ -82,21 +72,8 @@ async function emitFindings(out: string, src: SourceType, url: string) {
   return count;
 }
 
-async function scanWebAssets(scanId: string) {
-  const r = await pool.query(
-    `SELECT meta FROM artifacts WHERE type='discovered_web_assets' AND meta->>'scan_id'=$1 ORDER BY created_at DESC LIMIT 1`,
-    [scanId]
-  );
-  if (!r.rowCount) return 0;
-  let total = 0;
-  for (const a of (r.rows[0].meta.assets as { url: string; content: string }[]).filter(
-    a => a.content && a.content !== '[binary content]'
-  )) {
-    const ggRaw = await ggshieldScan(Buffer.from(a.content, 'utf8'));
-    total += await emitFindings(ggToThJsonLines(ggRaw), 'web_asset', a.url);
-  }
-  return total;
-}
+// Web asset scanning has been moved to clientSecretScanner.ts
+// This module now only handles Git repository scanning
 
 async function getGitRepos(scanId: string) {
   try {
@@ -113,18 +90,25 @@ export async function runTrufflehog(job: { domain: string; scanId: string }) {
   await guardTrufflehog();
 
   let findings = 0;
-  findings += await scanWebAssets(job.scanId);
-
+  
+  // Only scan Git repositories - web assets are now handled by clientSecretScanner
   const repos = await getGitRepos(job.scanId);
-  if (repos.length)
-    findings += await scanGitRepos(repos, job.scanId, emitFindings);
+  if (repos.length) {
+    log(`[trufflehog] Scanning ${repos.length} Git repositories for secrets`);
+    findings += await scanGitRepos(repos, job.scanId, async (output: string, src: SourceType, url: string) => {
+      const secrets = processTruffleHogOutput(output);
+      return await emitFindings(secrets, src, url);
+    });
+  } else {
+    log('[trufflehog] No Git repositories found to scan');
+  }
 
   await insertArtifact({
     type: 'scan_summary',
-    val_text: `TruffleHog finished – ${findings} secret(s)`,
+    val_text: `TruffleHog Git scan finished – ${findings} secret(s)`,
     severity: 'INFO',
-    meta: { scan_id: job.scanId, total_findings: findings }
+    meta: { scan_id: job.scanId, total_findings: findings, scope: 'git_only' }
   });
-  log(`[trufflehog] finished – findings=${findings}`);
+  log(`[trufflehog] finished Git scan – findings=${findings}`);
   return findings;
 }

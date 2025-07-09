@@ -12,7 +12,7 @@ const exec = promisify(execFile);
 
 // Import processTrufflehogOutput from the main module
 // This function will be passed as a parameter to avoid circular imports
-type ProcessTrufflehogOutputFn = (stdout: string, source_type: 'git' | 'http' | 'file' | 'web_asset', src_url: string, scanId?: string) => Promise<number>;
+type ProcessTrufflehogOutputFn = (stdout: string, source_type: 'git' | 'http' | 'file', src_url: string, scanId?: string) => Promise<number>;
 
 /**
  * Scan a single Git repository with TruffleHog

@@ -1,4 +1,9 @@
-const { pool } = require('/app/apps/workers/dist/core/artifactStore.js');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || process.env.DB_URL
+});
+
 console.log('=== CHECKING VULNERABLE-TEST-SITE SCAN RESULTS ===');
 pool.query('SELECT type, val_text, severity, created_at FROM artifacts WHERE val_text ILIKE \'%vulnerable-test-site%\' ORDER BY created_at DESC LIMIT 5;')
 .then(result => {
@@ -27,4 +32,3 @@ pool.query('SELECT type, val_text, severity, created_at FROM artifacts WHERE val
   console.error('Database error:', err.message);
   pool.end();
 });
-EOF < /dev/null

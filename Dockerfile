@@ -39,8 +39,8 @@ RUN mkdir -p /root/.cache/rod/browser/chromium-1321438 && \
 ARG TRUFFLEHOG_VER=3.83.7
 RUN curl -sSL https://github.com/trufflesecurity/trufflehog/releases/download/v${TRUFFLEHOG_VER}/trufflehog_${TRUFFLEHOG_VER}_linux_amd64.tar.gz | tar -xz -C /usr/local/bin trufflehog
 
-ARG GGSHIELD_VER=1.26.0
-RUN pip3 install --break-system-packages ggshield==${GGSHIELD_VER}
+# Removed ggshield - not suitable for OSINT scanning of third-party content
+# TruffleHog is the correct tool for this use case
 
 # nuclei
 RUN curl -L https://github.com/projectdiscovery/nuclei/releases/download/v3.4.5/nuclei_3.4.5_linux_amd64.zip -o nuclei.zip && \

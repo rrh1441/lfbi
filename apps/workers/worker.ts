@@ -5,6 +5,7 @@ import { runShodanScan } from './modules/shodan.js';
 import { runSpiderFoot } from './modules/spiderFoot.js';
 import { runDocumentExposure } from './modules/documentExposure.js';
 import { runTrufflehog } from './modules/trufflehog.js';
+import { runClientSecretScanner } from './modules/clientSecretScanner.js';
 import { runRateLimitScan } from './modules/rateLimitScan.js';
 import { runDnsTwist } from './modules/dnsTwist.js';
 import { runTlsScan } from './modules/tlsScan.js';
@@ -61,7 +62,8 @@ const TIER_1_MODULES = [
   'nuclei',              // Baseline vulnerability scan with 8s timeout
   'tls_scan',
   'spf_dmarc',
-  'trufflehog'
+  'trufflehog',
+  'client_secret_scanner'
 ];
 
 // Tier 2: Deep scanning modules requiring authorization - includes active probing
@@ -462,6 +464,12 @@ async function processScan(job: ScanJob): Promise<void> {
             log(`[${scanId}] STARTING TruffleHog secret detection for ${domain}`);
             moduleFindings = await runTrufflehog({ domain, scanId });
             log(`[${scanId}] COMPLETED secret detection: ${moduleFindings} secrets found`);
+            break;
+            
+          case 'client_secret_scanner':
+            log(`[${scanId}] STARTING client-side secret scanner for ${domain}`);
+            moduleFindings = await runClientSecretScanner({ scanId });
+            log(`[${scanId}] COMPLETED client secret scan: ${moduleFindings} secrets found`);
             break;
             
           default:
