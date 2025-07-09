@@ -355,12 +355,23 @@ async function scanDiscoveredWebAssets(scanId: string): Promise<number> {
     try {
         // Query for discovered web assets from this scan
         const assetsResult = await pool.query(`
-            SELECT meta FROM artifacts 
+            SELECT meta, created_at FROM artifacts 
             WHERE meta->>'scan_id' = $1 
             AND type = 'discovered_web_assets'
             ORDER BY created_at DESC 
             LIMIT 1
         `, [scanId]);
+
+        // ======================= DEBUG LOGGING =======================
+        log(`[trufflehog] [DEBUG] Database query for scanId '${scanId}' found ${assetsResult.rows.length} rows.`);
+        if (assetsResult.rows.length > 0) {
+            const meta = assetsResult.rows[0].meta;
+            log(`[trufflehog] [DEBUG] Found asset artifact. Meta keys: ${Object.keys(meta || {})}. Asset count: ${meta?.assets?.length || 0}`);
+            if (meta?.assets?.length > 0) {
+                log(`[trufflehog] [DEBUG] First asset preview: ${JSON.stringify(meta.assets[0]).slice(0, 200)}...`);
+            }
+        }
+        // =============================================================
 
         if (assetsResult.rows.length === 0) {
             log('[trufflehog] [Web Asset Scan] No discovered web assets found from endpointDiscovery');
@@ -506,6 +517,8 @@ export async function runTrufflehog(job: { domain: string; scanId?: string }): P
 
   // NEW: Scan discovered web assets from endpointDiscovery module
   log('[trufflehog] Scanning discovered web assets from endpointDiscovery...');
+  // Add delay to give endpointDiscovery time to finish creating assets
+  await new Promise(resolve => setTimeout(resolve, 5000)); // 5-second wait
   totalFindings += await scanDiscoveredWebAssets(job.scanId);
   
   // Legacy: Scan specific high-value targets (for domains that don't use modern frameworks)

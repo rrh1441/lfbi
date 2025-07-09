@@ -1,2127 +1,2249 @@
-
-
-2025-07-08 09:43:42.035	
-[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
-2025-07-08 09:43:42.006	
-[2025-07-08T16:43:42.006Z] [documentExposure] Completed: 0 files found, 10 parallel Serper calls (~$0.030)
-2025-07-08 09:43:42.006	
-[2025-07-08T16:43:42.005Z] [techStackScan] buildTargets discovered=44 total=46 (html=46, nonHtml=0)
-2025-07-08 09:43:41.994	
-[2025-07-08T16:43:41.993Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:41.992	
-[2025-07-08T16:43:41.992Z] [techStackScan] techstack=nuclei wrapper confirmed available
-2025-07-08 09:43:41.992	
-[2025-07-08T16:43:41.992Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:43:41.991	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:43:41.991	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:43:41.991	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:43:41.991	
-[2025-07-08T16:43:41.991Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:43:41.962	
-[2025-07-08T16:43:41.960Z] [nucleiWrapper] Manual timeout override: 20000ms
-2025-07-08 09:43:41.957	
-[2025-07-08T16:43:41.956Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:43:41.951	
-[2025-07-08T16:43:41.948Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://upliftai.org -tags misconfiguration,default-logins,exposed-panels,exposure,tech -c 6 -timeout 20 -retries 1
-2025-07-08 09:43:41.945	
-[2025-07-08T16:43:41.945Z] [nucleiWrapper] Pass 1: Running baseline scan with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
-2025-07-08 09:43:41.945	
-[2025-07-08T16:43:41.944Z] [nucleiWrapper] Starting two-pass scan for https://upliftai.org
-2025-07-08 09:43:41.945	
-[2025-07-08T16:43:41.944Z] [nuclei] Smart guard: techs=none timeout=20s headless=false
-2025-07-08 09:43:41.944	
-[2025-07-08T16:43:41.944Z] [nuclei] [Enhanced Two-Pass Scan] Running on https://upliftai.org
-2025-07-08 09:43:41.944	
-[2025-07-08T16:43:41.944Z] [nuclei] --- Starting Enhanced Two-Pass Scans on 1 targets ---
-2025-07-08 09:43:41.944	
-[2025-07-08T16:43:41.943Z] [nuclei] Nuclei binary validated successfully.
-2025-07-08 09:43:41.942	
-[2025-07-08T16:43:41.941Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:43:41.941	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:43:41.941	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:43:41.941	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:43:41.941	
-[2025-07-08T16:43:41.940Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:43:41.775	
-[2025-07-08T16:43:41.774Z] [abuseIntelScan] No IP artifacts found for this scan
-2025-07-08 09:43:41.774	
-[2025-07-08T16:43:41.774Z] [abuseIntelScan] Found 0 IP artifacts for scan A2OlrVX7H9E
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.771Z] [worker] [A2OlrVX7H9E] WAITING for dns_twist scan to complete...
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.771Z] [worker] [A2OlrVX7H9E] COMPLETED shodan scan: 4 findings found
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.771Z] [worker] [A2OlrVX7H9E] WAITING for shodan scan to complete...
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.771Z] [worker] [A2OlrVX7H9E] COMPLETED breach_directory_probe scan: 0 findings found
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.771Z] [worker] [A2OlrVX7H9E] WAITING for breach_directory_probe scan to complete...
-2025-07-08 09:43:41.771	
-[2025-07-08T16:43:41.770Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=A2OlrVX7H9E
-2025-07-08 09:43:41.770	
-[2025-07-08T16:43:41.770Z] [worker] [A2OlrVX7H9E] STARTING AbuseIPDB intelligence scan for IPs (parallel after endpoint discovery)
-2025-07-08 09:43:41.770	
-[2025-07-08T16:43:41.770Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:43:41.759	
-[2025-07-08T16:43:41.759Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:43:41.759	
-[2025-07-08T16:43:41.759Z] [techStackScan] techstack=start domain=upliftai.org
-2025-07-08 09:43:41.759	
-[2025-07-08T16:43:41.758Z] [worker] [A2OlrVX7H9E] STARTING tech stack scan for upliftai.org (parallel after endpoint discovery)
-2025-07-08 09:43:41.758	
-[2025-07-08T16:43:41.757Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:43:41.747	
-[2025-07-08T16:43:41.747Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:43:41.747	
-[2025-07-08T16:43:41.746Z] [nuclei] Starting enhanced vulnerability scan for upliftai.org
-2025-07-08 09:43:41.746	
-[2025-07-08T16:43:41.746Z] [worker] [A2OlrVX7H9E] STARTING Nuclei vulnerability scan for upliftai.org (parallel after endpoint discovery)
-2025-07-08 09:43:41.746	
-[2025-07-08T16:43:41.746Z] [worker] [A2OlrVX7H9E] COMPLETED endpoint discovery: 44 endpoint collections found
-2025-07-08 09:43:41.746	
-[2025-07-08T16:43:41.746Z] [endpointDiscovery] ⇢ done – 44 endpoints
-2025-07-08 09:43:39.527	
-[2025-07-08T16:43:39.526Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:34.292	
-[2025-07-08T16:43:34.292Z] [accessibilityScan] Testing accessibility for: https://upliftai.org/voice-initiative
-2025-07-08 09:43:33.177	
-[2025-07-08T16:43:33.176Z] [dynamicBrowser] Page operation completed in 13271ms
-2025-07-08 09:43:33.177	
-[2025-07-08T16:43:33.176Z] [accessibilityScan] Accessibility test complete for https://upliftai.org/voice-technology: 0 violations, 27 passes
-2025-07-08 09:43:28.680	
-[2025-07-08T16:43:28.680Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:24.977	
-[2025-07-08T16:43:24.977Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:22.177	
-[2025-07-08T16:43:22.177Z] [documentExposure] process error: Request failed with status code 404
-2025-07-08 09:43:22.142	
-[2025-07-08T16:43:22.141Z] [dynamicBrowser] Metrics: browser_rss_mb=230, heap_used_mb=80, pages_open=1
-2025-07-08 09:43:19.905	
-[2025-07-08T16:43:19.905Z] [accessibilityScan] Testing accessibility for: https://upliftai.org/voice-technology
-2025-07-08 09:43:19.407	
-[2025-07-08T16:43:19.407Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:19.345	
-[2025-07-08T16:43:19.345Z] [documentExposure] process error: Request failed with status code 403
-2025-07-08 09:43:19.136	
-[2025-07-08T16:43:19.136Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:18.784	
-[2025-07-08T16:43:18.782Z] [dynamicBrowser] Page operation completed in 5165ms
-2025-07-08 09:43:18.784	
-[2025-07-08T16:43:18.782Z] [accessibilityScan] Accessibility test complete for https://upliftai.org/homex: 1 violations, 27 passes
-2025-07-08 09:43:17.425	
-[2025-07-08T16:43:17.425Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:16.237	
-[2025-07-08T16:43:16.237Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:14.671	
-[2025-07-08T16:43:14.671Z] [tlsScan] Scan complete. Hosts: upliftai.org, www.upliftai.org. Findings: 0
-2025-07-08 09:43:14.671	
-[artifactStore] Inserted scan_summary artifact: TLS scan complete - 0 issue(s) found...
-2025-07-08 09:43:14.668	
-[2025-07-08T16:43:14.668Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:43:14.668	
-[2025-07-08T16:43:14.668Z] [tlsScan] Cross-validation complete for www.upliftai.org: 0 additional findings
-2025-07-08 09:43:13.618	
-[2025-07-08T16:43:13.618Z] [accessibilityScan] Testing accessibility for: https://upliftai.org/homex
-2025-07-08 09:43:13.515	
-[2025-07-08T16:43:13.515Z] [accessibilityScan] accessibility=running_full_scan domain="upliftai.org" reason="changes_detected"
-2025-07-08 09:43:13.515	
-[2025-07-08T16:43:13.515Z] [accessibilityScan] accessibility=change_detected domain="upliftai.org" url="https://upliftai.org/voice-technology" reason="content_changed"
-2025-07-08 09:43:13.467	
-[2025-07-08T16:43:13.466Z] [dynamicBrowser] Page operation completed in 564ms
-2025-07-08 09:43:12.722	
-[2025-07-08T16:43:12.722Z] [dynamicBrowser] Page operation completed in 838ms
-2025-07-08 09:43:11.581	
-[2025-07-08T16:43:11.581Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:11.508	
-[2025-07-08T16:43:11.508Z] [dynamicBrowser] Page operation completed in 7628ms
-2025-07-08 09:43:11.246	
-[2025-07-08T16:43:11.245Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:11.091	
-[2025-07-08T16:43:11.091Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:09.980	
-[2025-07-08T16:43:09.980Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:06.959	
-[2025-07-08T16:43:06.958Z] [tlsScan] Python validator: www.upliftai.org - VALID
-2025-07-08 09:43:06.671	
-[2025-07-08T16:43:06.667Z] [tlsScan] Scanning www.upliftai.org with hybrid validation (sslscan + Python)...
-2025-07-08 09:43:06.671	
-[2025-07-08T16:43:06.667Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:43:06.671	
-[2025-07-08T16:43:06.667Z] [tlsScan] Cross-validation complete for upliftai.org: 0 additional findings
-2025-07-08 09:43:04.246	
-[2025-07-08T16:43:04.245Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:03.839	
-[2025-07-08T16:43:03.839Z] [documentExposure] process error: Please provide binary data as `Uint8Array`, rather than `Buffer`.
-2025-07-08 09:43:03.721	
-[2025-07-08T16:43:03.721Z] [dynamicBrowser] Page operation completed in 1019ms
-2025-07-08 09:43:03.649	
-[artifactStore] Inserted scan_summary artifact: TruffleHog scan completed: 0 potential secrets found...
-2025-07-08 09:43:03.646	
-[2025-07-08T16:43:03.644Z] [trufflehog] Finished secret scan for upliftai.org Total secrets found: 0
-2025-07-08 09:43:03.646	
-[2025-07-08T16:43:03.644Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-A2OlrVX7H9E.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-A2OlrVX7H9E.json'
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.641Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-A2OlrVX7H9E.json
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.641Z] [trufflehog] [File Scan] Scanning local artifacts...
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.640Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.640Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-A2OlrVX7H9E.json'
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.640Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-A2OlrVX7H9E.json
-2025-07-08 09:43:03.642	
-[2025-07-08T16:43:03.640Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
-2025-07-08 09:43:03.051	
-[2025-07-08T16:43:03.050Z] [documentExposure] Query 3 returned 19 results
-2025-07-08 09:43:02.573	
-[2025-07-08T16:43:02.572Z] [dynamicBrowser] Page operation completed in 3170ms
-2025-07-08 09:43:02.353	
-[2025-07-08T16:43:02.353Z] [documentExposure] Query 8 returned 8 results
-2025-07-08 09:43:02.349	
-[2025-07-08T16:43:02.349Z] [documentExposure] Query 9 returned 19 results
-2025-07-08 09:43:02.215	
-[2025-07-08T16:43:02.215Z] [documentExposure] Query 4 returned 1 results
-2025-07-08 09:43:02.214	
-[2025-07-08T16:43:02.214Z] [documentExposure] Query 7 returned 20 results
-2025-07-08 09:43:01.263	
-[2025-07-08T16:43:01.263Z] [documentExposure] Query 2 returned 20 results
-2025-07-08 09:43:01.231	
-[2025-07-08T16:43:01.231Z] [documentExposure] Query 1 returned 0 results
-2025-07-08 09:43:01.229	
-[2025-07-08T16:43:01.229Z] [documentExposure] Query 10 returned 0 results
-2025-07-08 09:43:01.228	
-[2025-07-08T16:43:01.228Z] [documentExposure] Query 6 returned 6 results
-2025-07-08 09:43:01.227	
-[2025-07-08T16:43:01.227Z] [documentExposure] Query 5 returned 2 results
-2025-07-08 09:43:00.363	
-[2025-07-08T16:43:00.363Z] [breachDirectoryProbe] Breach probe completed: 0 findings in 1770ms
-2025-07-08 09:43:00.360	
-[2025-07-08T16:43:00.360Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=0, Total=0
-2025-07-08 09:43:00.360	
-[2025-07-08T16:43:00.360Z] [breachDirectoryProbe] LeakCheck response for upliftai.org: 0 breached accounts, quota remaining: 999999
-2025-07-08 09:43:00.352	
-[2025-07-08T16:43:00.352Z] [documentExposure] Serper API call 10: ""Uplift AI" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
-2025-07-08 09:43:00.347	
-[2025-07-08T16:43:00.345Z] [documentExposure] Serper API call 9: ""Uplift AI" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
-2025-07-08 09:43:00.347	
-[2025-07-08T16:43:00.343Z] [documentExposure] Serper API call 8: ""Uplift AI" (intitle:"index of" OR intitle:"directory listing")"
-2025-07-08 09:43:00.338	
-[2025-07-08T16:43:00.338Z] [documentExposure] Serper API call 7: ""Uplift AI" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
-2025-07-08 09:43:00.334	
-[2025-07-08T16:43:00.334Z] [documentExposure] Serper API call 6: ""Uplift AI" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
-2025-07-08 09:43:00.332	
-[2025-07-08T16:43:00.332Z] [documentExposure] Serper API call 5: ""Uplift AI" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
-2025-07-08 09:43:00.329	
-[2025-07-08T16:43:00.328Z] [documentExposure] Serper API call 4: ""Uplift AI" ("database" OR "backup" OR "dump") filetype:sql"
-2025-07-08 09:43:00.326	
-[2025-07-08T16:43:00.326Z] [documentExposure] Serper API call 3: ""Uplift AI" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
-2025-07-08 09:43:00.326	
-[2025-07-08T16:43:00.325Z] [documentExposure] Serper API call 2: ""Uplift AI" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
-2025-07-08 09:43:00.326	
-[2025-07-08T16:43:00.325Z] [documentExposure] Serper API call 1: "site:upliftai.org (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
-2025-07-08 09:43:00.326	
-[2025-07-08T16:43:00.325Z] [documentExposure] Starting 10 parallel Serper queries
-2025-07-08 09:43:00.062	
-[2025-07-08T16:43:00.060Z] [dnstwist] ✅ Serper API: Found result for upliftai.org - "Urdu AI Early Prototype - Uplift AI..."
-2025-07-08 09:42:59.899	
-[2025-07-08T16:42:59.899Z] [Shodan] Done — 4 services found, 4 unique after deduplication, 4 API calls for 1 targets
-2025-07-08 09:42:59.899	
-[artifactStore] Inserted scan_summary artifact: Shodan scan: 4 services found, 4 unique after deduplication...
-2025-07-08 09:42:59.896	
-[2025-07-08T16:42:59.896Z] [Shodan] API call 4 - search query
-2025-07-08 09:42:59.774	
-[2025-07-08T16:42:59.771Z] [breachDirectoryProbe] Querying LeakCheck for domain: upliftai.org
-2025-07-08 09:42:59.438	
-[2025-07-08T16:42:59.438Z] [spfDmarc] Completed email security scan, found 1 issues
-2025-07-08 09:42:59.421	
-[2025-07-08T16:42:59.421Z] [breachDirectoryProbe] Breach Directory response for upliftai.org: 0 breached accounts
-2025-07-08 09:42:59.336	
-[2025-07-08T16:42:59.335Z] [accessibilityScan] accessibility=hash_computation domain="upliftai.org" pages=15
-2025-07-08 09:42:59.336	
-[2025-07-08T16:42:59.335Z] [accessibilityScan] Discovered 15 pages to test for accessibility
-2025-07-08 09:42:59.305	
-[2025-07-08T16:42:59.304Z] [endpointDiscovery] +crawl_link / (-)
-2025-07-08 09:42:59.305	
-[2025-07-08T16:42:59.304Z] [endpointDiscovery] +crawl_link /cart (-)
-2025-07-08 09:42:59.279	
-[2025-07-08T16:42:59.279Z] [spfDmarc] Checking for BIMI record...
-2025-07-08 09:42:59.279	
-[2025-07-08T16:42:59.278Z] [spfDmarc] Found DKIM record with selector: selector1
-2025-07-08 09:42:59.278	
-[2025-07-08T16:42:59.277Z] [Shodan] API call 3 - search query
-2025-07-08 09:42:59.210	
-[2025-07-08T16:42:59.210Z] [dnstwist] 🔍 Calling Serper API for upliftai.org
-2025-07-08 09:42:59.210	
-[2025-07-08T16:42:59.210Z] [dnstwist] Fetching original site content for AI comparison
-2025-07-08 09:42:59.210	
-[2025-07-08T16:42:59.210Z] [whoisWrapper] Saved $0.015 vs WhoisXML
-2025-07-08 09:42:59.210	
-[2025-07-08T16:42:59.210Z] [whoisWrapper] WHOIS resolution: 1 RDAP (free) + 0 Whoxy (~$0.000)
-2025-07-08 09:42:59.210	
-Saved $0.015 vs WhoisXML
-2025-07-08 09:42:59.210	
-[2025-07-08T16:42:59.210Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 0 Whoxy (~$0.000)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.187Z] [endpointDiscovery] +sitemap.xml /se-apply (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.187Z] [endpointDiscovery] +sitemap.xml /jobs (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.187Z] [endpointDiscovery] +sitemap.xml /about (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.187Z] [endpointDiscovery] +sitemap.xml /playground (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /talent (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /orator (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /home (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /preventive-health (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /agricultural-advisories (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /chatbot-privacy-policy (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /demo (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /voice-initiative (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /voice-technology (-)
-2025-07-08 09:42:59.187	
-[2025-07-08T16:42:59.186Z] [endpointDiscovery] +sitemap.xml /homex (-)
-2025-07-08 09:42:58.911	
-[2025-07-08T16:42:58.911Z] [tlsScan] Python validator: upliftai.org - VALID
-2025-07-08 09:42:58.885	
-[2025-07-08T16:42:58.885Z] [spfDmarc] Probing for common DKIM selectors...
-2025-07-08 09:42:58.883	
-[2025-07-08T16:42:58.881Z] [endpointDiscovery] +robots.txt /*&reversePaginate=* (-)
-2025-07-08 09:42:58.883	
-[2025-07-08T16:42:58.881Z] [endpointDiscovery] +robots.txt /*?reversePaginate=* (-)
-2025-07-08 09:42:58.881	
-[2025-07-08T16:42:58.881Z] [endpointDiscovery] +robots.txt /*&format=ical (-)
-2025-07-08 09:42:58.881	
-[2025-07-08T16:42:58.881Z] [endpointDiscovery] +robots.txt /*?format=ical (-)
-2025-07-08 09:42:58.881	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&format=json-pretty (-)
-2025-07-08 09:42:58.881	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?format=json-pretty (-)
-2025-07-08 09:42:58.881	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&format=main-content (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?format=main-content (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&format=page-context (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?format=page-context (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&format=json (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?format=json (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&view=* (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?view=* (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*&month=* (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.880Z] [endpointDiscovery] +robots.txt /*?month=* (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /*&tag=* (-)
-2025-07-08 09:42:58.880	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /*?tag=* (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /*&author=* (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /*?author=* (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /static/ (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /api/ui-extensions/ (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /api/ (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /commerce/digital-download/ (-)
-2025-07-08 09:42:58.879	
-[2025-07-08T16:42:58.879Z] [endpointDiscovery] +robots.txt /account/ (-)
-2025-07-08 09:42:58.877	
-[2025-07-08T16:42:58.876Z] [endpointDiscovery] +robots.txt /account$ (-)
-2025-07-08 09:42:58.877	
-[2025-07-08T16:42:58.876Z] [endpointDiscovery] +robots.txt /search (-)
-2025-07-08 09:42:58.876	
-[2025-07-08T16:42:58.876Z] [endpointDiscovery] +robots.txt /config (-)
-2025-07-08 09:42:58.737	
-[2025-07-08T16:42:58.737Z] [spfDmarc] Performing recursive SPF check...
-2025-07-08 09:42:58.628	
-[2025-07-08T16:42:58.627Z] [Shodan] Querying 1 targets (PAGE_LIMIT=10)
-2025-07-08 09:42:58.612	
-[2025-07-08T16:42:58.611Z] [tlsScan] Scanning upliftai.org with hybrid validation (sslscan + Python)...
-2025-07-08 09:42:58.612	
-
-2025-07-08 09:42:58.612	
-OpenSSL 3.5.1 1 Jul 2025
-2025-07-08 09:42:58.612	
-[2025-07-08T16:42:58.611Z] [tlsScan] sslscan found: [1;34m		2.1.6
-2025-07-08 09:42:58.612	
-[2025-07-08T16:42:58.610Z] [worker] [A2OlrVX7H9E] WAITING for endpoint discovery to complete for dependent modules...
-2025-07-08 09:42:58.612	
-[2025-07-08T16:42:58.609Z] [accessibilityScan] Starting accessibility scan for domain="upliftai.org"
-2025-07-08 09:42:58.609	
-[2025-07-08T16:42:58.609Z] [worker] [A2OlrVX7H9E] STARTING accessibility compliance scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.608	
-[2025-07-08T16:42:58.608Z] [trufflehog] [Targeted Scan] Testing 12 high-value paths for secrets
-2025-07-08 09:42:58.608	
-[2025-07-08T16:42:58.608Z] [trufflehog] Skipping website crawl - relying on endpoint discovery from other modules
-2025-07-08 09:42:58.608	
-[2025-07-08T16:42:58.608Z] [trufflehog] Starting targeted secret scan for domain: upliftai.org
-2025-07-08 09:42:58.608	
-[2025-07-08T16:42:58.608Z] [worker] [A2OlrVX7H9E] STARTING TruffleHog secret scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.603	
-[2025-07-08T16:42:58.601Z] [spfDmarc] Checking DMARC record...
-2025-07-08 09:42:58.603	
-[2025-07-08T16:42:58.601Z] [spfDmarc] Starting email security scan for upliftai.org
-2025-07-08 09:42:58.603	
-[2025-07-08T16:42:58.600Z] [worker] [A2OlrVX7H9E] STARTING SPF/DMARC email security scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.596	
-[2025-07-08T16:42:58.596Z] [worker] [A2OlrVX7H9E] STARTING TLS security scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.596	
-[2025-07-08T16:42:58.595Z] [endpointDiscovery] ⇢ start upliftai.org
-2025-07-08 09:42:58.596	
-[2025-07-08T16:42:58.595Z] [worker] [A2OlrVX7H9E] STARTING endpoint discovery for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.596	
-[2025-07-08T16:42:58.595Z] [documentExposure] Cost control: limiting to 10 search queries max
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.595Z] [worker] [A2OlrVX7H9E] STARTING document exposure scan for Uplift AI (immediate parallel)
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.595Z] [dnstwist] Using hybrid RDAP+Whoxy resolver (87% cheaper than WhoisXML) for original domain: upliftai.org
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.595Z] [dnstwist] Starting typosquat scan for upliftai.org
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.595Z] [worker] [A2OlrVX7H9E] STARTING DNS Twist scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.595Z] [Shodan] Start scan for upliftai.org
-2025-07-08 09:42:58.595	
-[2025-07-08T16:42:58.594Z] [worker] [A2OlrVX7H9E] STARTING Shodan intelligence scan for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.593	
-[2025-07-08T16:42:58.593Z] [breachDirectoryProbe] Querying Breach Directory for domain: upliftai.org
-2025-07-08 09:42:58.593	
-[2025-07-08T16:42:58.593Z] [breachDirectoryProbe] Starting comprehensive breach probe for domain="upliftai.org" (BreachDirectory + LeakCheck)
-2025-07-08 09:42:58.593	
-[2025-07-08T16:42:58.593Z] [worker] [A2OlrVX7H9E] STARTING Breach Directory intelligence probe for upliftai.org (immediate parallel)
-2025-07-08 09:42:58.593	
-[queue] Updated job A2OlrVX7H9E status: processing - Comprehensive security discovery in progress...
-2025-07-08 09:42:58.461	
-[2025-07-08T16:42:58.461Z] [worker] [A2OlrVX7H9E] 🎯 Using TIER_1 tier with 12 modules: dns_twist, document_exposure, shodan, breach_directory_probe, endpoint_discovery, tech_stack_scan, abuse_intel_scan, accessibility_scan, nuclei, tls_scan, spf_dmarc, trufflehog
-2025-07-08 09:42:58.461	
-[2025-07-08T16:42:58.461Z] [worker] Processing comprehensive security scan for Uplift AI (upliftai.org)
-2025-07-08 09:42:58.461	
-[2025-07-08T16:42:58.461Z] [worker] ✅ JOB PICKED UP: Processing scan job A2OlrVX7H9E for Uplift AI (upliftai.org)
-2025-07-08 09:42:58.461	
-[2025-07-08T16:42:58.461Z] [worker] Processing scan job: A2OlrVX7H9E
-2025-07-08 09:42:58.461	
-[queue] Job A2OlrVX7H9E successfully retrieved by worker 286565eb5406d8
-2025-07-08 09:42:58.461	
+2025-07-09 08:08:51.739	
+[2025-07-09T15:08:51.738Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:08:51.739	
+[2025-07-09T15:08:51.738Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:08:49.021	
 }
-2025-07-08 09:42:58.461	
-createdAt: '2025-07-08T15:25:30.835Z'
-2025-07-08 09:42:58.461	
-originalDomain: 'upliftai.org',
-2025-07-08 09:42:58.461	
-domain: 'upliftai.org',
-2025-07-08 09:42:58.461	
-companyName: 'Uplift AI',
-2025-07-08 09:42:58.461	
-id: 'A2OlrVX7H9E',
-2025-07-08 09:42:58.461	
-[queue] Parsed job: {
-2025-07-08 09:42:58.461	
-[queue] Job string to parse: {"id":"A2OlrVX7H9E","companyName":"Uplift AI","domain":"upliftai.org","originalDomain":"upliftai.org","createdAt":"2025-07-08T15:25:30.835Z"}
-2025-07-08 09:42:58.461	
-} Type: object
-2025-07-08 09:42:58.461	
-createdAt: '2025-07-08T15:25:30.835Z'
-2025-07-08 09:42:58.461	
-originalDomain: 'upliftai.org',
-2025-07-08 09:42:58.461	
-domain: 'upliftai.org',
-2025-07-08 09:42:58.461	
-companyName: 'Uplift AI',
-2025-07-08 09:42:58.461	
-id: 'A2OlrVX7H9E',
-2025-07-08 09:42:58.461	
-[queue] Raw job data from Redis: {
-2025-07-08 09:42:58.073	
-[2025-07-08T16:42:58.073Z] [worker] ✅ COMPREHENSIVE SCAN COMPLETED for Nox Metals: 2 verified findings, 11 artifacts across 12 security modules
-2025-07-08 09:42:58.073	
-[queue] Updated job 2PgGZQ3Q9tu status: done - Comprehensive security scan completed - 2 verified findings across 12 security modules. Findings ready for processing.
-2025-07-08 09:42:57.692	
-[2025-07-08T16:42:57.692Z] [worker] [updateScanMasterStatus] Updated scan 2PgGZQ3Q9tu with: status, progress, completed_at, total_findings_count, max_severity, total_artifacts_count
-2025-07-08 09:42:57.683	
-[2025-07-08T16:42:57.683Z] [worker] [processScan] Counted 11 artifacts for scan 2PgGZQ3Q9tu
-2025-07-08 09:42:57.681	
-[2025-07-08T16:42:57.681Z] [worker] [2PgGZQ3Q9tu] COMPLETED abuse_intel_scan scan: 0 findings found
-2025-07-08 09:42:57.681	
-[2025-07-08T16:42:57.681Z] [worker] [2PgGZQ3Q9tu] WAITING for abuse_intel_scan scan to complete...
-2025-07-08 09:42:57.681	
-[2025-07-08T16:42:57.681Z] [worker] [2PgGZQ3Q9tu] COMPLETED tech_stack_scan scan: 2 findings found
-2025-07-08 09:42:57.681	
-[2025-07-08T16:42:57.681Z] [worker] [2PgGZQ3Q9tu] WAITING for tech_stack_scan scan to complete...
-2025-07-08 09:42:57.681	
-[2025-07-08T16:42:57.681Z] [worker] [2PgGZQ3Q9tu] COMPLETED nuclei scan: 0 findings found
-2025-07-08 09:42:57.681	
-[artifactStore] Inserted scan_summary artifact: Nuclei scan completed: 0 vulnerabilities found...
-2025-07-08 09:42:57.660	
-[2025-07-08T16:42:57.660Z] [nuclei] Completed vulnerability scan. Total findings: 0
-2025-07-08 09:42:57.660	
-[2025-07-08T16:42:57.660Z] [nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---
-2025-07-08 09:42:57.660	
-[2025-07-08T16:42:57.660Z] [nuclei] [Two-Pass Scan] No findings for https://noxmetals.co
-2025-07-08 09:42:57.660	
-[2025-07-08T16:42:57.660Z] [nucleiWrapper] Two-pass scan completed: 0 findings persisted as artifacts (baseline: 0, common+tech: 0)
-2025-07-08 09:42:57.660	
-[2025-07-08T16:42:57.660Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:42:57.653	
-[2025-07-08T16:42:57.652Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
-2025-07-08 09:42:37.647	
-[2025-07-08T16:42:37.646Z] [nucleiWrapper] Manual timeout override: 20000ms
-2025-07-08 09:42:37.647	
-[2025-07-08T16:42:37.646Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:42:37.643	
-[2025-07-08T16:42:37.643Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://noxmetals.co -tags cve,panel,xss,wp-plugin,osint,lfi,rce -c 6 -timeout 20 -retries 1
-2025-07-08 09:42:37.643	
-[2025-07-08T16:42:37.643Z] [nucleiWrapper] Pass 2: Running common vulnerability + tech-specific scan with gated tags: cve,panel,xss,wp-plugin,osint,lfi,rce
-2025-07-08 09:42:37.643	
-[2025-07-08T16:42:37.642Z] [nucleiWrapper] Detected technologies: none
-2025-07-08 09:42:37.643	
-[2025-07-08T16:42:37.642Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:42:37.636	
-[2025-07-08T16:42:37.635Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
-2025-07-08 09:42:20.152	
-[2025-07-08T16:42:20.152Z] [techStackScan] techstack=complete arts=2 time=2634ms
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.145Z] [techStackScan] techstack=sbom_generated components=2 vulnerabilities=0 critical=0
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.145Z] [sbomGenerator] SBOM generated: 2 components, 0 vulnerabilities
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.145Z] [sbomGenerator] Generating SBOM for noxmetals.co with 2 components
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.144Z] [osvIntegration] No components suitable for OSV.dev queries
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.144Z] [techStackScan] techstack=osv_enhancement starting OSV.dev integration for 2 components
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.144Z] [versionMatcher] Batch vulnerability analysis completed: 0 vulnerabilities across 2 components in 7ms
-2025-07-08 09:42:20.145	
-[2025-07-08T16:42:20.144Z] [versionMatcher] Vulnerability matching completed for Security Headers: 0 matches in 7ms
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] Local CVE query completed: 0 results in 4ms
-2025-07-08 09:42:20.144	
-extra argument: "DISTINCT"
-2025-07-08 09:42:20.144	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:security:Security Headers:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:42:20.144	
-FROM vulnerabilities v
-2025-07-08 09:42:20.144	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:42:20.144	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:42:20.144	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:42:20.144	
-extra argument: "DISTINCT"
-2025-07-08 09:42:20.144	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:security:Security Headers:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:42:20.144	
-FROM vulnerabilities v
-2025-07-08 09:42:20.144	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:42:20.144	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:42:20.144	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [versionMatcher] Vulnerability matching completed for Cloudflare: 0 matches in 7ms
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] Local CVE query completed: 0 results in 7ms
-2025-07-08 09:42:20.144	
-extra argument: "DISTINCT"
-2025-07-08 09:42:20.144	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:cloudflare:Cloudflare:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:42:20.144	
-FROM vulnerabilities v
-2025-07-08 09:42:20.144	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:42:20.144	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:42:20.144	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:42:20.144	
-extra argument: "DISTINCT"
-2025-07-08 09:42:20.144	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:cloudflare:Cloudflare:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:42:20.144	
-FROM vulnerabilities v
-2025-07-08 09:42:20.144	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:42:20.144	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:42:20.144	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:42:20.144	
-[2025-07-08T16:42:20.144Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [versionMatcher] Finding vulnerabilities for Security Headers@unknown
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [versionMatcher] Finding vulnerabilities for Cloudflare@unknown
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [versionMatcher] Starting batch vulnerability analysis for 2 components
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [cpeNormalization] normalized tech="Security Headers" version="undefined" cpe="undefined" purl="undefined" confidence=70
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.137Z] [techStackScan] techstack=vuln_analysis starting enhanced vulnerability analysis for 2 technologies
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.136Z] [techStackScan] analysis=stats tech="Security Headers" version="undefined" raw=0 enriched=0 merged=0 filtered=0
-2025-07-08 09:42:20.137	
-[2025-07-08T16:42:20.136Z] [techStackScan] analysis=stats tech="Cloudflare" version="undefined" raw=0 enriched=0 merged=0 filtered=0
-2025-07-08 09:42:20.136	
-[2025-07-08T16:42:20.135Z] [techStackScan] techstack=fast_detection_complete total_techs=2 total_duration=0ms avg_per_url=0ms
-2025-07-08 09:42:20.135	
-[2025-07-08T16:42:20.135Z] [faviconDetection] Batch favicon detection completed: 0 technologies detected across 3 URLs in 750ms
-2025-07-08 09:42:20.135	
-[2025-07-08T16:42:20.135Z] [faviconDetection] No favicon found for https://www.noxmetals.co
-2025-07-08 09:42:20.135	
-[2025-07-08T16:42:20.135Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:42:19.901	
-[2025-07-08T16:42:19.901Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/apple-touch-icon-precomposed.png
-2025-07-08 09:42:19.901	
-[2025-07-08T16:42:19.901Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:42:19.698	
-[2025-07-08T16:42:19.698Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/apple-touch-icon.png
-2025-07-08 09:42:19.698	
-[2025-07-08T16:42:19.698Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/favicon.png: Request failed with status code 404
-2025-07-08 09:42:19.469	
-[2025-07-08T16:42:19.469Z] [faviconDetection] No favicon found for https://noxmetals.co
-2025-07-08 09:42:19.469	
-[2025-07-08T16:42:19.469Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:42:19.464	
-[2025-07-08T16:42:19.464Z] [faviconDetection] No favicon found for https://noxmetals.co/
-2025-07-08 09:42:19.464	
-[2025-07-08T16:42:19.464Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:42:19.448	
-[2025-07-08T16:42:19.447Z] [faviconDetection] Fetching favicon from https://noxmetals.co//apple-touch-icon-precomposed.png
-2025-07-08 09:42:19.448	
-[2025-07-08T16:42:19.447Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:42:19.447	
-[2025-07-08T16:42:19.447Z] [faviconDetection] Fetching favicon from https://noxmetals.co/apple-touch-icon-precomposed.png
-2025-07-08 09:42:19.447	
-[2025-07-08T16:42:19.446Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:42:19.431	
-[2025-07-08T16:42:19.431Z] [faviconDetection] Fetching favicon from https://noxmetals.co//apple-touch-icon.png
-2025-07-08 09:42:19.431	
-[2025-07-08T16:42:19.431Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//favicon.png: Request failed with status code 404
-2025-07-08 09:42:19.427	
-[2025-07-08T16:42:19.427Z] [faviconDetection] Fetching favicon from https://noxmetals.co/apple-touch-icon.png
-2025-07-08 09:42:19.427	
-[2025-07-08T16:42:19.426Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/favicon.png: Request failed with status code 404
-2025-07-08 09:42:19.413	
-[2025-07-08T16:42:19.413Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/favicon.png
-2025-07-08 09:42:19.413	
-[2025-07-08T16:42:19.413Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/favicon.ico: Request failed with status code 404
-2025-07-08 09:42:19.410	
-[2025-07-08T16:42:19.410Z] [faviconDetection] Fetching favicon from https://noxmetals.co/favicon.png
-2025-07-08 09:42:19.410	
-[2025-07-08T16:42:19.410Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/favicon.ico: Request failed with status code 404
-2025-07-08 09:42:19.408	
-[2025-07-08T16:42:19.408Z] [faviconDetection] Fetching favicon from https://noxmetals.co//favicon.png
-2025-07-08 09:42:19.408	
-[2025-07-08T16:42:19.408Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//favicon.ico: Request failed with status code 404
-2025-07-08 09:42:19.390	
-[2025-07-08T16:42:19.390Z] [faviconDetection] Fetching favicon from https://noxmetals.co//favicon.ico
-2025-07-08 09:42:19.390	
-[2025-07-08T16:42:19.390Z] [faviconDetection] Starting favicon-based tech detection for https://noxmetals.co/
-2025-07-08 09:42:19.388	
-[2025-07-08T16:42:19.387Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/favicon.ico
-2025-07-08 09:42:19.388	
-[2025-07-08T16:42:19.387Z] [faviconDetection] Starting favicon-based tech detection for https://www.noxmetals.co
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [faviconDetection] Fetching favicon from https://noxmetals.co/favicon.ico
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [faviconDetection] Starting favicon-based tech detection for https://noxmetals.co
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [faviconDetection] Starting batch favicon detection for 3 URLs
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [techStackScan] techstack=favicon_detection starting favicon analysis for 3 URLs
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/wordpress" techs=2 duration=0ms
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.385Z] [cpeNormalization] normalized tech="Security Headers" version="undefined" cpe="undefined" purl="undefined" confidence=70
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.385	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/cdn-cgi/l/email-protection" techs=3 duration=0ms
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/" techs=2 duration=0ms
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [techStackScan] techstack=webtech_success url="https://www.noxmetals.co" techs=2 duration=0ms
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co" techs=2 duration=0ms
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [fastTechDetection] Batch fast tech detection completed: 11 techs across 5 URLs in 519ms
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://www.noxmetals.co
-2025-07-08 09:42:19.384	
-[2025-07-08T16:42:19.384Z] [fastTechDetection] Header detection found 2 technologies for https://www.noxmetals.co
-2025-07-08 09:42:19.166	
-[2025-07-08T16:42:19.166Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co/
-2025-07-08 09:42:19.166	
-[2025-07-08T16:42:19.166Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co/
-2025-07-08 09:42:19.156	
-[2025-07-08T16:42:19.156Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co
-2025-07-08 09:42:19.156	
-[2025-07-08T16:42:19.156Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co
-2025-07-08 09:42:18.902	
-[2025-07-08T16:42:18.902Z] [fastTechDetection] Header detection found 3 techs, skipping WebTech for https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:42:18.902	
-[2025-07-08T16:42:18.902Z] [fastTechDetection] Header detection found 3 technologies for https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:42:18.902	
-[2025-07-08T16:42:18.901Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co/wordpress
-2025-07-08 09:42:18.902	
-[2025-07-08T16:42:18.901Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co/wordpress
-2025-07-08 09:42:18.876	
-[2025-07-08T16:42:18.876Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/wordpress
-2025-07-08 09:42:18.874	
-[2025-07-08T16:42:18.874Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:42:18.871	
-[2025-07-08T16:42:18.871Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/
-2025-07-08 09:42:18.868	
-[2025-07-08T16:42:18.868Z] [fastTechDetection] Checking headers for quick tech detection: https://www.noxmetals.co
-2025-07-08 09:42:18.865	
-[2025-07-08T16:42:18.865Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co
-2025-07-08 09:42:18.865	
-[2025-07-08T16:42:18.865Z] [fastTechDetection] Starting batch fast tech detection for 5 URLs
-2025-07-08 09:42:18.865	
-[2025-07-08T16:42:18.865Z] [techStackScan] techstack=fast_detection starting WebTech scan for 7 targets
-2025-07-08 09:42:18.865	
-[2025-07-08T16:42:18.865Z] [techStackScan] techstack=bypass_nuclei targets=[https://www.google-analytics.com] (~2min time savings by skipping expensive non-HTML assets)
-2025-07-08 09:42:18.864	
-[2025-07-08T16:42:18.864Z] [techStackScan] techstack=targets primary=5 thirdParty=3 total=8 html=7 finalHtml=7 nonHtml=1 skipped=0
-2025-07-08 09:42:18.832	
-[2025-07-08T16:42:18.831Z] [dynamicBrowser] Page operation completed in 1060ms
-2025-07-08 09:42:18.832	
-[2025-07-08T16:42:18.831Z] [techStackScan] thirdParty=discovered domain=noxmetals.co total=3 (html=2, nonHtml=1)
-2025-07-08 09:42:17.640	
-[2025-07-08T16:42:17.640Z] [techStackScan] buildTargets discovered=3 total=5 (html=5, nonHtml=0)
-2025-07-08 09:42:17.636	
-[2025-07-08T16:42:17.635Z] [techStackScan] techstack=nuclei wrapper confirmed available
-2025-07-08 09:42:17.635	
-[2025-07-08T16:42:17.635Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:42:17.635	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:42:17.635	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:42:17.635	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:42:17.635	
-[2025-07-08T16:42:17.635Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:42:17.635	
-[2025-07-08T16:42:17.635Z] [nucleiWrapper] Manual timeout override: 20000ms
-2025-07-08 09:42:17.635	
-[2025-07-08T16:42:17.635Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:42:17.630	
-[2025-07-08T16:42:17.630Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://noxmetals.co -tags misconfiguration,default-logins,exposed-panels,exposure,tech -c 6 -timeout 20 -retries 1
-2025-07-08 09:42:17.630	
-[2025-07-08T16:42:17.630Z] [nucleiWrapper] Pass 1: Running baseline scan with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
-2025-07-08 09:42:17.630	
-[2025-07-08T16:42:17.629Z] [nucleiWrapper] Starting two-pass scan for https://noxmetals.co
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.629Z] [nuclei] Smart guard: techs=none timeout=20s headless=false
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.629Z] [nuclei] [Enhanced Two-Pass Scan] Running on https://noxmetals.co
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.629Z] [nuclei] --- Starting Enhanced Two-Pass Scans on 1 targets ---
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.629Z] [nuclei] Nuclei binary validated successfully.
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.629Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:42:17.629	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:42:17.629	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:42:17.629	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:42:17.629	
-[2025-07-08T16:42:17.628Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:42:17.526	
-[2025-07-08T16:42:17.526Z] [abuseIntelScan] No IP artifacts found for this scan
-2025-07-08 09:42:17.526	
-[2025-07-08T16:42:17.526Z] [abuseIntelScan] Found 0 IP artifacts for scan 2PgGZQ3Q9tu
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for nuclei scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED accessibility_scan scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for accessibility_scan scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED trufflehog scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for trufflehog scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED spf_dmarc scan: 2 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for spf_dmarc scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED tls_scan scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for tls_scan scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED document_exposure scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for document_exposure scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED dns_twist scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for dns_twist scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED shodan scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for shodan scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] COMPLETED breach_directory_probe scan: 0 findings found
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] WAITING for breach_directory_probe scan to complete...
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=2PgGZQ3Q9tu
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [worker] [2PgGZQ3Q9tu] STARTING AbuseIPDB intelligence scan for IPs (parallel after endpoint discovery)
-2025-07-08 09:42:17.524	
-[2025-07-08T16:42:17.523Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:42:17.520	
-[2025-07-08T16:42:17.518Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:42:17.520	
-[2025-07-08T16:42:17.518Z] [techStackScan] techstack=start domain=noxmetals.co
-2025-07-08 09:42:17.520	
-[2025-07-08T16:42:17.518Z] [worker] [2PgGZQ3Q9tu] STARTING tech stack scan for noxmetals.co (parallel after endpoint discovery)
-2025-07-08 09:42:17.520	
-[2025-07-08T16:42:17.518Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:42:17.514	
-[2025-07-08T16:42:17.514Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:42:17.514	
-[2025-07-08T16:42:17.514Z] [nuclei] Starting enhanced vulnerability scan for noxmetals.co
-2025-07-08 09:42:17.514	
-[2025-07-08T16:42:17.514Z] [worker] [2PgGZQ3Q9tu] STARTING Nuclei vulnerability scan for noxmetals.co (parallel after endpoint discovery)
-2025-07-08 09:42:17.514	
-[2025-07-08T16:42:17.514Z] [worker] [2PgGZQ3Q9tu] COMPLETED endpoint discovery: 3 endpoint collections found
-2025-07-08 09:42:17.514	
-[2025-07-08T16:42:17.514Z] [endpointDiscovery] ⇢ done – 3 endpoints
-2025-07-08 09:42:15.008	
-[2025-07-08T16:42:15.008Z] [endpointDiscovery] +wordlist_enum /wordpress (403)
-2025-07-08 09:42:02.751	
-[2025-07-08T16:42:02.751Z] [dnstwist] Scan completed – 0 domains analysed
-2025-07-08 09:42:02.751	
-[2025-07-08T16:42:02.751Z] [dnstwist] Found 0 registered typosquat candidates to analyze
-2025-07-08 09:41:56.734	
+2025-07-09 08:08:49.021	
+"CRITICAL_INFOSTEALER": 9
+2025-07-09 08:08:49.021	
+"MEDIUM_EMAIL_EXPOSED": 504,
+2025-07-09 08:08:49.021	
+"HIGH_PASSWORD_EXPOSED": 54,
+2025-07-09 08:08:49.021	
+[2025-07-09T15:08:49.021Z] [SyncWorker] ✅ New compromised credentials synced: 567 {
+2025-07-09 08:07:52.370	
+[2025-07-09T15:07:52.369Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:07:52.370	
+[2025-07-09T15:07:52.369Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:07:52.285	
+[2025-07-09T15:07:52.285Z] [nvd-mirror-worker] NVD mirror worker completed successfully in 383ms
+2025-07-09 08:07:52.285	
+[2025-07-09T15:07:52.285Z] [nvd-mirror-worker] NVD mirror update completed: 0 CVEs, 0.06MB, last sync: Never
+2025-07-09 08:07:52.285	
+extra argument: "(SELECT"
+2025-07-09 08:07:52.285	
+(SELECT value FROM sync_metadata WHERE key = 'last_sync') as last_sync
+2025-07-09 08:07:52.285	
+(SELECT COUNT(*) FROM vulnerabilities) as total_cves,
+2025-07-09 08:07:52.285	
+SELECT
+2025-07-09 08:07:52.285	
+[2025-07-09T15:07:52.285Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.285	
+extra argument: "(SELECT"
+2025-07-09 08:07:52.285	
+(SELECT value FROM sync_metadata WHERE key = 'last_sync') as last_sync
+2025-07-09 08:07:52.285	
+(SELECT COUNT(*) FROM vulnerabilities) as total_cves,
+2025-07-09 08:07:52.285	
+SELECT
+2025-07-09 08:07:52.285	
+[2025-07-09T15:07:52.285Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.281	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-07-09 08:07:52.281	
+(node:662) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-07-09 08:07:52.196	
+[2025-07-09T15:07:52.196Z] [nvdMirror] Syncing CVEs modified since 2025-06-09T15:07:52.196Z...
+2025-07-09 08:07:52.196	
+extra argument: "value"
+2025-07-09 08:07:52.196	
+SELECT value FROM sync_metadata WHERE key = 'last_sync'
+2025-07-09 08:07:52.196	
+[2025-07-09T15:07:52.196Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.192	
+extra argument: "value"
+2025-07-09 08:07:52.192	
+SELECT value FROM sync_metadata WHERE key = 'last_sync'
+2025-07-09 08:07:52.192	
+[2025-07-09T15:07:52.192Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.182	
+[2025-07-09T15:07:52.182Z] [nvd-mirror-worker] NVD mirror sync completed
+2025-07-09 08:07:52.182	
+[2025-07-09T15:07:52.182Z] [nvd-mirror-worker] NVD mirror database initialized
+2025-07-09 08:07:52.178	
+[2025-07-09T15:07:52.178Z] [nvdMirror] Starting NVD data sync...
+2025-07-09 08:07:52.177	
+[2025-07-09T15:07:52.177Z] [nvdMirror] NVD mirror is stale, initiating background sync...
+2025-07-09 08:07:52.177	
+extra argument: "*"
+2025-07-09 08:07:52.177	
+SELECT * FROM sync_metadata WHERE key = 'last_sync'
+2025-07-09 08:07:52.177	
+[2025-07-09T15:07:52.177Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.176	
+extra argument: "*"
+2025-07-09 08:07:52.176	
+SELECT * FROM sync_metadata WHERE key = 'last_sync'
+2025-07-09 08:07:52.176	
+[2025-07-09T15:07:52.176Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
+2025-07-09 08:07:52.166	
+[2025-07-09T15:07:52.166Z] [nvdMirror] NVD mirror database initialized successfully
+2025-07-09 08:07:51.939	
 {
   "level": 30,
-  "time": 1751992916734,
-  "pid": 658,
+  "time": 1752073671032,
+  "pid": 659,
   "hostname": "148e21dae24d98",
-  "reqId": "req-h",
-  "res": {
-    "statusCode": 404
-  },
-  "responseTime": 2.5104720001108944,
-  "msg": "request completed"
+  "msg": "Server listening at http://172.19.19.27:3000"
 }
-2025-07-08 09:41:56.734	
-[2025-07-08T16:41:56.733Z] [api] Found 0 artifacts for scan HxOv8V2c7Pr
-2025-07-08 09:41:56.732	
-[2025-07-08T16:41:56.731Z] [api] Retrieving artifacts for scan: HxOv8V2c7Pr
-2025-07-08 09:41:56.732	
+2025-07-09 08:07:51.939	
 {
   "level": 30,
-  "time": 1751992916731,
-  "pid": 658,
+  "time": 1752073671032,
+  "pid": 659,
   "hostname": "148e21dae24d98",
-  "reqId": "req-h",
-  "req": {
-    "method": "GET",
-    "url": "/scan/HxOv8V2c7Pr/artifacts",
-    "host": "dealbrief-scanner.fly.dev",
-    "remoteAddress": "172.16.19.26",
-    "remotePort": 54870
-  },
-  "msg": "incoming request"
+  "msg": "Server listening at http://172.19.19.26:3000"
 }
-2025-07-08 09:41:52.810	
+2025-07-09 08:07:51.938	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-07-09 08:07:51.938	
+(node:659) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-07-09 08:07:51.903	
+[2025-07-09T15:07:51.903Z] [nvdMirror] Initializing NVD mirror database...
+2025-07-09 08:07:51.903	
+[2025-07-09T15:07:51.903Z] [nvd-mirror-worker] Starting daily NVD mirror update...
+2025-07-09 08:07:51.341	
+[2025-07-09T15:07:51.340Z] [api] Starting queue monitoring cron job (every 60 seconds)...
+2025-07-09 08:07:51.341	
+[2025-07-09T15:07:51.033Z] [api] Server listening on port 3000
+2025-07-09 08:07:51.032	
 {
   "level": 30,
-  "time": 1751992912810,
-  "pid": 658,
+  "time": 1752073671032,
+  "pid": 659,
   "hostname": "148e21dae24d98",
-  "reqId": "req-g",
-  "res": {
-    "statusCode": 404
-  },
-  "responseTime": 2.642562000080943,
-  "msg": "request completed"
+  "msg": "Server listening at http://127.0.0.1:3000"
 }
-2025-07-08 09:41:52.810	
-[2025-07-08T16:41:52.810Z] [api] Found 0 artifacts for scan Y_JYyek5sSb
-2025-07-08 09:41:52.808	
-[2025-07-08T16:41:52.807Z] [api] Retrieving artifacts for scan: Y_JYyek5sSb
-2025-07-08 09:41:52.807	
+2025-07-09 08:07:50.983	
 {
-  "level": 30,
-  "time": 1751992912807,
-  "pid": 658,
+  "level": 40,
+  "time": 1752073670982,
+  "pid": 659,
   "hostname": "148e21dae24d98",
-  "reqId": "req-g",
-  "req": {
-    "method": "GET",
-    "url": "/scan/Y_JYyek5sSb/artifacts",
-    "host": "dealbrief-scanner.fly.dev",
-    "remoteAddress": "172.16.19.26",
-    "remotePort": 42034
-  },
-  "msg": "incoming request"
+  "msg": "\"root\" path \"/app/apps/public\" must exist"
 }
-2025-07-08 09:41:48.124	
+2025-07-09 08:07:50.900	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-07-09 08:07:50.900	
+(node:668) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-07-09 08:07:50.845	
+[2025-07-09T15:07:50.845Z] [worker] No incomplete scans found to clean up
+2025-07-09 08:07:50.844	
+[2025-07-09T15:07:50.843Z] [worker] Database and scans_master table initialized successfully
+2025-07-09 08:07:50.841	
+[artifactStore] Database initialized successfully
+2025-07-09 08:07:50.841	
+]
+2025-07-09 08:07:50.841	
+'repro_command(text)'
+2025-07-09 08:07:50.841	
+'created_at(timestamp without time zone)',
+2025-07-09 08:07:50.841	
+'description(text)',
+2025-07-09 08:07:50.841	
+'recommendation(text)',
+2025-07-09 08:07:50.841	
+'finding_type(character varying)',
+2025-07-09 08:07:50.841	
+'artifact_id(integer)',
+2025-07-09 08:07:50.841	
+'id(integer)',
+2025-07-09 08:07:50.841	
+[artifactStore] findings columns: [
+2025-07-09 08:07:50.841	
+]
+2025-07-09 08:07:50.841	
+'created_at(timestamp without time zone)'
+2025-07-09 08:07:50.841	
+'meta(jsonb)',
+2025-07-09 08:07:50.841	
+'mime(character varying)',
+2025-07-09 08:07:50.841	
+'sha256(character varying)',
+2025-07-09 08:07:50.841	
+'src_url(text)',
+2025-07-09 08:07:50.841	
+'severity(character varying)',
+2025-07-09 08:07:50.841	
+'val_text(text)',
+2025-07-09 08:07:50.841	
+'type(character varying)',
+2025-07-09 08:07:50.841	
+'id(integer)',
+2025-07-09 08:07:50.841	
+[artifactStore] artifacts columns: [
+2025-07-09 08:07:50.841	
+]
+2025-07-09 08:07:50.841	
+'total_artifacts_count(integer)'
+2025-07-09 08:07:50.841	
+'completed_at(timestamp with time zone)',
+2025-07-09 08:07:50.841	
+'updated_at(timestamp with time zone)',
+2025-07-09 08:07:50.841	
+'created_at(timestamp with time zone)',
+2025-07-09 08:07:50.841	
+'max_severity(character varying)',
+2025-07-09 08:07:50.841	
+'total_findings_count(integer)',
+2025-07-09 08:07:50.841	
+'error_message(text)',
+2025-07-09 08:07:50.841	
+'total_modules(integer)',
+2025-07-09 08:07:50.841	
+'current_module(character varying)',
+2025-07-09 08:07:50.841	
+'progress(integer)',
+2025-07-09 08:07:50.841	
+'status(character varying)',
+2025-07-09 08:07:50.841	
+'domain(character varying)',
+2025-07-09 08:07:50.841	
+'company_name(character varying)',
+2025-07-09 08:07:50.841	
+'scan_id(character varying)',
+2025-07-09 08:07:50.841	
+[artifactStore] scans_master columns: [
+2025-07-09 08:07:50.840	
+[artifactStore] Current database schema:
+2025-07-09 08:07:50.833	
+[artifactStore] ✅ Successfully processed total_artifacts_count column check
+2025-07-09 08:07:50.826	
+[artifactStore] Attempting to ensure scans_master.total_artifacts_count column exists...
+2025-07-09 08:07:50.764	
+[2025-07-09T15:07:50.763Z] [worker] Starting security scanning worker [286565eb5406d8]
+2025-07-09 08:07:49.609	
+Warning: Please use the `legacy` build in Node.js environments.
+2025-07-09 08:07:48.938	
+2025/07/09 15:07:48 INFO SSH listening listen_address=[fdaa:16:4003:a7b:3a3:51aa:420a:2]:22
+2025-07-09 08:07:48.765	
+Machine created and started in 7.842s
+2025-07-09 08:07:48.672	
+ INFO [fly api proxy] listening at /.fly/api
+2025-07-09 08:07:48.654	
+ INFO Preparing to run: `docker-entrypoint.sh sh -c while true; do npx tsx apps/workers/nvd-mirror-worker.ts; sleep 86400; done` as root
+2025-07-09 08:07:48.556	
+ INFO Starting init (commit: d0572327e)...
+2025-07-09 08:07:48.465	
+[2025-07-09T15:07:48.465Z] [SyncWorker] ✅ Sync Worker running continuously - will sync every minute
+2025-07-09 08:07:48.407	
 }
-2025-07-08 09:41:48.124	
-"EMAIL_SECURITY_GAP": 2
-2025-07-08 09:41:48.124	
-[2025-07-08T16:41:48.124Z] [SyncWorker] ✅ New findings synced: 2 {
-2025-07-08 09:41:45.343	
+2025-07-09 08:07:48.407	
+"CRITICAL_INFOSTEALER": 32
+2025-07-09 08:07:48.407	
+"MEDIUM_EMAIL_EXPOSED": 1795,
+2025-07-09 08:07:48.407	
+"HIGH_PASSWORD_EXPOSED": 392,
+2025-07-09 08:07:48.407	
+[2025-07-09T15:07:48.406Z] [SyncWorker] ✅ New compromised credentials synced: 2219 {
+2025-07-09 08:07:47.652	
+2025-07-09T15:07:47.652625070 [01JZQVMTBC75B2VRZ78FTW1D9X:main] Running Firecracker v1.7.0
+2025-07-09 08:07:47.467	
+2025/07/09 15:07:47 INFO SSH listening listen_address=[fdaa:16:4003:a7b:105:2a4b:cd7:2]:22
+2025-07-09 08:07:47.423	
+[2025-07-09T15:07:47.415Z] [SyncWorker] ✅ Sync Worker started - running continuous sync every minute
+2025-07-09 08:07:47.255	
+Machine created and started in 6.471s
+2025-07-09 08:07:47.243	
+sh: run_nuclei: not found
+2025-07-09 08:07:47.227	
+ INFO [fly api proxy] listening at /.fly/api
+2025-07-09 08:07:47.224	
+ INFO Preparing to run: `docker-entrypoint.sh sh -c while true; do run_nuclei -update-templates; sleep 86400; done` as root
+2025-07-09 08:07:47.159	
+(Use `node --trace-warnings ...` to show where the warning was created)
+2025-07-09 08:07:47.159	
+(node:648) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+2025-07-09 08:07:47.133	
+ INFO Starting init (commit: d0572327e)...
+2025-07-09 08:07:46.944	
+2025/07/09 15:07:46 INFO SSH listening listen_address=[fdaa:16:4003:a7b:2dbb:1ab8:7fa2:2]:22
+2025-07-09 08:07:46.700	
+> node dist/sync.js
+2025-07-09 08:07:46.700	
+> sync-worker@1.0.0 start
+2025-07-09 08:07:46.639	
+Machine created and started in 5.848s
+2025-07-09 08:07:46.632	
+ INFO [fly api proxy] listening at /.fly/api
+2025-07-09 08:07:46.620	
+ INFO Preparing to run: `docker-entrypoint.sh npx tsx apps/api-main/server.ts` as root
+2025-07-09 08:07:46.518	
+ INFO Starting init (commit: d0572327e)...
+2025-07-09 08:07:46.415	
+[61517.630609] reboot: Restarting system
+2025-07-09 08:07:46.414	
+2025/07/09 15:07:46 INFO SSH listening listen_address=[fdaa:16:4003:a7b:f9:7dfe:6c4c:2]:22
+2025-07-09 08:07:46.409	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-07-09 08:07:46.408	
+ INFO Starting clean up.
+2025-07-09 08:07:46.386	
+ INFO Main child exited with signal (with signal 'SIGTERM', core dumped? false)
+2025-07-09 08:07:46.358	
+2025/07/09 15:07:46 INFO SSH listening listen_address=[fdaa:16:4003:a7b:2d30:c80:6e46:2]:22
+2025-07-09 08:07:46.263	
+2025-07-09T15:07:46.263263330 [01JZQVMTB4YBY28ETAY7JYWD1J:main] Running Firecracker v1.7.0
+2025-07-09 08:07:46.243	
+Machine created and started in 5.452s
+2025-07-09 08:07:46.202	
+ INFO [fly api proxy] listening at /.fly/api
+2025-07-09 08:07:46.199	
+ INFO Preparing to run: `docker-entrypoint.sh npx tsx apps/workers/worker.ts` as root
+2025-07-09 08:07:46.186	
+Machine created and started in 5.393s
+2025-07-09 08:07:46.094	
+ INFO [fly api proxy] listening at /.fly/api
+2025-07-09 08:07:46.092	
+ INFO Preparing to run: `docker-entrypoint.sh npm run start --prefix apps/sync-worker` as root
+2025-07-09 08:07:46.091	
+ INFO Starting init (commit: d0572327e)...
+2025-07-09 08:07:45.999	
+ INFO Starting init (commit: d0572327e)...
+2025-07-09 08:07:45.860	
+ INFO Sending signal SIGTERM to main child process w/ PID 628
+2025-07-09 08:07:45.850	
+[61517.045485] reboot: Restarting system
+2025-07-09 08:07:45.849	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-07-09 08:07:45.846	
+ INFO Starting clean up.
+2025-07-09 08:07:45.830	
+ INFO Main child exited with signal (with signal 'SIGTERM', core dumped? false)
+2025-07-09 08:07:45.787	
+ INFO Sending signal SIGTERM to main child process w/ PID 629
+2025-07-09 08:07:45.645	
+2025-07-09T15:07:45.645113920 [01JZQVMTB5VTG793A2ZQEYGGNC:main] Running Firecracker v1.7.0
+2025-07-09 08:07:45.261	
+2025-07-09T15:07:45.261372382 [01JZQVMTB97HBHB062GNQSH073:main] Running Firecracker v1.7.0
+2025-07-09 08:07:45.218	
+2025-07-09T15:07:45.218734876 [01JZQVMTB9Z0EX220X8Z5CHENF:main] Running Firecracker v1.7.0
+2025-07-09 08:07:45.104	
+ INFO Sending signal SIGINT to main child process w/ PID 628
+2025-07-09 08:07:45.096	
+[61516.227963] reboot: Restarting system
+2025-07-09 08:07:45.095	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-07-09 08:07:45.092	
+ INFO Starting clean up.
+2025-07-09 08:07:45.076	
+ INFO Main child exited normally with code: 130
+2025-07-09 08:07:45.017	
+Configuring firecracker
+2025-07-09 08:07:44.873	
+[61518.790696] reboot: Restarting system
+2025-07-09 08:07:44.872	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-07-09 08:07:44.869	
+ INFO Starting clean up.
+2025-07-09 08:07:44.854	
+ INFO Main child exited normally with code: 0
+2025-07-09 08:07:44.411	
+[61518.050900] reboot: Restarting system
+2025-07-09 08:07:44.410	
+ WARN could not unmount /rootfs: EINVAL: Invalid argument
+2025-07-09 08:07:44.409	
+ INFO Starting clean up.
+2025-07-09 08:07:44.390	
+ WARN Reaped child process with pid: 893 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.389	
+ WARN Reaped child process with pid: 841 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.388	
+ WARN Reaped child process with pid: 840 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.387	
+ WARN Reaped child process with pid: 955 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.386	
+ WARN Reaped child process with pid: 810 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.385	
+ WARN Reaped child process with pid: 2654 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.384	
+ WARN Reaped child process with pid: 921 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.383	
+ WARN Reaped child process with pid: 901 and signal: SIGKILL, core dumped? false
+2025-07-09 08:07:44.382	
+ INFO Main child exited normally with code: 130
+2025-07-09 08:07:44.171	
+ INFO Sending signal SIGINT to main child process w/ PID 630
+2025-07-09 08:07:44.151	
+Configuring firecracker
+2025-07-09 08:07:43.975	
+Configuring firecracker
+2025-07-09 08:07:43.952	
+ INFO Sending signal SIGINT to main child process w/ PID 630
+2025-07-09 08:07:43.950	
+[2025-07-09T15:07:43.950Z] [SyncWorker] ✅ Sync Worker shutting down
+2025-07-09 08:07:43.935	
+Configuring firecracker
+2025-07-09 08:07:43.771	
+[2025-07-09T15:07:43.770Z] [worker] Received SIGINT, initiating graceful shutdown...
+2025-07-09 08:07:43.738	
+ INFO Sending signal SIGINT to main child process w/ PID 639
+2025-07-09 08:07:43.706	
+Configuring firecracker
+2025-07-09 08:07:43.351	
+ INFO Sending signal SIGINT to main child process w/ PID 629
+2025-07-09 08:07:43.340	
+Configuring firecracker
+2025-07-09 08:07:43.018	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (2.106506555s)
+2025-07-09 08:07:42.628	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (1.822039782s)
+2025-07-09 08:07:42.504	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (1.699852236s)
+2025-07-09 08:07:42.502	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (1.756943739s)
+2025-07-09 08:07:42.374	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (1.572030484s)
+2025-07-09 08:07:42.224	
+Successfully prepared image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a (1.432853754s)
+2025-07-09 08:07:40.910	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:40.804	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:40.803	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:40.801	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:40.790	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:40.745	
+Pulling container image registry.fly.io/dealbrief-scanner@sha256:f124fd9f7ff366087b60fae08b27d60a7c95e9071d4df40a2fcd8d640841d74a
+2025-07-09 08:07:01.104	
+[2025-07-09T15:07:01.103Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:07:01.104	
+[2025-07-09T15:07:01.103Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:06:23.723	
 {
   "level": 30,
-  "time": 1751992905342,
-  "pid": 658,
-  "hostname": "148e21dae24d98",
-  "reqId": "req-f",
-  "res": {
-    "statusCode": 404
-  },
-  "responseTime": 3.1749120000749826,
-  "msg": "request completed"
-}
-2025-07-08 09:41:45.342	
-[2025-07-08T16:41:45.342Z] [api] Found 0 artifacts for scan DgkbPrPLxl2
-2025-07-08 09:41:45.340	
-[2025-07-08T16:41:45.339Z] [api] Retrieving artifacts for scan: DgkbPrPLxl2
-2025-07-08 09:41:45.339	
-{
-  "level": 30,
-  "time": 1751992905339,
-  "pid": 658,
-  "hostname": "148e21dae24d98",
-  "reqId": "req-f",
-  "req": {
-    "method": "GET",
-    "url": "/scan/DgkbPrPLxl2/artifacts",
-    "host": "dealbrief-scanner.fly.dev",
-    "remoteAddress": "172.16.19.26",
-    "remotePort": 63894
-  },
-  "msg": "incoming request"
-}
-2025-07-08 09:41:44.523	
-[2025-07-08T16:41:44.523Z] [accessibilityScan] accessibility=skipped domain="noxmetals.co" reason="no_changes_detected"
-2025-07-08 09:41:44.523	
-[2025-07-08T16:41:44.523Z] [accessibilityScan] accessibility=no_change_detected domain="noxmetals.co" pages=5
-2025-07-08 09:41:44.504	
-[2025-07-08T16:41:44.504Z] [dynamicBrowser] Page operation completed in 128ms
-2025-07-08 09:41:44.247	
-[2025-07-08T16:41:44.246Z] [dynamicBrowser] Page operation completed in 389ms
-2025-07-08 09:41:43.695	
-[2025-07-08T16:41:43.695Z] [dnstwist] ✅ Serper API: Found result for noxmetals.co - "NOX METALS..."
-2025-07-08 09:41:43.680	
-[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
-2025-07-08 09:41:43.678	
-[2025-07-08T16:41:43.677Z] [documentExposure] Completed: 0 files found, 10 parallel Serper calls (~$0.030)
-2025-07-08 09:41:43.644	
-[2025-07-08T16:41:43.644Z] [dynamicBrowser] Page operation completed in 469ms
-2025-07-08 09:41:43.592	
-[2025-07-08T16:41:43.592Z] [documentExposure] Query 6 returned 0 results
-2025-07-08 09:41:43.582	
-[2025-07-08T16:41:43.581Z] [documentExposure] Query 3 returned 19 results
-2025-07-08 09:41:43.511	
-[2025-07-08T16:41:43.511Z] [documentExposure] Query 2 returned 19 results
-2025-07-08 09:41:43.474	
-[2025-07-08T16:41:43.474Z] [documentExposure] Query 7 returned 20 results
-2025-07-08 09:41:43.399	
-[2025-07-08T16:41:43.399Z] [documentExposure] Query 8 returned 7 results
-2025-07-08 09:41:43.285	
-[2025-07-08T16:41:43.285Z] [documentExposure] Query 4 returned 3 results
-2025-07-08 09:41:43.223	
-[2025-07-08T16:41:43.223Z] [documentExposure] Query 9 returned 8 results
-2025-07-08 09:41:43.084	
-[2025-07-08T16:41:43.083Z] [documentExposure] Query 10 returned 0 results
-2025-07-08 09:41:43.070	
-[2025-07-08T16:41:43.070Z] [dynamicBrowser] Page operation completed in 252ms
-2025-07-08 09:41:43.023	
-[2025-07-08T16:41:43.023Z] [documentExposure] Query 5 returned 1 results
-2025-07-08 09:41:42.995	
-[2025-07-08T16:41:42.995Z] [documentExposure] Query 1 returned 0 results
-2025-07-08 09:41:42.706	
-[2025-07-08T16:41:42.706Z] [breachDirectoryProbe] Breach probe completed: 0 findings in 2323ms
-2025-07-08 09:41:42.704	
-[2025-07-08T16:41:42.704Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=0, Total=0
-2025-07-08 09:41:42.704	
-[2025-07-08T16:41:42.703Z] [breachDirectoryProbe] LeakCheck response for noxmetals.co: 0 breached accounts, quota remaining: 999999
-2025-07-08 09:41:42.663	
-[2025-07-08T16:41:42.662Z] [dynamicBrowser] Page operation completed in 433ms
-2025-07-08 09:41:42.184	
-[2025-07-08T16:41:42.183Z] [documentExposure] Serper API call 10: ""Nox Metals" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
-2025-07-08 09:41:42.181	
-[2025-07-08T16:41:42.181Z] [documentExposure] Serper API call 9: ""Nox Metals" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
-2025-07-08 09:41:42.179	
-[2025-07-08T16:41:42.178Z] [documentExposure] Serper API call 8: ""Nox Metals" (intitle:"index of" OR intitle:"directory listing")"
-2025-07-08 09:41:42.176	
-[2025-07-08T16:41:42.176Z] [documentExposure] Serper API call 7: ""Nox Metals" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
-2025-07-08 09:41:42.174	
-[2025-07-08T16:41:42.173Z] [documentExposure] Serper API call 6: ""Nox Metals" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
-2025-07-08 09:41:42.170	
-[2025-07-08T16:41:42.170Z] [documentExposure] Serper API call 5: ""Nox Metals" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
-2025-07-08 09:41:42.169	
-[2025-07-08T16:41:42.167Z] [documentExposure] Serper API call 4: ""Nox Metals" ("database" OR "backup" OR "dump") filetype:sql"
-2025-07-08 09:41:42.169	
-[2025-07-08T16:41:42.165Z] [documentExposure] Serper API call 3: ""Nox Metals" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
-2025-07-08 09:41:42.169	
-[2025-07-08T16:41:42.163Z] [documentExposure] Serper API call 2: ""Nox Metals" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
-2025-07-08 09:41:42.169	
-[2025-07-08T16:41:42.161Z] [documentExposure] Serper API call 1: "site:noxmetals.co (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
-2025-07-08 09:41:42.168	
-[2025-07-08T16:41:42.161Z] [documentExposure] Starting 10 parallel Serper queries
-2025-07-08 09:41:42.146	
-[2025-07-08T16:41:42.146Z] [dnstwist] 🔍 Calling Serper API for noxmetals.co
-2025-07-08 09:41:42.146	
-[2025-07-08T16:41:42.146Z] [dnstwist] Fetching original site content for AI comparison
-2025-07-08 09:41:42.134	
-[2025-07-08T16:41:42.133Z] [whoisWrapper] Saved $0.013 vs WhoisXML
-2025-07-08 09:41:42.134	
-[2025-07-08T16:41:42.133Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
-2025-07-08 09:41:42.134	
-Saved $0.028 vs WhoisXML
-2025-07-08 09:41:42.134	
-[2025-07-08T16:41:42.132Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
-2025-07-08 09:41:42.126	
-[2025-07-08T16:41:42.126Z] [tlsScan] Scan complete. Hosts: noxmetals.co, www.noxmetals.co. Findings: 0
-2025-07-08 09:41:42.126	
-[artifactStore] Inserted scan_summary artifact: TLS scan complete - 0 issue(s) found...
-2025-07-08 09:41:41.910	
-[2025-07-08T16:41:41.910Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:41:41.910	
-[2025-07-08T16:41:41.910Z] [tlsScan] Cross-validation complete for www.noxmetals.co: 0 additional findings
-2025-07-08 09:41:41.910	
-[2025-07-08T16:41:41.909Z] [tlsScan] Python validator: www.noxmetals.co - VALID
-2025-07-08 09:41:41.890	
-[2025-07-08T16:41:41.890Z] [breachDirectoryProbe] Querying LeakCheck for domain: noxmetals.co
-2025-07-08 09:41:41.256	
-[artifactStore] Inserted scan_summary artifact: TruffleHog scan completed: 0 potential secrets found...
-2025-07-08 09:41:41.248	
-[2025-07-08T16:41:41.248Z] [trufflehog] Finished secret scan for noxmetals.co Total secrets found: 0
-2025-07-08 09:41:41.248	
-[2025-07-08T16:41:41.248Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-2PgGZQ3Q9tu.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-2PgGZQ3Q9tu.json'
-2025-07-08 09:41:41.248	
-[2025-07-08T16:41:41.248Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-2PgGZQ3Q9tu.json
-2025-07-08 09:41:41.248	
-[2025-07-08T16:41:41.247Z] [trufflehog] [File Scan] Scanning local artifacts...
-2025-07-08 09:41:41.247	
-[2025-07-08T16:41:41.247Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
-2025-07-08 09:41:41.247	
-[2025-07-08T16:41:41.247Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-2PgGZQ3Q9tu.json'
-2025-07-08 09:41:41.247	
-[2025-07-08T16:41:41.247Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-2PgGZQ3Q9tu.json
-2025-07-08 09:41:41.247	
-[2025-07-08T16:41:41.247Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
-2025-07-08 09:41:41.243	
-[2025-07-08T16:41:41.243Z] [endpointDiscovery] +crawl_link /cdn-cgi/l/email-protection (-)
-2025-07-08 09:41:41.216	
-[2025-07-08T16:41:41.215Z] [spfDmarc] Completed email security scan, found 2 issues
-2025-07-08 09:41:41.185	
-[2025-07-08T16:41:41.185Z] [spfDmarc] Checking for BIMI record...
-2025-07-08 09:41:41.109	
-[2025-07-08T16:41:41.109Z] [breachDirectoryProbe] Breach Directory response for noxmetals.co: 0 breached accounts
-2025-07-08 09:41:41.094	
-[2025-07-08T16:41:41.094Z] [accessibilityScan] accessibility=hash_computation domain="noxmetals.co" pages=15
-2025-07-08 09:41:41.094	
-[2025-07-08T16:41:41.094Z] [accessibilityScan] Discovered 15 pages to test for accessibility
-2025-07-08 09:41:41.080	
-[2025-07-08T16:41:41.079Z] [tlsScan] Scanning www.noxmetals.co with hybrid validation (sslscan + Python)...
-2025-07-08 09:41:41.080	
-[2025-07-08T16:41:41.079Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:41:41.080	
-[2025-07-08T16:41:41.078Z] [tlsScan] Cross-validation complete for noxmetals.co: 0 additional findings
-2025-07-08 09:41:40.838	
-[2025-07-08T16:41:40.838Z] [Shodan] Done — 0 services found, 0 unique after deduplication, 2 API calls for 1 targets
-2025-07-08 09:41:40.838	
-[artifactStore] Inserted scan_summary artifact: Shodan scan: 0 services found, 0 unique after deduplication...
-2025-07-08 09:41:40.836	
-[2025-07-08T16:41:40.836Z] [Shodan] API call 2 - search query
-2025-07-08 09:41:40.711	
-[2025-07-08T16:41:40.707Z] [endpointDiscovery] +robots.txt / (-)
-2025-07-08 09:41:40.637	
-[2025-07-08T16:41:40.637Z] [spfDmarc] Probing for common DKIM selectors...
-2025-07-08 09:41:40.598	
-[2025-07-08T16:41:40.598Z] [tlsScan] Python validator: noxmetals.co - VALID
-2025-07-08 09:41:40.439	
-[2025-07-08T16:41:40.438Z] [spfDmarc] Performing recursive SPF check...
-2025-07-08 09:41:40.422	
-[2025-07-08T16:41:40.422Z] [Shodan] Querying 1 targets (PAGE_LIMIT=10)
-2025-07-08 09:41:40.411	
-[2025-07-08T16:41:40.411Z] [tlsScan] Scanning noxmetals.co with hybrid validation (sslscan + Python)...
-2025-07-08 09:41:40.411	
-
-2025-07-08 09:41:40.411	
-OpenSSL 3.5.1 1 Jul 2025
-2025-07-08 09:41:40.411	
-[2025-07-08T16:41:40.411Z] [tlsScan] sslscan found: [1;34m		2.1.6
-2025-07-08 09:41:40.410	
-[2025-07-08T16:41:40.408Z] [worker] [2PgGZQ3Q9tu] WAITING for endpoint discovery to complete for dependent modules...
-2025-07-08 09:41:40.402	
-[2025-07-08T16:41:40.401Z] [accessibilityScan] Starting accessibility scan for domain="noxmetals.co"
-2025-07-08 09:41:40.401	
-[2025-07-08T16:41:40.401Z] [worker] [2PgGZQ3Q9tu] STARTING accessibility compliance scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.399	
-[2025-07-08T16:41:40.399Z] [trufflehog] [Targeted Scan] Testing 12 high-value paths for secrets
-2025-07-08 09:41:40.399	
-[2025-07-08T16:41:40.399Z] [trufflehog] Skipping website crawl - relying on endpoint discovery from other modules
-2025-07-08 09:41:40.399	
-[2025-07-08T16:41:40.399Z] [trufflehog] Starting targeted secret scan for domain: noxmetals.co
-2025-07-08 09:41:40.399	
-[2025-07-08T16:41:40.399Z] [worker] [2PgGZQ3Q9tu] STARTING TruffleHog secret scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.394	
-[2025-07-08T16:41:40.393Z] [spfDmarc] Checking DMARC record...
-2025-07-08 09:41:40.393	
-[2025-07-08T16:41:40.392Z] [spfDmarc] Starting email security scan for noxmetals.co
-2025-07-08 09:41:40.393	
-[2025-07-08T16:41:40.392Z] [worker] [2PgGZQ3Q9tu] STARTING SPF/DMARC email security scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.389	
-[2025-07-08T16:41:40.389Z] [worker] [2PgGZQ3Q9tu] STARTING TLS security scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.387Z] [endpointDiscovery] ⇢ start noxmetals.co
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.387Z] [worker] [2PgGZQ3Q9tu] STARTING endpoint discovery for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.387Z] [documentExposure] Cost control: limiting to 10 search queries max
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.387Z] [worker] [2PgGZQ3Q9tu] STARTING document exposure scan for Nox Metals (immediate parallel)
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.387Z] [dnstwist] Using hybrid RDAP+Whoxy resolver (87% cheaper than WhoisXML) for original domain: noxmetals.co
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.386Z] [dnstwist] Starting typosquat scan for noxmetals.co
-2025-07-08 09:41:40.387	
-[2025-07-08T16:41:40.386Z] [worker] [2PgGZQ3Q9tu] STARTING DNS Twist scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.386	
-[2025-07-08T16:41:40.386Z] [Shodan] Start scan for noxmetals.co
-2025-07-08 09:41:40.386	
-[2025-07-08T16:41:40.386Z] [worker] [2PgGZQ3Q9tu] STARTING Shodan intelligence scan for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.384	
-[2025-07-08T16:41:40.384Z] [breachDirectoryProbe] Querying Breach Directory for domain: noxmetals.co
-2025-07-08 09:41:40.384	
-[2025-07-08T16:41:40.383Z] [breachDirectoryProbe] Starting comprehensive breach probe for domain="noxmetals.co" (BreachDirectory + LeakCheck)
-2025-07-08 09:41:40.384	
-[2025-07-08T16:41:40.383Z] [worker] [2PgGZQ3Q9tu] STARTING Breach Directory intelligence probe for noxmetals.co (immediate parallel)
-2025-07-08 09:41:40.384	
-[queue] Updated job 2PgGZQ3Q9tu status: processing - Comprehensive security discovery in progress...
-2025-07-08 09:41:40.248	
-[2025-07-08T16:41:40.247Z] [worker] [2PgGZQ3Q9tu] 🎯 Using TIER_1 tier with 12 modules: dns_twist, document_exposure, shodan, breach_directory_probe, endpoint_discovery, tech_stack_scan, abuse_intel_scan, accessibility_scan, nuclei, tls_scan, spf_dmarc, trufflehog
-2025-07-08 09:41:40.247	
-[2025-07-08T16:41:40.247Z] [worker] Processing comprehensive security scan for Nox Metals (noxmetals.co)
-2025-07-08 09:41:40.247	
-[2025-07-08T16:41:40.247Z] [worker] ✅ JOB PICKED UP: Processing scan job 2PgGZQ3Q9tu for Nox Metals (noxmetals.co)
-2025-07-08 09:41:40.247	
-[2025-07-08T16:41:40.247Z] [worker] Processing scan job: 2PgGZQ3Q9tu
-2025-07-08 09:41:40.247	
-[queue] Job 2PgGZQ3Q9tu successfully retrieved by worker 286565eb5406d8
-2025-07-08 09:41:40.247	
-}
-2025-07-08 09:41:40.247	
-createdAt: '2025-07-08T15:17:35.619Z'
-2025-07-08 09:41:40.247	
-originalDomain: 'noxmetals.co',
-2025-07-08 09:41:40.247	
-domain: 'noxmetals.co',
-2025-07-08 09:41:40.247	
-companyName: 'Nox Metals',
-2025-07-08 09:41:40.247	
-id: '2PgGZQ3Q9tu',
-2025-07-08 09:41:40.247	
-[queue] Parsed job: {
-2025-07-08 09:41:40.247	
-[queue] Job string to parse: {"id":"2PgGZQ3Q9tu","companyName":"Nox Metals","domain":"noxmetals.co","originalDomain":"noxmetals.co","createdAt":"2025-07-08T15:17:35.619Z"}
-2025-07-08 09:41:40.247	
-} Type: object
-2025-07-08 09:41:40.247	
-createdAt: '2025-07-08T15:17:35.619Z'
-2025-07-08 09:41:40.247	
-originalDomain: 'noxmetals.co',
-2025-07-08 09:41:40.247	
-domain: 'noxmetals.co',
-2025-07-08 09:41:40.247	
-companyName: 'Nox Metals',
-2025-07-08 09:41:40.247	
-id: '2PgGZQ3Q9tu',
-2025-07-08 09:41:40.247	
-[queue] Raw job data from Redis: {
-2025-07-08 09:41:40.102	
-{
-  "level": 30,
-  "time": 1751992900102,
-  "pid": 658,
-  "hostname": "148e21dae24d98",
-  "reqId": "req-e",
-  "res": {
-    "statusCode": 404
-  },
-  "responseTime": 38.74009700026363,
-  "msg": "request completed"
-}
-2025-07-08 09:41:40.102	
-[2025-07-08T16:41:40.101Z] [api] Found 0 findings for scan DgkbPrPLxl2
-2025-07-08 09:41:40.065	
-[2025-07-08T16:41:40.063Z] [api] Retrieving findings for scan: DgkbPrPLxl2
-2025-07-08 09:41:40.063	
-{
-  "level": 30,
-  "time": 1751992900063,
-  "pid": 658,
-  "hostname": "148e21dae24d98",
-  "reqId": "req-e",
-  "req": {
-    "method": "GET",
-    "url": "/scan/DgkbPrPLxl2/findings",
-    "host": "dealbrief-scanner.fly.dev",
-    "remoteAddress": "172.16.19.26",
-    "remotePort": 63884
-  },
-  "msg": "incoming request"
-}
-2025-07-08 09:41:39.893	
-[2025-07-08T16:41:39.892Z] [worker] ✅ COMPREHENSIVE SCAN COMPLETED for Nox Metals: 2 verified findings, 11 artifacts across 12 security modules
-2025-07-08 09:41:39.893	
-[queue] Updated job wawuQahOOFA status: done - Comprehensive security scan completed - 2 verified findings across 12 security modules. Findings ready for processing.
-2025-07-08 09:41:39.500	
-[2025-07-08T16:41:39.499Z] [worker] [updateScanMasterStatus] Updated scan wawuQahOOFA with: status, progress, completed_at, total_findings_count, max_severity, total_artifacts_count
-2025-07-08 09:41:39.489	
-[2025-07-08T16:41:39.489Z] [worker] [processScan] Counted 11 artifacts for scan wawuQahOOFA
-2025-07-08 09:41:39.487	
-[2025-07-08T16:41:39.486Z] [worker] [wawuQahOOFA] COMPLETED abuse_intel_scan scan: 0 findings found
-2025-07-08 09:41:39.487	
-[2025-07-08T16:41:39.486Z] [worker] [wawuQahOOFA] WAITING for abuse_intel_scan scan to complete...
-2025-07-08 09:41:39.487	
-[2025-07-08T16:41:39.486Z] [worker] [wawuQahOOFA] COMPLETED tech_stack_scan scan: 2 findings found
-2025-07-08 09:41:39.487	
-[2025-07-08T16:41:39.486Z] [worker] [wawuQahOOFA] WAITING for tech_stack_scan scan to complete...
-2025-07-08 09:41:39.486	
-[2025-07-08T16:41:39.486Z] [worker] [wawuQahOOFA] COMPLETED nuclei scan: 0 findings found
-2025-07-08 09:41:39.486	
-[artifactStore] Inserted scan_summary artifact: Nuclei scan completed: 0 vulnerabilities found...
-2025-07-08 09:41:39.467	
-[2025-07-08T16:41:39.467Z] [nuclei] Completed vulnerability scan. Total findings: 0
-2025-07-08 09:41:39.467	
-[2025-07-08T16:41:39.467Z] [nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---
-2025-07-08 09:41:39.467	
-[2025-07-08T16:41:39.467Z] [nuclei] [Two-Pass Scan] No findings for https://noxmetals.co
-2025-07-08 09:41:39.467	
-[2025-07-08T16:41:39.467Z] [nucleiWrapper] Two-pass scan completed: 0 findings persisted as artifacts (baseline: 0, common+tech: 0)
-2025-07-08 09:41:39.467	
-[2025-07-08T16:41:39.466Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:41:39.459	
-[2025-07-08T16:41:39.459Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
-2025-07-08 09:41:19.457	
-[2025-07-08T16:41:19.456Z] [nucleiWrapper] Manual timeout override: 20000ms
-2025-07-08 09:41:19.457	
-[2025-07-08T16:41:19.456Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:41:19.453	
-[2025-07-08T16:41:19.453Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://noxmetals.co -tags cve,panel,xss,wp-plugin,osint,lfi,rce -c 6 -timeout 20 -retries 1
-2025-07-08 09:41:19.453	
-[2025-07-08T16:41:19.453Z] [nucleiWrapper] Pass 2: Running common vulnerability + tech-specific scan with gated tags: cve,panel,xss,wp-plugin,osint,lfi,rce
-2025-07-08 09:41:19.453	
-[2025-07-08T16:41:19.453Z] [nucleiWrapper] Detected technologies: none
-2025-07-08 09:41:19.453	
-[2025-07-08T16:41:19.453Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:41:19.445	
-[2025-07-08T16:41:19.445Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
-2025-07-08 09:41:06.549	
-{
-  "level": 30,
-  "time": 1751992866549,
-  "pid": 658,
+  "time": 1752073583723,
+  "pid": 661,
   "hostname": "148e21dae24d98",
   "reqId": "req-d",
   "res": {
     "statusCode": 200
   },
-  "responseTime": 370.0908059999347,
+  "responseTime": 32.71544200181961,
   "msg": "request completed"
 }
-2025-07-08 09:41:06.179	
+2025-07-09 08:06:23.723	
 {
   "level": 30,
-  "time": 1751992866178,
-  "pid": 658,
+  "time": 1752073583723,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-d",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 32.71544200181961,
+  "msg": "request completed"
+}
+2025-07-09 08:06:23.723	
+{
+  "level": 30,
+  "time": 1752073583723,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-d",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 32.71544200181961,
+  "msg": "request completed"
+}
+2025-07-09 08:06:23.711	
+[2025-07-09T15:06:23.711Z] [api] Found 33 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:06:23.711	
+[2025-07-09T15:06:23.711Z] [api] Found 33 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:06:23.711	
+[2025-07-09T15:06:23.711Z] [api] Found 33 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:06:23.691	
+[2025-07-09T15:06:23.690Z] [api] Retrieving artifacts for scan: bcJIQcxk8ck
+2025-07-09 08:06:23.691	
+[2025-07-09T15:06:23.690Z] [api] Retrieving artifacts for scan: bcJIQcxk8ck
+2025-07-09 08:06:23.691	
+[2025-07-09T15:06:23.690Z] [api] Retrieving artifacts for scan: bcJIQcxk8ck
+2025-07-09 08:06:23.690	
+{
+  "level": 30,
+  "time": 1752073583690,
+  "pid": 661,
   "hostname": "148e21dae24d98",
   "reqId": "req-d",
   "req": {
     "method": "GET",
-    "url": "/scan/DgkbPrPLxl2/status",
+    "url": "/scan/bcJIQcxk8ck/artifacts",
     "host": "dealbrief-scanner.fly.dev",
     "remoteAddress": "172.16.19.26",
-    "remotePort": 38042
+    "remotePort": 47830
   },
   "msg": "incoming request"
 }
-2025-07-08 09:41:03.435	
-Error: in prepare, all VALUES must have the same number of terms
-2025-07-08 09:41:03.435	
-('total_cves', (SELECT COUNT(*) FROM vulnerabilities));
-2025-07-08 09:41:03.435	
-('last_sync', '2025-07-08T16:41:03.429Z', CURRENT_TIMESTAMP),
-2025-07-08 09:41:03.435	
-INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) VALUES
-2025-07-08 09:41:03.435	
-[2025-07-08T16:41:03.435Z] [nvdMirror] NVD sync failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite
-2025-07-08 09:41:03.435	
-Error: in prepare, all VALUES must have the same number of terms
-2025-07-08 09:41:03.435	
-('total_cves', (SELECT COUNT(*) FROM vulnerabilities));
-2025-07-08 09:41:03.435	
-('last_sync', '2025-07-08T16:41:03.429Z', CURRENT_TIMESTAMP),
-2025-07-08 09:41:03.435	
-INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) VALUES
-2025-07-08 09:41:03.435	
-[2025-07-08T16:41:03.435Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite
-2025-07-08 09:41:03.430	
-[2025-07-08T16:41:03.428Z] [nvdMirror] NVD API request failed: Request failed with status code 404
-2025-07-08 09:41:03.061	
-[2025-07-08T16:41:03.061Z] [techStackScan] techstack=complete arts=2 time=3979ms
-2025-07-08 09:41:03.051	
-[2025-07-08T16:41:03.051Z] [techStackScan] techstack=sbom_generated components=2 vulnerabilities=0 critical=0
-2025-07-08 09:41:03.051	
-[2025-07-08T16:41:03.050Z] [sbomGenerator] SBOM generated: 2 components, 0 vulnerabilities
-2025-07-08 09:41:03.050	
-[2025-07-08T16:41:03.050Z] [sbomGenerator] Generating SBOM for noxmetals.co with 2 components
-2025-07-08 09:41:03.050	
-[2025-07-08T16:41:03.050Z] [osvIntegration] No components suitable for OSV.dev queries
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [techStackScan] techstack=osv_enhancement starting OSV.dev integration for 2 components
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [versionMatcher] Batch vulnerability analysis completed: 0 vulnerabilities across 2 components in 87ms
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [versionMatcher] Vulnerability matching completed for Cloudflare: 0 matches in 86ms
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [nvdMirror] Local CVE query completed: 0 results in 7ms
-2025-07-08 09:41:03.049	
-extra argument: "DISTINCT"
-2025-07-08 09:41:03.049	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:cloudflare:Cloudflare:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:41:03.049	
-FROM vulnerabilities v
-2025-07-08 09:41:03.049	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:41:03.049	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:41:03.049	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.049	
-extra argument: "DISTINCT"
-2025-07-08 09:41:03.049	
-JOIN cpe_matches cm ON v.cve_id = cm.cve_id WHERE cm.cpe_uri LIKE '%:cloudflare:Cloudflare:%' AND cm.vulnerable = 1 ORDER BY v.cvss_v3_score DESC, v.published_date DESC LIMIT 100
-2025-07-08 09:41:03.049	
-FROM vulnerabilities v
-2025-07-08 09:41:03.049	
-v.severity, v.cisa_kev, v.epss_score, v.references_json
-2025-07-08 09:41:03.049	
-v.cvss_v3_score, v.cvss_v3_vector, v.cvss_v2_score, v.cvss_v2_vector,
-2025-07-08 09:41:03.049	
-SELECT DISTINCT v.cve_id, v.description, v.published_date, v.last_modified_date,
-2025-07-08 09:41:03.049	
-[2025-07-08T16:41:03.049Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.047	
-[2025-07-08T16:41:03.046Z] [nvdMirror] Syncing CVEs modified since 2025-06-08T16:41:03.046Z...
-2025-07-08 09:41:03.047	
-extra argument: "value"
-2025-07-08 09:41:03.047	
-SELECT value FROM sync_metadata WHERE key = 'last_sync'
-2025-07-08 09:41:03.047	
-[2025-07-08T16:41:03.046Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.047	
-extra argument: "value"
-2025-07-08 09:41:03.047	
-SELECT value FROM sync_metadata WHERE key = 'last_sync'
-2025-07-08 09:41:03.047	
-[2025-07-08T16:41:03.046Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.043	
-[2025-07-08T16:41:03.042Z] [nvdMirror] Update already in progress, skipping...
-2025-07-08 09:41:03.039	
-[2025-07-08T16:41:03.039Z] [nvdMirror] Starting NVD data sync...
-2025-07-08 09:41:03.039	
-[2025-07-08T16:41:03.039Z] [nvdMirror] NVD mirror is stale, initiating background sync...
-2025-07-08 09:41:03.039	
-extra argument: "*"
-2025-07-08 09:41:03.039	
-SELECT * FROM sync_metadata WHERE key = 'last_sync'
-2025-07-08 09:41:03.039	
-[2025-07-08T16:41:03.039Z] [nvdMirror] SQL query failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.039	
-extra argument: "*"
-2025-07-08 09:41:03.039	
-SELECT * FROM sync_metadata WHERE key = 'last_sync'
-2025-07-08 09:41:03.039	
-[2025-07-08T16:41:03.039Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite .mode json
-2025-07-08 09:41:03.033	
-[2025-07-08T16:41:03.033Z] [nvdMirror] NVD mirror database initialized successfully
-2025-07-08 09:41:03.001	
-Error: in prepare, database is locked (5)
-2025-07-08 09:41:03.001	
-('total_cves', '0');
-2025-07-08 09:41:03.001	
-('version', '1.0'),
-2025-07-08 09:41:03.001	
-('last_sync', '1970-01-01T00:00:00Z'),
-2025-07-08 09:41:03.001	
-INSERT OR REPLACE INTO sync_metadata (key, value) VALUES
-2025-07-08 09:41:03.001	
--- Insert initial metadata
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_lookup ON cpe_matches(cpe_uri, vulnerable);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cpe_uri ON cpe_matches(cpe_uri);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cve_id ON cpe_matches(cve_id);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cisa_kev ON vulnerabilities(cisa_kev);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cvss_v3 ON vulnerabilities(cvss_v3_score);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_published ON vulnerabilities(published_date);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_severity ON vulnerabilities(severity);
-2025-07-08 09:41:03.001	
--- Performance indexes
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-value TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-key TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS sync_metadata (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-UNIQUE(cve_id, cpe_uri, version_start_including, version_start_excluding, version_end_including, version_end_excluding)
-2025-07-08 09:41:03.001	
-FOREIGN KEY (cve_id) REFERENCES vulnerabilities(cve_id),
-2025-07-08 09:41:03.001	
-vulnerable INTEGER DEFAULT 1,
-2025-07-08 09:41:03.001	
-version_end_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_end_including TEXT,
-2025-07-08 09:41:03.001	
-version_start_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_start_including TEXT,
-2025-07-08 09:41:03.001	
-cpe_uri TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS cpe_matches (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-references_json TEXT,
-2025-07-08 09:41:03.001	
-epss_score REAL,
-2025-07-08 09:41:03.001	
-cisa_kev INTEGER DEFAULT 0,
-2025-07-08 09:41:03.001	
-severity TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cvss_v2_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v2_score REAL,
-2025-07-08 09:41:03.001	
-cvss_v3_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v3_score REAL,
-2025-07-08 09:41:03.001	
-last_modified_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-published_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-description TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS vulnerabilities (
-2025-07-08 09:41:03.001	
-[2025-07-08T16:41:02.999Z] [versionMatcher] Vulnerability matching failed for Security Headers: Command failed: sqlite3 /tmp/nvd_mirror.sqlite
-2025-07-08 09:41:03.001	
-Error: in prepare, database is locked (5)
-2025-07-08 09:41:03.001	
-('total_cves', '0');
-2025-07-08 09:41:03.001	
-('version', '1.0'),
-2025-07-08 09:41:03.001	
-('last_sync', '1970-01-01T00:00:00Z'),
-2025-07-08 09:41:03.001	
-INSERT OR REPLACE INTO sync_metadata (key, value) VALUES
-2025-07-08 09:41:03.001	
--- Insert initial metadata
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_lookup ON cpe_matches(cpe_uri, vulnerable);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cpe_uri ON cpe_matches(cpe_uri);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cve_id ON cpe_matches(cve_id);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cisa_kev ON vulnerabilities(cisa_kev);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cvss_v3 ON vulnerabilities(cvss_v3_score);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_published ON vulnerabilities(published_date);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_severity ON vulnerabilities(severity);
-2025-07-08 09:41:03.001	
--- Performance indexes
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-value TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-key TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS sync_metadata (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-UNIQUE(cve_id, cpe_uri, version_start_including, version_start_excluding, version_end_including, version_end_excluding)
-2025-07-08 09:41:03.001	
-FOREIGN KEY (cve_id) REFERENCES vulnerabilities(cve_id),
-2025-07-08 09:41:03.001	
-vulnerable INTEGER DEFAULT 1,
-2025-07-08 09:41:03.001	
-version_end_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_end_including TEXT,
-2025-07-08 09:41:03.001	
-version_start_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_start_including TEXT,
-2025-07-08 09:41:03.001	
-cpe_uri TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS cpe_matches (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-references_json TEXT,
-2025-07-08 09:41:03.001	
-epss_score REAL,
-2025-07-08 09:41:03.001	
-cisa_kev INTEGER DEFAULT 0,
-2025-07-08 09:41:03.001	
-severity TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cvss_v2_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v2_score REAL,
-2025-07-08 09:41:03.001	
-cvss_v3_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v3_score REAL,
-2025-07-08 09:41:03.001	
-last_modified_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-published_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-description TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS vulnerabilities (
-2025-07-08 09:41:03.001	
-[2025-07-08T16:41:02.999Z] [nvdMirror] Failed to initialize NVD mirror: Command failed: sqlite3 /tmp/nvd_mirror.sqlite
-2025-07-08 09:41:03.001	
-Error: in prepare, database is locked (5)
-2025-07-08 09:41:03.001	
-('total_cves', '0');
-2025-07-08 09:41:03.001	
-('version', '1.0'),
-2025-07-08 09:41:03.001	
-('last_sync', '1970-01-01T00:00:00Z'),
-2025-07-08 09:41:03.001	
-INSERT OR REPLACE INTO sync_metadata (key, value) VALUES
-2025-07-08 09:41:03.001	
--- Insert initial metadata
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_lookup ON cpe_matches(cpe_uri, vulnerable);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cpe_uri ON cpe_matches(cpe_uri);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_cpe_matches_cve_id ON cpe_matches(cve_id);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cisa_kev ON vulnerabilities(cisa_kev);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_cvss_v3 ON vulnerabilities(cvss_v3_score);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_published ON vulnerabilities(published_date);
-2025-07-08 09:41:03.001	
-CREATE INDEX IF NOT EXISTS idx_vulnerabilities_severity ON vulnerabilities(severity);
-2025-07-08 09:41:03.001	
--- Performance indexes
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-value TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-key TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS sync_metadata (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-UNIQUE(cve_id, cpe_uri, version_start_including, version_start_excluding, version_end_including, version_end_excluding)
-2025-07-08 09:41:03.001	
-FOREIGN KEY (cve_id) REFERENCES vulnerabilities(cve_id),
-2025-07-08 09:41:03.001	
-vulnerable INTEGER DEFAULT 1,
-2025-07-08 09:41:03.001	
-version_end_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_end_including TEXT,
-2025-07-08 09:41:03.001	
-version_start_excluding TEXT,
-2025-07-08 09:41:03.001	
-version_start_including TEXT,
-2025-07-08 09:41:03.001	
-cpe_uri TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-id INTEGER PRIMARY KEY AUTOINCREMENT,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS cpe_matches (
-2025-07-08 09:41:03.001	
-);
-2025-07-08 09:41:03.001	
-created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-2025-07-08 09:41:03.001	
-references_json TEXT,
-2025-07-08 09:41:03.001	
-epss_score REAL,
-2025-07-08 09:41:03.001	
-cisa_kev INTEGER DEFAULT 0,
-2025-07-08 09:41:03.001	
-severity TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cvss_v2_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v2_score REAL,
-2025-07-08 09:41:03.001	
-cvss_v3_vector TEXT,
-2025-07-08 09:41:03.001	
-cvss_v3_score REAL,
-2025-07-08 09:41:03.001	
-last_modified_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-published_date TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-description TEXT NOT NULL,
-2025-07-08 09:41:03.001	
-cve_id TEXT PRIMARY KEY,
-2025-07-08 09:41:03.001	
-CREATE TABLE IF NOT EXISTS vulnerabilities (
-2025-07-08 09:41:03.001	
-[2025-07-08T16:41:02.999Z] [nvdMirror] SQL execution failed: Command failed: sqlite3 /tmp/nvd_mirror.sqlite
-2025-07-08 09:41:02.975	
-[2025-07-08T16:41:02.971Z] [nvdMirror] Initializing NVD mirror database...
-2025-07-08 09:41:02.974	
-[2025-07-08T16:41:02.971Z] [versionMatcher] Finding vulnerabilities for Security Headers@unknown
-2025-07-08 09:41:02.964	
-[2025-07-08T16:41:02.963Z] [nvdMirror] Initializing NVD mirror database...
-2025-07-08 09:41:02.964	
-[2025-07-08T16:41:02.963Z] [versionMatcher] Finding vulnerabilities for Cloudflare@unknown
-2025-07-08 09:41:02.964	
-[2025-07-08T16:41:02.962Z] [versionMatcher] Starting batch vulnerability analysis for 2 components
-2025-07-08 09:41:02.964	
-[2025-07-08T16:41:02.962Z] [cpeNormalization] normalized tech="Security Headers" version="undefined" cpe="undefined" purl="undefined" confidence=70
-2025-07-08 09:41:02.964	
-[2025-07-08T16:41:02.962Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:02.961	
-[2025-07-08T16:41:02.961Z] [techStackScan] techstack=vuln_analysis starting enhanced vulnerability analysis for 2 technologies
-2025-07-08 09:41:02.961	
-[2025-07-08T16:41:02.961Z] [techStackScan] analysis=stats tech="Cloudflare" version="undefined" raw=0 enriched=0 merged=0 filtered=0
-2025-07-08 09:41:02.496	
-[2025-07-08T16:41:02.496Z] [techStackScan] analysis=stats tech="Security Headers" version="undefined" raw=0 enriched=0 merged=0 filtered=0
-2025-07-08 09:41:01.878	
-[2025-07-08T16:41:01.878Z] [techStackScan] techstack=fast_detection_complete total_techs=2 total_duration=0ms avg_per_url=0ms
-2025-07-08 09:41:01.878	
-[2025-07-08T16:41:01.878Z] [faviconDetection] Batch favicon detection completed: 0 technologies detected across 3 URLs in 871ms
-2025-07-08 09:41:01.878	
-[2025-07-08T16:41:01.878Z] [faviconDetection] No favicon found for https://www.noxmetals.co
-2025-07-08 09:41:01.878	
-[2025-07-08T16:41:01.878Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:41:01.674	
-[2025-07-08T16:41:01.674Z] [faviconDetection] No favicon found for https://noxmetals.co
-2025-07-08 09:41:01.674	
-[2025-07-08T16:41:01.674Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:41:01.661	
-[2025-07-08T16:41:01.660Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/apple-touch-icon-precomposed.png
-2025-07-08 09:41:01.661	
-[2025-07-08T16:41:01.660Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:41:01.619	
-[2025-07-08T16:41:01.619Z] [faviconDetection] No favicon found for https://noxmetals.co/
-2025-07-08 09:41:01.619	
-[2025-07-08T16:41:01.619Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//apple-touch-icon-precomposed.png: Request failed with status code 404
-2025-07-08 09:41:01.508	
-[2025-07-08T16:41:01.507Z] [faviconDetection] Fetching favicon from https://noxmetals.co/apple-touch-icon-precomposed.png
-2025-07-08 09:41:01.507	
-[2025-07-08T16:41:01.507Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:41:01.428	
-[2025-07-08T16:41:01.427Z] [faviconDetection] Fetching favicon from https://noxmetals.co//apple-touch-icon-precomposed.png
-2025-07-08 09:41:01.428	
-[2025-07-08T16:41:01.427Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//apple-touch-icon.png: Request failed with status code 404
-2025-07-08 09:41:01.377	
-[2025-07-08T16:41:01.377Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/apple-touch-icon.png
-2025-07-08 09:41:01.377	
-[2025-07-08T16:41:01.377Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/favicon.png: Request failed with status code 404
-2025-07-08 09:41:01.332	
-[2025-07-08T16:41:01.331Z] [faviconDetection] Fetching favicon from https://noxmetals.co/apple-touch-icon.png
-2025-07-08 09:41:01.332	
-[2025-07-08T16:41:01.331Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/favicon.png: Request failed with status code 404
-2025-07-08 09:41:01.245	
-[2025-07-08T16:41:01.245Z] [faviconDetection] Fetching favicon from https://noxmetals.co//apple-touch-icon.png
-2025-07-08 09:41:01.245	
-[2025-07-08T16:41:01.245Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//favicon.png: Request failed with status code 404
-2025-07-08 09:41:01.059	
-[2025-07-08T16:41:01.059Z] [faviconDetection] Fetching favicon from https://noxmetals.co/favicon.png
-2025-07-08 09:41:01.059	
-[2025-07-08T16:41:01.059Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co/favicon.ico: Request failed with status code 404
-2025-07-08 09:41:01.053	
-[2025-07-08T16:41:01.053Z] [faviconDetection] Fetching favicon from https://noxmetals.co//favicon.png
-2025-07-08 09:41:01.052	
-[2025-07-08T16:41:01.052Z] [faviconDetection] Failed to fetch favicon from https://noxmetals.co//favicon.ico: Request failed with status code 404
-2025-07-08 09:41:01.044	
-[2025-07-08T16:41:01.044Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/favicon.png
-2025-07-08 09:41:01.044	
-[2025-07-08T16:41:01.044Z] [faviconDetection] Failed to fetch favicon from https://www.noxmetals.co/favicon.ico: Request failed with status code 404
-2025-07-08 09:41:01.012	
-[2025-07-08T16:41:01.011Z] [faviconDetection] Fetching favicon from https://noxmetals.co//favicon.ico
-2025-07-08 09:41:01.011	
-[2025-07-08T16:41:01.011Z] [faviconDetection] Starting favicon-based tech detection for https://noxmetals.co/
-2025-07-08 09:41:01.009	
-[2025-07-08T16:41:01.009Z] [faviconDetection] Fetching favicon from https://www.noxmetals.co/favicon.ico
-2025-07-08 09:41:01.009	
-[2025-07-08T16:41:01.009Z] [faviconDetection] Starting favicon-based tech detection for https://www.noxmetals.co
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [faviconDetection] Fetching favicon from https://noxmetals.co/favicon.ico
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [faviconDetection] Starting favicon-based tech detection for https://noxmetals.co
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [faviconDetection] Starting batch favicon detection for 3 URLs
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [techStackScan] techstack=favicon_detection starting favicon analysis for 3 URLs
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/wordpress" techs=2 duration=0ms
-2025-07-08 09:41:01.007	
-[2025-07-08T16:41:01.007Z] [cpeNormalization] normalized tech="Security Headers" version="undefined" cpe="undefined" purl="undefined" confidence=70
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/cdn-cgi/l/email-protection" techs=3 duration=0ms
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co/" techs=2 duration=0ms
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.006	
-[2025-07-08T16:41:01.006Z] [techStackScan] techstack=webtech_success url="https://www.noxmetals.co" techs=2 duration=0ms
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [cpeNormalization] normalized tech="Cloudflare" version="undefined" cpe="undefined" purl="undefined" confidence=100
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [techStackScan] techstack=webtech_success url="https://noxmetals.co" techs=2 duration=0ms
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [fastTechDetection] Batch fast tech detection completed: 11 techs across 5 URLs in 384ms
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://www.noxmetals.co
-2025-07-08 09:41:01.005	
-[2025-07-08T16:41:01.005Z] [fastTechDetection] Header detection found 2 technologies for https://www.noxmetals.co
-2025-07-08 09:41:00.943	
-[2025-07-08T16:41:00.943Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co/
-2025-07-08 09:41:00.943	
-[2025-07-08T16:41:00.943Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co/
-2025-07-08 09:41:00.936	
-[2025-07-08T16:41:00.935Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co
-2025-07-08 09:41:00.936	
-[2025-07-08T16:41:00.935Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co
-2025-07-08 09:41:00.660	
-[2025-07-08T16:41:00.659Z] [fastTechDetection] Header detection found 2 techs, skipping WebTech for https://noxmetals.co/wordpress
-2025-07-08 09:41:00.660	
-[2025-07-08T16:41:00.659Z] [fastTechDetection] Header detection found 2 technologies for https://noxmetals.co/wordpress
-2025-07-08 09:41:00.658	
-[2025-07-08T16:41:00.658Z] [fastTechDetection] Header detection found 3 techs, skipping WebTech for https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:41:00.655	
-[2025-07-08T16:41:00.655Z] [fastTechDetection] Header detection found 3 technologies for https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:41:00.635	
-[2025-07-08T16:41:00.634Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/wordpress
-2025-07-08 09:41:00.630	
-[2025-07-08T16:41:00.629Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/cdn-cgi/l/email-protection
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.625Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co/
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.624Z] [fastTechDetection] Checking headers for quick tech detection: https://www.noxmetals.co
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.621Z] [fastTechDetection] Checking headers for quick tech detection: https://noxmetals.co
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.621Z] [fastTechDetection] Starting batch fast tech detection for 5 URLs
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.621Z] [techStackScan] techstack=fast_detection starting WebTech scan for 7 targets
-2025-07-08 09:41:00.626	
-[2025-07-08T16:41:00.621Z] [techStackScan] techstack=bypass_nuclei targets=[https://www.google-analytics.com] (~2min time savings by skipping expensive non-HTML assets)
-2025-07-08 09:41:00.620	
-[2025-07-08T16:41:00.620Z] [techStackScan] techstack=targets primary=5 thirdParty=3 total=8 html=7 finalHtml=7 nonHtml=1 skipped=0
-2025-07-08 09:41:00.598	
-[2025-07-08T16:41:00.598Z] [dynamicBrowser] Page operation completed in 1026ms
-2025-07-08 09:41:00.598	
-[2025-07-08T16:41:00.597Z] [techStackScan] thirdParty=discovered domain=noxmetals.co total=3 (html=2, nonHtml=1)
-2025-07-08 09:40:59.448	
-[2025-07-08T16:40:59.447Z] [techStackScan] buildTargets discovered=3 total=5 (html=5, nonHtml=0)
-2025-07-08 09:40:59.440	
-[2025-07-08T16:40:59.438Z] [techStackScan] techstack=nuclei wrapper confirmed available
-2025-07-08 09:40:59.440	
-[2025-07-08T16:40:59.438Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:40:59.440	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:40:59.440	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:40:59.440	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:40:59.440	
-[2025-07-08T16:40:59.438Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:40:59.440	
-[2025-07-08T16:40:59.438Z] [nucleiWrapper] Manual timeout override: 20000ms
-2025-07-08 09:40:59.440	
-[2025-07-08T16:40:59.438Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:40:59.436	
-[2025-07-08T16:40:59.435Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://noxmetals.co -tags misconfiguration,default-logins,exposed-panels,exposure,tech -c 6 -timeout 20 -retries 1
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.435Z] [nucleiWrapper] Pass 1: Running baseline scan with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.435Z] [nucleiWrapper] Starting two-pass scan for https://noxmetals.co
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.435Z] [nuclei] Smart guard: techs=none timeout=20s headless=false
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.435Z] [nuclei] [Enhanced Two-Pass Scan] Running on https://noxmetals.co
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.434Z] [nuclei] --- Starting Enhanced Two-Pass Scans on 1 targets ---
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.434Z] [nuclei] Nuclei binary validated successfully.
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.434Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
-2025-07-08 09:40:59.435	
-[INF] PDCP Directory: /root/.pdcp
-2025-07-08 09:40:59.435	
-[INF] Nuclei Cache Directory: /root/.cache/nuclei
-2025-07-08 09:40:59.435	
-[INF] Nuclei Config Directory: /root/.config/nuclei
-2025-07-08 09:40:59.435	
-[2025-07-08T16:40:59.434Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
-2025-07-08 09:40:59.092	
-[2025-07-08T16:40:59.091Z] [abuseIntelScan] No IP artifacts found for this scan
-2025-07-08 09:40:59.092	
-[2025-07-08T16:40:59.091Z] [abuseIntelScan] Found 0 IP artifacts for scan wawuQahOOFA
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for nuclei scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED accessibility_scan scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for accessibility_scan scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED trufflehog scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for trufflehog scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED spf_dmarc scan: 2 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for spf_dmarc scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED tls_scan scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for tls_scan scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED document_exposure scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for document_exposure scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] COMPLETED dns_twist scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.087Z] [worker] [wawuQahOOFA] WAITING for dns_twist scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.086Z] [worker] [wawuQahOOFA] COMPLETED shodan scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.086Z] [worker] [wawuQahOOFA] WAITING for shodan scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.086Z] [worker] [wawuQahOOFA] COMPLETED breach_directory_probe scan: 0 findings found
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.086Z] [worker] [wawuQahOOFA] WAITING for breach_directory_probe scan to complete...
-2025-07-08 09:40:59.087	
-[2025-07-08T16:40:59.086Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=wawuQahOOFA
-2025-07-08 09:40:59.086	
-[2025-07-08T16:40:59.086Z] [worker] [wawuQahOOFA] STARTING AbuseIPDB intelligence scan for IPs (parallel after endpoint discovery)
-2025-07-08 09:40:59.086	
-[2025-07-08T16:40:59.086Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:40:59.083	
-[2025-07-08T16:40:59.082Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:40:59.083	
-[2025-07-08T16:40:59.082Z] [techStackScan] techstack=start domain=noxmetals.co
-2025-07-08 09:40:59.082	
-[2025-07-08T16:40:59.081Z] [worker] [wawuQahOOFA] STARTING tech stack scan for noxmetals.co (parallel after endpoint discovery)
-2025-07-08 09:40:59.082	
-[2025-07-08T16:40:59.081Z] [nucleiWrapper] Using baseline timeout: 8000ms
-2025-07-08 09:40:59.076	
-[2025-07-08T16:40:59.075Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
-2025-07-08 09:40:59.075	
-[2025-07-08T16:40:59.075Z] [nuclei] Starting enhanced vulnerability scan for noxmetals.co
-2025-07-08 09:40:59.075	
-[2025-07-08T16:40:59.074Z] [worker] [wawuQahOOFA] STARTING Nuclei vulnerability scan for noxmetals.co (parallel after endpoint discovery)
-2025-07-08 09:40:59.075	
-[2025-07-08T16:40:59.074Z] [worker] [wawuQahOOFA] COMPLETED endpoint discovery: 3 endpoint collections found
-2025-07-08 09:40:59.075	
-[2025-07-08T16:40:59.074Z] [endpointDiscovery] ⇢ done – 3 endpoints
-2025-07-08 09:40:56.515	
-[2025-07-08T16:40:56.515Z] [endpointDiscovery] +wordlist_enum /wordpress (403)
-2025-07-08 09:40:48.132	
+2025-07-09 08:06:23.690	
+{
+  "level": 30,
+  "time": 1752073583690,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-d",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/artifacts",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 47830
+  },
+  "msg": "incoming request"
 }
-2025-07-08 09:40:48.132	
-"EMAIL_SECURITY_GAP": 2
-2025-07-08 09:40:48.132	
-[2025-07-08T16:40:48.132Z] [SyncWorker] ✅ New findings synced: 2 {
-2025-07-08 09:40:47.938	
+2025-07-09 08:06:23.690	
+{
+  "level": 30,
+  "time": 1752073583690,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-d",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/artifacts",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 47830
+  },
+  "msg": "incoming request"
 }
-2025-07-08 09:40:47.938	
-]
-2025-07-08 09:40:47.938	
-"Realroots: failed"
-2025-07-08 09:40:47.938	
-"completed": [
-2025-07-08 09:40:47.938	
-[2025-07-08T16:40:47.937Z] [SyncWorker] ✅ Recently completed scans: 1 {
-2025-07-08 09:40:45.903	
-[2025-07-08T16:40:45.903Z] [dnstwist] Scan completed – 0 domains analysed
-2025-07-08 09:40:45.903	
-[2025-07-08T16:40:45.903Z] [dnstwist] Found 0 registered typosquat candidates to analyze
-2025-07-08 09:40:28.292	
-[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
-2025-07-08 09:40:28.290	
-[2025-07-08T16:40:28.289Z] [documentExposure] Completed: 0 files found, 10 parallel Serper calls (~$0.030)
-2025-07-08 09:40:26.810	
-[2025-07-08T16:40:26.809Z] [documentExposure] Query 8 returned 9 results
-2025-07-08 09:40:26.736	
-[2025-07-08T16:40:26.736Z] [accessibilityScan] accessibility=skipped domain="noxmetals.co" reason="no_changes_detected"
-2025-07-08 09:40:26.736	
-[2025-07-08T16:40:26.736Z] [accessibilityScan] accessibility=no_change_detected domain="noxmetals.co" pages=5
-2025-07-08 09:40:26.718	
-[2025-07-08T16:40:26.718Z] [dynamicBrowser] Page operation completed in 149ms
-2025-07-08 09:40:26.452	
-[2025-07-08T16:40:26.451Z] [dynamicBrowser] Page operation completed in 360ms
-2025-07-08 09:40:25.953	
-[2025-07-08T16:40:25.953Z] [dynamicBrowser] Page operation completed in 564ms
-2025-07-08 09:40:25.560	
-[2025-07-08T16:40:25.559Z] [documentExposure] Query 7 returned 20 results
-2025-07-08 09:40:25.262	
-[2025-07-08T16:40:25.261Z] [dynamicBrowser] Page operation completed in 334ms
-2025-07-08 09:40:24.892	
-[2025-07-08T16:40:24.892Z] [documentExposure] Query 2 returned 19 results
-2025-07-08 09:40:24.841	
-[2025-07-08T16:40:24.840Z] [documentExposure] Query 3 returned 19 results
-2025-07-08 09:40:24.744	
-[2025-07-08T16:40:24.743Z] [dynamicBrowser] Page operation completed in 391ms
-2025-07-08 09:40:24.646	
-[2025-07-08T16:40:24.646Z] [documentExposure] Query 6 returned 0 results
-2025-07-08 09:40:24.590	
-[2025-07-08T16:40:24.590Z] [documentExposure] Query 9 returned 8 results
-2025-07-08 09:40:24.524	
-[2025-07-08T16:40:24.521Z] [documentExposure] Query 10 returned 0 results
-2025-07-08 09:40:24.453	
-[2025-07-08T16:40:24.453Z] [documentExposure] Query 4 returned 3 results
-2025-07-08 09:40:24.393	
-[2025-07-08T16:40:24.393Z] [documentExposure] Query 5 returned 1 results
-2025-07-08 09:40:24.355	
-[2025-07-08T16:40:24.352Z] [documentExposure] Query 1 returned 0 results
-2025-07-08 09:40:24.298	
-[2025-07-08T16:40:24.297Z] [dnstwist] ✅ Serper API: Found result for noxmetals.co - "NOX METALS..."
-2025-07-08 09:40:24.116	
-[2025-07-08T16:40:24.116Z] [breachDirectoryProbe] Breach probe completed: 0 findings in 2860ms
-2025-07-08 09:40:24.090	
-[2025-07-08T16:40:24.090Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=0, Total=0
-2025-07-08 09:40:24.090	
-[2025-07-08T16:40:24.089Z] [breachDirectoryProbe] LeakCheck response for noxmetals.co: 0 breached accounts, quota remaining: 999999
-2025-07-08 09:40:24.072	
-[2025-07-08T16:40:24.071Z] [dynamicBrowser] Browser launched successfully
-2025-07-08 09:40:24.000	
-[artifactStore] Inserted scan_summary artifact: TruffleHog scan completed: 0 potential secrets found...
-2025-07-08 09:40:23.999	
-[2025-07-08T16:40:23.998Z] [trufflehog] Finished secret scan for noxmetals.co Total secrets found: 0
-2025-07-08 09:40:23.999	
-[2025-07-08T16:40:23.998Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-wawuQahOOFA.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-wawuQahOOFA.json'
-2025-07-08 09:40:23.999	
-[2025-07-08T16:40:23.998Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-wawuQahOOFA.json
-2025-07-08 09:40:23.999	
-[2025-07-08T16:40:23.998Z] [trufflehog] [File Scan] Scanning local artifacts...
-2025-07-08 09:40:23.999	
-[2025-07-08T16:40:23.997Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
-2025-07-08 09:40:23.998	
-[2025-07-08T16:40:23.997Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-wawuQahOOFA.json'
-2025-07-08 09:40:23.997	
-[2025-07-08T16:40:23.997Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-wawuQahOOFA.json
-2025-07-08 09:40:23.997	
-[2025-07-08T16:40:23.997Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
-2025-07-08 09:40:23.589	
-[2025-07-08T16:40:23.589Z] [documentExposure] Serper API call 10: ""Nox Metals" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
-2025-07-08 09:40:23.587	
-[2025-07-08T16:40:23.587Z] [documentExposure] Serper API call 9: ""Nox Metals" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
-2025-07-08 09:40:23.586	
-[2025-07-08T16:40:23.585Z] [documentExposure] Serper API call 8: ""Nox Metals" (intitle:"index of" OR intitle:"directory listing")"
-2025-07-08 09:40:23.582	
-[2025-07-08T16:40:23.582Z] [documentExposure] Serper API call 7: ""Nox Metals" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
-2025-07-08 09:40:23.578	
-[2025-07-08T16:40:23.577Z] [documentExposure] Serper API call 6: ""Nox Metals" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
-2025-07-08 09:40:23.575	
-[2025-07-08T16:40:23.575Z] [documentExposure] Serper API call 5: ""Nox Metals" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
-2025-07-08 09:40:23.573	
-[2025-07-08T16:40:23.572Z] [documentExposure] Serper API call 4: ""Nox Metals" ("database" OR "backup" OR "dump") filetype:sql"
-2025-07-08 09:40:23.570	
-[2025-07-08T16:40:23.569Z] [documentExposure] Serper API call 3: ""Nox Metals" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
-2025-07-08 09:40:23.565	
-[2025-07-08T16:40:23.564Z] [documentExposure] Serper API call 2: ""Nox Metals" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
-2025-07-08 09:40:23.560	
-[2025-07-08T16:40:23.559Z] [documentExposure] Serper API call 1: "site:noxmetals.co (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
-2025-07-08 09:40:23.560	
-[2025-07-08T16:40:23.559Z] [documentExposure] Starting 10 parallel Serper queries
-2025-07-08 09:40:23.496	
-[2025-07-08T16:40:23.495Z] [dnstwist] 🔍 Calling Serper API for noxmetals.co
-2025-07-08 09:40:23.496	
-[2025-07-08T16:40:23.495Z] [dnstwist] Fetching original site content for AI comparison
-2025-07-08 09:40:23.494	
-[2025-07-08T16:40:23.494Z] [whoisWrapper] Saved $0.013 vs WhoisXML
-2025-07-08 09:40:23.494	
-[2025-07-08T16:40:23.494Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
-2025-07-08 09:40:23.494	
+2025-07-09 08:06:15.709	
+{
+  "level": 30,
+  "time": 1752073575708,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-c",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 30.0275200009346,
+  "msg": "request completed"
+}
+2025-07-09 08:06:15.697	
+[2025-07-09T15:06:15.697Z] [api] Found 33 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:06:15.679	
+[2025-07-09T15:06:15.678Z] [api] Retrieving artifacts for scan: bcJIQcxk8ck
+2025-07-09 08:06:15.678	
+{
+  "level": 30,
+  "time": 1752073575678,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-c",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/artifacts",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 62708
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:06:09.498	
+{
+  "level": 30,
+  "time": 1752073569497,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-b",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 62.75900299847126,
+  "msg": "request completed"
+}
+2025-07-09 08:06:09.471	
+[2025-07-09T15:06:09.460Z] [api] Found 33 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:06:09.435	
+[2025-07-09T15:06:09.435Z] [api] Retrieving artifacts for scan: bcJIQcxk8ck
+2025-07-09 08:06:09.435	
+{
+  "level": 30,
+  "time": 1752073569434,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-b",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/artifacts",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 62698
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:06:03.149	
+{
+  "level": 30,
+  "time": 1752073563148,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-a",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 3.6834030002355576,
+  "msg": "request completed"
+}
+2025-07-09 08:06:03.148	
+[2025-07-09T15:06:03.147Z] [api] Found 21 findings for scan bcJIQcxk8ck
+2025-07-09 08:06:03.145	
+{
+  "level": 30,
+  "time": 1752073563144,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-a",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/findings",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 50470
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:06:03.145	
+[2025-07-09T15:06:03.145Z] [api] Retrieving findings for scan: bcJIQcxk8ck
+2025-07-09 08:06:01.178	
+[2025-07-09T15:06:01.178Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:06:01.178	
+[2025-07-09T15:06:01.177Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:05:58.688	
+{
+  "level": 30,
+  "time": 1752073558688,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-9",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 4.318293005228043,
+  "msg": "request completed"
+}
+2025-07-09 08:05:58.687	
+[2025-07-09T15:05:58.687Z] [api] Found 21 findings for scan bcJIQcxk8ck
+2025-07-09 08:05:58.684	
+[2025-07-09T15:05:58.684Z] [api] Retrieving findings for scan: bcJIQcxk8ck
+2025-07-09 08:05:58.684	
+{
+  "level": 30,
+  "time": 1752073558683,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-9",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/findings",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 50462
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:05:53.604	
+{
+  "level": 30,
+  "time": 1752073553604,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-8",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 26.68570899963379,
+  "msg": "request completed"
+}
+2025-07-09 08:05:53.603	
+[2025-07-09T15:05:53.603Z] [api] Found 21 findings for scan bcJIQcxk8ck
+2025-07-09 08:05:53.578	
+[2025-07-09T15:05:53.577Z] [api] Retrieving findings for scan: bcJIQcxk8ck
+2025-07-09 08:05:53.577	
+{
+  "level": 30,
+  "time": 1752073553577,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-8",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/findings",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 52870
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:05:48.030	
+{
+  "level": 30,
+  "time": 1752073548030,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-7",
+  "res": {
+    "statusCode": 200
+  },
+  "responseTime": 401.9941979944706,
+  "msg": "request completed"
+}
+2025-07-09 08:05:47.628	
+{
+  "level": 30,
+  "time": 1752073547628,
+  "pid": 661,
+  "hostname": "148e21dae24d98",
+  "reqId": "req-7",
+  "req": {
+    "method": "GET",
+    "url": "/scan/bcJIQcxk8ck/status",
+    "host": "dealbrief-scanner.fly.dev",
+    "remoteAddress": "172.16.19.26",
+    "remotePort": 52868
+  },
+  "msg": "incoming request"
+}
+2025-07-09 08:05:01.124	
+[2025-07-09T15:05:01.123Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:05:01.124	
+[2025-07-09T15:05:01.123Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:04:01.077	
+[2025-07-09T15:04:01.077Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:04:01.077	
+[2025-07-09T15:04:01.076Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:03:00.940	
+[2025-07-09T15:03:00.939Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:03:00.940	
+[2025-07-09T15:03:00.939Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:02:00.988	
+[2025-07-09T15:02:00.987Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:02:00.988	
+[2025-07-09T15:02:00.987Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:01:00.990	
+[2025-07-09T15:01:00.989Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:01:00.990	
+[2025-07-09T15:01:00.989Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 08:00:09.454	
+[2025-07-09T15:00:09.453Z] [worker] ✅ COMPREHENSIVE SCAN COMPLETED for Vulnerable Test Site Enhanced: 21 verified findings, 28 artifacts across 12 security modules
+2025-07-09 08:00:09.454	
+[queue] Updated job bcJIQcxk8ck status: done - Comprehensive security scan completed - 21 verified findings across 12 security modules. Findings ready for processing.
+2025-07-09 08:00:09.045	
+[2025-07-09T15:00:09.045Z] [worker] [updateScanMasterStatus] Updated scan bcJIQcxk8ck with: status, progress, completed_at, total_findings_count, max_severity, total_artifacts_count
+2025-07-09 08:00:09.037	
+[2025-07-09T15:00:09.037Z] [worker] [processScan] Counted 28 artifacts for scan bcJIQcxk8ck
+2025-07-09 08:00:09.034	
+[2025-07-09T15:00:09.034Z] [worker] [bcJIQcxk8ck] COMPLETED abuse_intel_scan scan: 0 findings found
+2025-07-09 08:00:09.034	
+[2025-07-09T15:00:09.033Z] [worker] [bcJIQcxk8ck] WAITING for abuse_intel_scan scan to complete...
+2025-07-09 08:00:09.034	
+[2025-07-09T15:00:09.033Z] [worker] [bcJIQcxk8ck] COMPLETED tech_stack_scan scan: 0 findings found
+2025-07-09 08:00:09.034	
+[2025-07-09T15:00:09.033Z] [worker] [bcJIQcxk8ck] WAITING for tech_stack_scan scan to complete...
+2025-07-09 08:00:09.034	
+[2025-07-09T15:00:09.033Z] [worker] [bcJIQcxk8ck] COMPLETED nuclei scan: 0 findings found
+2025-07-09 08:00:09.034	
+[artifactStore] Inserted scan_summary artifact: Nuclei scan completed: 0 vulnerabilities found...
+2025-07-09 08:00:09.013	
+[2025-07-09T15:00:09.013Z] [nuclei] Completed vulnerability scan. Total findings: 0
+2025-07-09 08:00:09.013	
+[2025-07-09T15:00:09.013Z] [nuclei] --- Starting Phase 2: Deep-Dive Workflow Scans ---
+2025-07-09 08:00:09.013	
+[2025-07-09T15:00:09.013Z] [nuclei] [Two-Pass Scan] No findings for https://vulnerable-test-site.vercel.app
+2025-07-09 08:00:09.013	
+[2025-07-09T15:00:09.013Z] [nucleiWrapper] Two-pass scan completed: 0 findings persisted as artifacts (baseline: 0, common+tech: 0)
+2025-07-09 08:00:09.013	
+[2025-07-09T15:00:09.012Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 08:00:09.004	
+[2025-07-09T15:00:09.004Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
+2025-07-09 08:00:00.915	
+[2025-07-09T15:00:00.914Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 08:00:00.915	
+[2025-07-09T15:00:00.914Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 07:59:55.686	
+}
+2025-07-09 07:59:55.686	
+"MALICIOUS_TYPOSQUAT": 4
+2025-07-09 07:59:55.686	
+"PARKED_TYPOSQUAT": 13,
+2025-07-09 07:59:55.686	
+"TLS_CONFIGURATION_ISSUE": 1,
+2025-07-09 07:59:55.686	
+"EMAIL_SECURITY_GAP": 1,
+2025-07-09 07:59:55.686	
+[2025-07-09T14:59:55.685Z] [SyncWorker] ✅ New findings synced: 19 {
+2025-07-09 07:59:49.003	
+[2025-07-09T14:59:49.003Z] [nucleiWrapper] Manual timeout override: 20000ms
+2025-07-09 07:59:49.003	
+[2025-07-09T14:59:49.003Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:49.000	
+[2025-07-09T14:59:48.999Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://vulnerable-test-site.vercel.app -tags cve,panel,xss,wp-plugin,osint,lfi,rce -c 6 -timeout 20 -retries 1
+2025-07-09 07:59:49.000	
+[2025-07-09T14:59:48.999Z] [nucleiWrapper] Pass 2: Running common vulnerability + tech-specific scan with gated tags: cve,panel,xss,wp-plugin,osint,lfi,rce
+2025-07-09 07:59:48.999	
+[2025-07-09T14:59:48.999Z] [nucleiWrapper] Detected technologies: none
+2025-07-09 07:59:48.999	
+[2025-07-09T14:59:48.999Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 07:59:48.991	
+[2025-07-09T14:59:48.991Z] [nucleiWrapper] Nuclei execution timed out after 20000ms, sending SIGTERM
+2025-07-09 07:59:32.326	
+[2025-07-09T14:59:32.326Z] [worker] [bcJIQcxk8ck] WAITING for nuclei scan to complete...
+2025-07-09 07:59:32.326	
+[2025-07-09T14:59:32.326Z] [worker] [bcJIQcxk8ck] WAITING for nuclei scan to complete...
+2025-07-09 07:59:32.326	
+[2025-07-09T14:59:32.325Z] [worker] [bcJIQcxk8ck] COMPLETED accessibility_scan scan: 0 findings found
+2025-07-09 07:59:32.326	
+[2025-07-09T14:59:32.325Z] [worker] [bcJIQcxk8ck] COMPLETED accessibility_scan scan: 0 findings found
+2025-07-09 07:59:32.325	
+[2025-07-09T14:59:32.325Z] [accessibilityScan] Accessibility scan completed: 0 findings from 0/15 pages in 38911ms
+2025-07-09 07:59:32.325	
+[2025-07-09T14:59:32.325Z] [accessibilityScan] Accessibility scan completed: 0 findings from 0/15 pages in 38911ms
+2025-07-09 07:59:32.323	
+[2025-07-09T14:59:32.323Z] [accessibilityScan] Accessibility analysis complete: 0 violations (0 critical, 0 serious)
+2025-07-09 07:59:32.323	
+[2025-07-09T14:59:32.323Z] [accessibilityScan] Accessibility analysis complete: 0 violations (0 critical, 0 serious)
+2025-07-09 07:59:31.660	
+[2025-07-09T14:59:31.659Z] [techStackScan] techstack=complete arts=0 time=2797ms
+2025-07-09 07:59:31.660	
+[2025-07-09T14:59:31.659Z] [techStackScan] techstack=complete arts=0 time=2797ms
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [techStackScan] techstack=sbom_generated components=0 vulnerabilities=0 critical=0
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [techStackScan] techstack=sbom_generated components=0 vulnerabilities=0 critical=0
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [sbomGenerator] SBOM generated: 0 components, 0 vulnerabilities
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [sbomGenerator] SBOM generated: 0 components, 0 vulnerabilities
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [sbomGenerator] Generating SBOM for vulnerable-test-site.vercel.app with 0 components
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.654Z] [sbomGenerator] Generating SBOM for vulnerable-test-site.vercel.app with 0 components
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.653Z] [osvIntegration] No components suitable for OSV.dev queries
+2025-07-09 07:59:31.654	
+[2025-07-09T14:59:31.653Z] [osvIntegration] No components suitable for OSV.dev queries
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=osv_enhancement starting OSV.dev integration for 0 components
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=osv_enhancement starting OSV.dev integration for 0 components
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [versionMatcher] Batch vulnerability analysis completed: 0 vulnerabilities across 0 components in 0ms
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [versionMatcher] Batch vulnerability analysis completed: 0 vulnerabilities across 0 components in 0ms
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [versionMatcher] Starting batch vulnerability analysis for 0 components
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [versionMatcher] Starting batch vulnerability analysis for 0 components
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=vuln_analysis starting enhanced vulnerability analysis for 0 technologies
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=vuln_analysis starting enhanced vulnerability analysis for 0 technologies
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=header_detected url="https://www.vulnerable-test-site.vercel.app" techs=0
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [techStackScan] techstack=header_detected url="https://www.vulnerable-test-site.vercel.app" techs=0
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.653	
+[2025-07-09T14:59:31.653Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.626	
+[2025-07-09T14:59:31.626Z] [techStackScan] techstack=header_detected url="https://vulnerable-test-site.vercel.app" techs=0
+2025-07-09 07:59:31.626	
+[2025-07-09T14:59:31.626Z] [techStackScan] techstack=header_detected url="https://vulnerable-test-site.vercel.app" techs=0
+2025-07-09 07:59:31.626	
+[2025-07-09T14:59:31.626Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.626	
+[2025-07-09T14:59:31.626Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.625	
+[2025-07-09T14:59:31.625Z] [techStackScan] techstack=header_detected url="https://vulnerable-test-site.vercel.app/admin" techs=0
+2025-07-09 07:59:31.625	
+[2025-07-09T14:59:31.625Z] [techStackScan] techstack=header_detected url="https://vulnerable-test-site.vercel.app/admin" techs=0
+2025-07-09 07:59:31.625	
+[2025-07-09T14:59:31.625Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.625	
+[2025-07-09T14:59:31.625Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.617	
+[2025-07-09T14:59:31.617Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.617	
+[2025-07-09T14:59:31.617Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.617	
+[2025-07-09T14:59:31.617Z] [techStackScan] techstack=header_scan url="https://vulnerable-test-site.vercel.app/admin"
+2025-07-09 07:59:31.617	
+[2025-07-09T14:59:31.617Z] [techStackScan] techstack=header_scan url="https://vulnerable-test-site.vercel.app/admin"
+2025-07-09 07:59:31.616	
+[2025-07-09T14:59:31.615Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.616	
+[2025-07-09T14:59:31.615Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.616	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=header_scan url="https://www.vulnerable-test-site.vercel.app"
+2025-07-09 07:59:31.616	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=header_scan url="https://www.vulnerable-test-site.vercel.app"
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=header_scan url="https://vulnerable-test-site.vercel.app"
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=header_scan url="https://vulnerable-test-site.vercel.app"
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=fallback_headers starting header analysis for 3 URLs
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=fallback_headers starting header analysis for 3 URLs
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=fast_detection_complete total_techs=0 total_duration=136ms avg_per_url=27ms
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.615Z] [techStackScan] techstack=fast_detection_complete total_techs=0 total_duration=136ms avg_per_url=27ms
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] Batch favicon detection completed: 0 technologies detected across 3 URLs in 154ms
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] Batch favicon detection completed: 0 technologies detected across 3 URLs in 154ms
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] No favicon found for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] No favicon found for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.615	
+[2025-07-09T14:59:31.614Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.575	
+[2025-07-09T14:59:31.575Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.575	
+[2025-07-09T14:59:31.575Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.575	
+[2025-07-09T14:59:31.575Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.575	
+[2025-07-09T14:59:31.575Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.539	
+[2025-07-09T14:59:31.539Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon.png
+2025-07-09 07:59:31.539	
+[2025-07-09T14:59:31.539Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/apple-touch-icon.png
+2025-07-09 07:59:31.539	
+[2025-07-09T14:59:31.539Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.539	
+[2025-07-09T14:59:31.539Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.514	
+[2025-07-09T14:59:31.514Z] [faviconDetection] No favicon found for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.514	
+[2025-07-09T14:59:31.514Z] [faviconDetection] No favicon found for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.514	
+[2025-07-09T14:59:31.514Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.514	
+[2025-07-09T14:59:31.514Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.504	
+[2025-07-09T14:59:31.504Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.504	
+[2025-07-09T14:59:31.504Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.504	
+[2025-07-09T14:59:31.504Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.504	
+[2025-07-09T14:59:31.504Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.499	
+[2025-07-09T14:59:31.499Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/favicon.png
+2025-07-09 07:59:31.499	
+[2025-07-09T14:59:31.499Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/favicon.png
+2025-07-09 07:59:31.499	
+[2025-07-09T14:59:31.499Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.499	
+[2025-07-09T14:59:31.499Z] [faviconDetection] Failed to fetch favicon from https://www.vulnerable-test-site.vercel.app/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.496	
+[2025-07-09T14:59:31.496Z] [faviconDetection] No favicon found for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.496	
+[2025-07-09T14:59:31.496Z] [faviconDetection] No favicon found for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.496	
+[2025-07-09T14:59:31.496Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.496	
+[2025-07-09T14:59:31.496Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon-precomposed.png: Request failed with status code 403
+2025-07-09 07:59:31.495	
+[2025-07-09T14:59:31.494Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon.png
+2025-07-09 07:59:31.495	
+[2025-07-09T14:59:31.494Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/apple-touch-icon.png
+2025-07-09 07:59:31.495	
+[2025-07-09T14:59:31.494Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.495	
+[2025-07-09T14:59:31.494Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.487	
+[2025-07-09T14:59:31.487Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.487	
+[2025-07-09T14:59:31.487Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon-precomposed.png
+2025-07-09 07:59:31.487	
+[2025-07-09T14:59:31.487Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.487	
+[2025-07-09T14:59:31.487Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon.png: Request failed with status code 403
+2025-07-09 07:59:31.479	
+[2025-07-09T14:59:31.479Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon.png
+2025-07-09 07:59:31.479	
+[2025-07-09T14:59:31.479Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/apple-touch-icon.png
+2025-07-09 07:59:31.479	
+[2025-07-09T14:59:31.479Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.479	
+[2025-07-09T14:59:31.479Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/favicon.png: Request failed with status code 403
+2025-07-09 07:59:31.472	
+[2025-07-09T14:59:31.472Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/favicon.png
+2025-07-09 07:59:31.472	
+[2025-07-09T14:59:31.472Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/favicon.png
+2025-07-09 07:59:31.472	
+[2025-07-09T14:59:31.472Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.472	
+[2025-07-09T14:59:31.472Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.471	
+[2025-07-09T14:59:31.471Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/favicon.png
+2025-07-09 07:59:31.471	
+[2025-07-09T14:59:31.471Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/favicon.png
+2025-07-09 07:59:31.471	
+[2025-07-09T14:59:31.471Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.471	
+[2025-07-09T14:59:31.471Z] [faviconDetection] Failed to fetch favicon from https://vulnerable-test-site.vercel.app/admin/favicon.ico: Request failed with status code 403
+2025-07-09 07:59:31.463	
+[2025-07-09T14:59:31.463Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/favicon.ico
+2025-07-09 07:59:31.463	
+[2025-07-09T14:59:31.463Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/admin/favicon.ico
+2025-07-09 07:59:31.463	
+[2025-07-09T14:59:31.463Z] [faviconDetection] Starting favicon-based tech detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.463	
+[2025-07-09T14:59:31.463Z] [faviconDetection] Starting favicon-based tech detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.461	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/favicon.ico
+2025-07-09 07:59:31.461	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Fetching favicon from https://www.vulnerable-test-site.vercel.app/favicon.ico
+2025-07-09 07:59:31.461	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting favicon-based tech detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.461	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting favicon-based tech detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/favicon.ico
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Fetching favicon from https://vulnerable-test-site.vercel.app/favicon.ico
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting favicon-based tech detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting favicon-based tech detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting batch favicon detection for 3 URLs
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [faviconDetection] Starting batch favicon detection for 3 URLs
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=favicon_detection starting favicon analysis for 3 URLs
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=favicon_detection starting favicon analysis for 3 URLs
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app/api" techs=0 duration=11ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app/api" techs=0 duration=11ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://www.vulnerable-test-site.vercel.app/admin" techs=0 duration=49ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://www.vulnerable-test-site.vercel.app/admin" techs=0 duration=49ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app/admin" techs=0 duration=10ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app/admin" techs=0 duration=10ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://www.vulnerable-test-site.vercel.app" techs=0 duration=52ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://www.vulnerable-test-site.vercel.app" techs=0 duration=52ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app" techs=0 duration=14ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [techStackScan] techstack=webtech_success url="https://vulnerable-test-site.vercel.app" techs=0 duration=14ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [fastTechDetection] Batch fast tech detection completed: 0 techs across 5 URLs in 1621ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.460Z] [fastTechDetection] Batch fast tech detection completed: 0 techs across 5 URLs in 1621ms
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.459Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.460	
+[2025-07-09T14:59:31.459Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.411	
+[2025-07-09T14:59:31.411Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.411	
+[2025-07-09T14:59:31.411Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.411	
+(105ms)
+2025-07-09 07:59:31.411	
+(105ms)
+2025-07-09 07:59:31.411	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.411	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.411	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.411	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.411	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.411	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.411	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.411	
+[2025-07-09T14:59:31.410Z] [fastTechDetection] WhatWeb detection failed for https://www.vulnerable-test-site.vercel.app/admin: Command failed: whatweb --log-json=- -a 3 https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.411	
+[2025-07-09T14:59:31.410Z] [fastTechDetection] WhatWeb detection failed for https://www.vulnerable-test-site.vercel.app/admin: Command failed: whatweb --log-json=- -a 3 https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.368	
+[2025-07-09T14:59:31.368Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.368	
+[2025-07-09T14:59:31.368Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.317	
+[2025-07-09T14:59:31.316Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.317	
+[2025-07-09T14:59:31.316Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.317	
+(187ms)
+2025-07-09 07:59:31.317	
+(187ms)
+2025-07-09 07:59:31.317	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.317	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.317	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.317	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.317	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.317	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.317	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.317	
+[2025-07-09T14:59:31.316Z] [fastTechDetection] WhatWeb detection failed for https://www.vulnerable-test-site.vercel.app: Command failed: whatweb --log-json=- -a 3 https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.317	
+[2025-07-09T14:59:31.316Z] [fastTechDetection] WhatWeb detection failed for https://www.vulnerable-test-site.vercel.app: Command failed: whatweb --log-json=- -a 3 https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.305	
+[2025-07-09T14:59:31.305Z] [fastTechDetection] Starting WhatWeb detection for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.305	
+[2025-07-09T14:59:31.305Z] [fastTechDetection] Starting WhatWeb detection for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.305	
+[2025-07-09T14:59:31.305Z] [fastTechDetection] WebTech detection completed for https://www.vulnerable-test-site.vercel.app/admin: 0 techs in 1375ms
+2025-07-09 07:59:31.305	
+[2025-07-09T14:59:31.305Z] [fastTechDetection] WebTech detection completed for https://www.vulnerable-test-site.vercel.app/admin: 0 techs in 1375ms
+2025-07-09 07:59:31.295	
+[2025-07-09T14:59:31.294Z] [dynamicBrowser] Page operation completed in 1092ms
+2025-07-09 07:59:31.295	
+[2025-07-09T14:59:31.294Z] [dynamicBrowser] Page operation completed in 1092ms
+2025-07-09 07:59:31.248	
+[2025-07-09T14:59:31.247Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.248	
+[2025-07-09T14:59:31.247Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.247	
+[2025-07-09T14:59:31.246Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.247	
+[2025-07-09T14:59:31.246Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.237	
+[2025-07-09T14:59:31.237Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.237	
+[2025-07-09T14:59:31.237Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.237	
+(210ms)
+2025-07-09 07:59:31.237	
+(210ms)
+2025-07-09 07:59:31.237	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.237	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.237	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.237	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.237	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.237	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.237	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.237	
+[2025-07-09T14:59:31.237Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app/admin: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.237	
+[2025-07-09T14:59:31.237Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app/admin: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.236	
+[2025-07-09T14:59:31.236Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.236	
+[2025-07-09T14:59:31.236Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.236	
+(215ms)
+2025-07-09 07:59:31.236	
+(215ms)
+2025-07-09 07:59:31.236	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.236	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.236	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.236	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.236	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.236	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.236	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.236	
+[2025-07-09T14:59:31.236Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.236	
+[2025-07-09T14:59:31.236Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.129	
+[2025-07-09T14:59:31.129Z] [fastTechDetection] Starting WhatWeb detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.129	
+[2025-07-09T14:59:31.129Z] [fastTechDetection] Starting WhatWeb detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.129	
+[2025-07-09T14:59:31.129Z] [fastTechDetection] WebTech detection completed for https://www.vulnerable-test-site.vercel.app: 0 techs in 1167ms
+2025-07-09 07:59:31.129	
+[2025-07-09T14:59:31.129Z] [fastTechDetection] WebTech detection completed for https://www.vulnerable-test-site.vercel.app: 0 techs in 1167ms
+2025-07-09 07:59:31.027	
+[2025-07-09T14:59:31.027Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.027	
+[2025-07-09T14:59:31.027Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:31.027	
+[2025-07-09T14:59:31.027Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app/admin: 0 techs in 1164ms
+2025-07-09 07:59:31.027	
+[2025-07-09T14:59:31.027Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app/admin: 0 techs in 1164ms
+2025-07-09 07:59:31.022	
+[2025-07-09T14:59:31.021Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.022	
+[2025-07-09T14:59:31.021Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:31.022	
+[2025-07-09T14:59:31.021Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app: 0 techs in 1165ms
+2025-07-09 07:59:31.022	
+[2025-07-09T14:59:31.021Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app: 0 techs in 1165ms
+2025-07-09 07:59:31.014	
+[2025-07-09T14:59:31.013Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:31.014	
+[2025-07-09T14:59:31.013Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:31.006	
+[2025-07-09T14:59:31.003Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:31.006	
+[2025-07-09T14:59:31.003Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:31.006	
+(168ms)
+2025-07-09 07:59:31.006	
+(168ms)
+2025-07-09 07:59:31.006	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.006	
+from /usr/local/bin/whatweb:37:in '<main>'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.006	
+from /opt/whatweb/lib/whatweb.rb:22:in '<top (required)>'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+from <internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require'
+2025-07-09 07:59:31.006	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.006	
+<internal:/usr/lib/ruby/3.4.0/rubygems/core_ext/kernel_require.rb>:136:in 'Kernel#require': cannot load such file -- getoptlong (LoadError)
+2025-07-09 07:59:31.006	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.006	
+/usr/lib/ruby/3.4.0/did_you_mean/core_ext/name_error.rb:11: warning: getoptlong is not part of the default gems starting from Ruby 3.4.0. Install getoptlong from RubyGems.
+2025-07-09 07:59:31.006	
+[2025-07-09T14:59:31.002Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app/api: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:31.006	
+[2025-07-09T14:59:31.002Z] [fastTechDetection] WhatWeb detection failed for https://vulnerable-test-site.vercel.app/api: Command failed: whatweb --log-json=- -a 3 https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:30.838	
+[2025-07-09T14:59:30.834Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:30.838	
+[2025-07-09T14:59:30.834Z] [fastTechDetection] Starting WhatWeb detection for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:30.838	
+[2025-07-09T14:59:30.834Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app/api: 0 techs in 965ms
+2025-07-09 07:59:30.838	
+[2025-07-09T14:59:30.834Z] [fastTechDetection] WebTech detection completed for https://vulnerable-test-site.vercel.app/api: 0 techs in 965ms
+2025-07-09 07:59:30.203	
+[2025-07-09T14:59:30.202Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/help
+2025-07-09 07:59:30.203	
+[2025-07-09T14:59:30.202Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/help
+2025-07-09 07:59:29.964	
+[2025-07-09T14:59:29.962Z] [fastTechDetection] Starting WebTech detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.964	
+[2025-07-09T14:59:29.962Z] [fastTechDetection] Starting WebTech detection for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.964	
+[2025-07-09T14:59:29.950Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.964	
+[2025-07-09T14:59:29.950Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.932	
+[2025-07-09T14:59:29.930Z] [fastTechDetection] Starting WebTech detection for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.932	
+[2025-07-09T14:59:29.930Z] [fastTechDetection] Starting WebTech detection for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.928	
+[2025-07-09T14:59:29.928Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.928	
+[2025-07-09T14:59:29.928Z] [fastTechDetection] Header detection found 0 technologies for https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.871	
+[2025-07-09T14:59:29.869Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.871	
+[2025-07-09T14:59:29.869Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.871	
+[2025-07-09T14:59:29.869Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.871	
+[2025-07-09T14:59:29.869Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.865	
+[2025-07-09T14:59:29.863Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.865	
+[2025-07-09T14:59:29.863Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.864	
+[2025-07-09T14:59:29.863Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.864	
+[2025-07-09T14:59:29.863Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.856	
+[2025-07-09T14:59:29.856Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.856	
+[2025-07-09T14:59:29.856Z] [fastTechDetection] Starting WebTech detection for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.856	
+[2025-07-09T14:59:29.856Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.856	
+[2025-07-09T14:59:29.856Z] [fastTechDetection] Header detection found 0 technologies for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.846	
+[2025-07-09T14:59:29.846Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.846	
+[2025-07-09T14:59:29.846Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/api
+2025-07-09 07:59:29.844	
+[2025-07-09T14:59:29.844Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.844	
+[2025-07-09T14:59:29.844Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.843	
+[2025-07-09T14:59:29.843Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.843	
+[2025-07-09T14:59:29.843Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app/admin
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Checking headers for quick tech detection: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Checking headers for quick tech detection: https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Starting batch fast tech detection for 5 URLs
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [fastTechDetection] Starting batch fast tech detection for 5 URLs
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [techStackScan] techstack=fast_detection starting WebTech scan for 16 targets
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [techStackScan] techstack=fast_detection starting WebTech scan for 16 targets
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [techStackScan] techstack=targets primary=16 thirdParty=0 total=16 html=16 finalHtml=16 nonHtml=0 skipped=0
+2025-07-09 07:59:29.841	
+[2025-07-09T14:59:29.839Z] [techStackScan] techstack=targets primary=16 thirdParty=0 total=16 html=16 finalHtml=16 nonHtml=0 skipped=0
+2025-07-09 07:59:29.828	
+[2025-07-09T14:59:29.827Z] [dynamicBrowser] Page operation completed in 699ms
+2025-07-09 07:59:29.828	
+[2025-07-09T14:59:29.827Z] [dynamicBrowser] Page operation completed in 699ms
+2025-07-09 07:59:29.828	
+[2025-07-09T14:59:29.827Z] [techStackScan] thirdParty=discovered domain=vulnerable-test-site.vercel.app total=0 (html=0, nonHtml=0)
+2025-07-09 07:59:29.828	
+[2025-07-09T14:59:29.827Z] [techStackScan] thirdParty=discovered domain=vulnerable-test-site.vercel.app total=0 (html=0, nonHtml=0)
+2025-07-09 07:59:29.024	
+[2025-07-09T14:59:29.024Z] [techStackScan] buildTargets fallback added common paths, total=16
+2025-07-09 07:59:29.024	
+[2025-07-09T14:59:29.024Z] [techStackScan] buildTargets fallback added common paths, total=16
+2025-07-09 07:59:29.023	
+[2025-07-09T14:59:29.023Z] [techStackScan] buildTargets discovered=0 total=2 (html=2, nonHtml=0)
+2025-07-09 07:59:29.023	
+[2025-07-09T14:59:29.023Z] [techStackScan] buildTargets discovered=0 total=2 (html=2, nonHtml=0)
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.016Z] [techStackScan] techstack=nuclei wrapper confirmed available
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.016Z] [techStackScan] techstack=nuclei wrapper confirmed available
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.015Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.015Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 07:59:29.016	
+[INF] PDCP Directory: /root/.pdcp
+2025-07-09 07:59:29.016	
+[INF] PDCP Directory: /root/.pdcp
+2025-07-09 07:59:29.016	
+[INF] Nuclei Cache Directory: /root/.cache/nuclei
+2025-07-09 07:59:29.016	
+[INF] Nuclei Cache Directory: /root/.cache/nuclei
+2025-07-09 07:59:29.016	
+[INF] Nuclei Config Directory: /root/.config/nuclei
+2025-07-09 07:59:29.016	
+[INF] Nuclei Config Directory: /root/.config/nuclei
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.015Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
+2025-07-09 07:59:29.016	
+[2025-07-09T14:59:29.015Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
+2025-07-09 07:59:28.987	
+[2025-07-09T14:59:28.986Z] [nucleiWrapper] Manual timeout override: 20000ms
+2025-07-09 07:59:28.987	
+[2025-07-09T14:59:28.986Z] [nucleiWrapper] Manual timeout override: 20000ms
+2025-07-09 07:59:28.987	
+[2025-07-09T14:59:28.986Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.987	
+[2025-07-09T14:59:28.986Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://vulnerable-test-site.vercel.app -tags misconfiguration,default-logins,exposed-panels,exposure,tech -c 6 -timeout 20 -retries 1
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -silent -jsonl -u https://vulnerable-test-site.vercel.app -tags misconfiguration,default-logins,exposed-panels,exposure,tech -c 6 -timeout 20 -retries 1
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Pass 1: Running baseline scan with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Pass 1: Running baseline scan with tags: misconfiguration,default-logins,exposed-panels,exposure,tech
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Starting two-pass scan for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nucleiWrapper] Starting two-pass scan for https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] Smart guard: techs=none timeout=20s headless=false
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] Smart guard: techs=none timeout=20s headless=false
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] [Enhanced Two-Pass Scan] Running on https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] [Enhanced Two-Pass Scan] Running on https://vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] --- Starting Enhanced Two-Pass Scans on 1 targets ---
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.981Z] [nuclei] --- Starting Enhanced Two-Pass Scans on 1 targets ---
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.980Z] [nuclei] Nuclei binary validated successfully.
+2025-07-09 07:59:28.981	
+[2025-07-09T14:59:28.980Z] [nuclei] Nuclei binary validated successfully.
+2025-07-09 07:59:28.980	
+[2025-07-09T14:59:28.980Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 07:59:28.980	
+[2025-07-09T14:59:28.980Z] [nucleiWrapper] Nuclei execution completed: 0 results, exit code 0
+2025-07-09 07:59:28.980	
+[INF] PDCP Directory: /root/.pdcp
+2025-07-09 07:59:28.980	
+[INF] PDCP Directory: /root/.pdcp
+2025-07-09 07:59:28.980	
+[INF] Nuclei Cache Directory: /root/.cache/nuclei
+2025-07-09 07:59:28.980	
+[INF] Nuclei Cache Directory: /root/.cache/nuclei
+2025-07-09 07:59:28.980	
+[INF] Nuclei Config Directory: /root/.config/nuclei
+2025-07-09 07:59:28.980	
+[INF] Nuclei Config Directory: /root/.config/nuclei
+2025-07-09 07:59:28.980	
+[2025-07-09T14:59:28.980Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
+2025-07-09 07:59:28.980	
+[2025-07-09T14:59:28.980Z] [nucleiWrapper] Nuclei stderr: [INF] Nuclei Engine Version: v3.4.5
+2025-07-09 07:59:28.871	
+[2025-07-09T14:59:28.871Z] [abuseIntelScan] No IP artifacts found for this scan
+2025-07-09 07:59:28.871	
+[2025-07-09T14:59:28.871Z] [abuseIntelScan] No IP artifacts found for this scan
+2025-07-09 07:59:28.871	
+[2025-07-09T14:59:28.870Z] [abuseIntelScan] Found 0 IP artifacts for scan bcJIQcxk8ck
+2025-07-09 07:59:28.871	
+[2025-07-09T14:59:28.870Z] [abuseIntelScan] Found 0 IP artifacts for scan bcJIQcxk8ck
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] WAITING for accessibility_scan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] WAITING for accessibility_scan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] COMPLETED trufflehog scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] COMPLETED trufflehog scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] WAITING for trufflehog scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] WAITING for trufflehog scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] COMPLETED spf_dmarc scan: 3 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.868Z] [worker] [bcJIQcxk8ck] COMPLETED spf_dmarc scan: 3 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for spf_dmarc scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for spf_dmarc scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] COMPLETED tls_scan scan: 1 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] COMPLETED tls_scan scan: 1 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for tls_scan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for tls_scan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] COMPLETED document_exposure scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] COMPLETED document_exposure scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for document_exposure scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.867Z] [worker] [bcJIQcxk8ck] WAITING for document_exposure scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED dns_twist scan: 17 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED dns_twist scan: 17 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for dns_twist scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for dns_twist scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED shodan scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED shodan scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for shodan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for shodan scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED breach_directory_probe scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] COMPLETED breach_directory_probe scan: 0 findings found
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for breach_directory_probe scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [worker] [bcJIQcxk8ck] WAITING for breach_directory_probe scan to complete...
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=bcJIQcxk8ck
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.866Z] [abuseIntelScan] Starting AbuseIPDB scan for scanId=bcJIQcxk8ck
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.865Z] [worker] [bcJIQcxk8ck] STARTING AbuseIPDB intelligence scan for IPs (parallel after endpoint discovery)
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.865Z] [worker] [bcJIQcxk8ck] STARTING AbuseIPDB intelligence scan for IPs (parallel after endpoint discovery)
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.865Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.869	
+[2025-07-09T14:59:28.865Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [techStackScan] techstack=start domain=vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [techStackScan] techstack=start domain=vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [worker] [bcJIQcxk8ck] STARTING tech stack scan for vulnerable-test-site.vercel.app (parallel after endpoint discovery)
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [worker] [bcJIQcxk8ck] STARTING tech stack scan for vulnerable-test-site.vercel.app (parallel after endpoint discovery)
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.862	
+[2025-07-09T14:59:28.862Z] [nucleiWrapper] Using baseline timeout: 8000ms
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [nucleiWrapper] Executing nuclei: /usr/local/bin/nuclei -version
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [nuclei] Starting enhanced vulnerability scan for vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [nuclei] Starting enhanced vulnerability scan for vulnerable-test-site.vercel.app
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [worker] [bcJIQcxk8ck] STARTING Nuclei vulnerability scan for vulnerable-test-site.vercel.app (parallel after endpoint discovery)
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [worker] [bcJIQcxk8ck] STARTING Nuclei vulnerability scan for vulnerable-test-site.vercel.app (parallel after endpoint discovery)
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [worker] [bcJIQcxk8ck] COMPLETED endpoint discovery: 16 endpoint collections found
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [worker] [bcJIQcxk8ck] COMPLETED endpoint discovery: 16 endpoint collections found
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [endpointDiscovery] ⇢ done – 0 endpoints, 16 web assets
+2025-07-09 07:59:28.858	
+[2025-07-09T14:59:28.857Z] [endpointDiscovery] ⇢ done – 0 endpoints, 16 web assets
+2025-07-09 07:59:28.823	
+[2025-07-09T14:59:28.822Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/config.json
+2025-07-09 07:59:28.823	
+[2025-07-09T14:59:28.822Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/config.json
+2025-07-09 07:59:28.823	
+[2025-07-09T14:59:28.822Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/config.json (31542 bytes)
+2025-07-09 07:59:28.823	
+[2025-07-09T14:59:28.822Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/config.json (31542 bytes)
+2025-07-09 07:59:28.821	
+[2025-07-09T14:59:28.821Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/build/config.json
+2025-07-09 07:59:28.821	
+[2025-07-09T14:59:28.821Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/build/config.json
+2025-07-09 07:59:28.821	
+[2025-07-09T14:59:28.821Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/build/config.json (31542 bytes)
+2025-07-09 07:59:28.821	
+[2025-07-09T14:59:28.821Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/build/config.json (31542 bytes)
+2025-07-09 07:59:28.820	
+[2025-07-09T14:59:28.819Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/static/js/main.js
+2025-07-09 07:59:28.820	
+[2025-07-09T14:59:28.819Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/static/js/main.js
+2025-07-09 07:59:28.820	
+[2025-07-09T14:59:28.819Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/static/js/main.js (31541 bytes)
+2025-07-09 07:59:28.820	
+[2025-07-09T14:59:28.819Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/static/js/main.js (31541 bytes)
+2025-07-09 07:59:28.818	
+[2025-07-09T14:59:28.818Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/api/settings
+2025-07-09 07:59:28.818	
+[2025-07-09T14:59:28.818Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/api/settings
+2025-07-09 07:59:28.816	
+[2025-07-09T14:59:28.816Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/api/settings (31541 bytes)
+2025-07-09 07:59:28.816	
+[2025-07-09T14:59:28.816Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/api/settings (31541 bytes)
+2025-07-09 07:59:28.815	
+[2025-07-09T14:59:28.814Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/_next/static/chunks/webpack.js
+2025-07-09 07:59:28.815	
+[2025-07-09T14:59:28.814Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/_next/static/chunks/webpack.js
+2025-07-09 07:59:28.815	
+[2025-07-09T14:59:28.814Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/_next/static/chunks/webpack.js (31536 bytes)
+2025-07-09 07:59:28.815	
+[2025-07-09T14:59:28.814Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/_next/static/chunks/webpack.js (31536 bytes)
+2025-07-09 07:59:28.810	
+[2025-07-09T14:59:28.810Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/settings.json
+2025-07-09 07:59:28.810	
+[2025-07-09T14:59:28.810Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/settings.json
+2025-07-09 07:59:28.810	
+[2025-07-09T14:59:28.810Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/settings.json (31543 bytes)
+2025-07-09 07:59:28.810	
+[2025-07-09T14:59:28.810Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/settings.json (31543 bytes)
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.808Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.808Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.808Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env (31544 bytes)
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.808Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env (31544 bytes)
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.807Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/assets/config.js
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.807Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/assets/config.js
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.807Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/assets/config.js (31543 bytes)
+2025-07-09 07:59:28.808	
+[2025-07-09T14:59:28.807Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/assets/config.js (31543 bytes)
+2025-07-09 07:59:28.804	
+[2025-07-09T14:59:28.803Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/api/config
+2025-07-09 07:59:28.804	
+[2025-07-09T14:59:28.803Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/api/config
+2025-07-09 07:59:28.803	
+[2025-07-09T14:59:28.803Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/api/config (31541 bytes)
+2025-07-09 07:59:28.803	
+[2025-07-09T14:59:28.803Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/api/config (31541 bytes)
+2025-07-09 07:59:28.802	
+[2025-07-09T14:59:28.801Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/manifest.json
+2025-07-09 07:59:28.802	
+[2025-07-09T14:59:28.801Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/manifest.json
+2025-07-09 07:59:28.802	
+[2025-07-09T14:59:28.801Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/manifest.json (31544 bytes)
+2025-07-09 07:59:28.802	
+[2025-07-09T14:59:28.801Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/manifest.json (31544 bytes)
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/app.config.json
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/app.config.json
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/app.config.json (31543 bytes)
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] +web_asset json https://vulnerable-test-site.vercel.app/app.config.json (31543 bytes)
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/config.js
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/config.js
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/config.js (31541 bytes)
+2025-07-09 07:59:28.801	
+[2025-07-09T14:59:28.800Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app/config.js (31541 bytes)
+2025-07-09 07:59:28.799	
+[2025-07-09T14:59:28.799Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env.production
+2025-07-09 07:59:28.799	
+[2025-07-09T14:59:28.799Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env.production
+2025-07-09 07:59:28.799	
+[2025-07-09T14:59:28.799Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env.production (31536 bytes)
+2025-07-09 07:59:28.799	
+[2025-07-09T14:59:28.799Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env.production (31536 bytes)
+2025-07-09 07:59:28.798	
+[2025-07-09T14:59:28.798Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env.local
+2025-07-09 07:59:28.798	
+[2025-07-09T14:59:28.798Z] [endpointDiscovery] Found high-value asset: https://vulnerable-test-site.vercel.app/.env.local
+2025-07-09 07:59:28.798	
+[2025-07-09T14:59:28.797Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env.local (31536 bytes)
+2025-07-09 07:59:28.798	
+[2025-07-09T14:59:28.797Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app/.env.local (31536 bytes)
+2025-07-09 07:59:28.695	
+[2025-07-09T14:59:28.694Z] [dynamicBrowser] Page operation completed in 686ms
+2025-07-09 07:59:28.009	
+[2025-07-09T14:59:28.008Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/search
+2025-07-09 07:59:26.929	
+[2025-07-09T14:59:26.928Z] [dynamicBrowser] Page operation completed in 703ms
+2025-07-09 07:59:26.588	
+[2025-07-09T14:59:26.588Z] [dnstwist] Scan completed – 17 domains analysed
+2025-07-09 07:59:26.585	
+[2025-07-09T14:59:26.584Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercelapp.com marked as INFO severity - redirects to original
+2025-07-09 07:59:26.506	
+[2025-07-09T14:59:26.506Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercel-app.com marked as INFO severity - redirects to original
+2025-07-09 07:59:26.370	
+[2025-07-09T14:59:26.369Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercel-app.com
+2025-07-09 07:59:26.225	
+[2025-07-09T14:59:26.225Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/join
+2025-07-09 07:59:26.207	
+[2025-07-09T14:59:26.206Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercelapp.com
+2025-07-09 07:59:25.551	
+[2025-07-09T14:59:25.550Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercelapp.com
+2025-07-09 07:59:25.550	
+[2025-07-09T14:59:25.550Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:25.550	
+[2025-07-09T14:59:25.550Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:25.550	
 Saved $0.028 vs WhoisXML
-2025-07-08 09:40:23.494	
-[2025-07-08T16:40:23.493Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
-2025-07-08 09:40:23.491	
-[2025-07-08T16:40:23.491Z] [tlsScan] Scan complete. Hosts: noxmetals.co, www.noxmetals.co. Findings: 0
-2025-07-08 09:40:23.491	
-[artifactStore] Inserted scan_summary artifact: TLS scan complete - 0 issue(s) found...
-2025-07-08 09:40:23.249	
-[2025-07-08T16:40:23.249Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:40:23.249	
-[2025-07-08T16:40:23.248Z] [tlsScan] Cross-validation complete for www.noxmetals.co: 0 additional findings
-2025-07-08 09:40:23.155	
-[2025-07-08T16:40:23.154Z] [breachDirectoryProbe] Querying LeakCheck for domain: noxmetals.co
-2025-07-08 09:40:22.382	
-[2025-07-08T16:40:22.382Z] [endpointDiscovery] +crawl_link /cdn-cgi/l/email-protection (-)
-2025-07-08 09:40:22.326	
-[2025-07-08T16:40:22.325Z] [spfDmarc] Completed email security scan, found 2 issues
-2025-07-08 09:40:22.308	
-[2025-07-08T16:40:22.308Z] [tlsScan] Python validator: www.noxmetals.co - VALID
-2025-07-08 09:40:22.304	
-[2025-07-08T16:40:22.304Z] [spfDmarc] Checking for BIMI record...
-2025-07-08 09:40:22.199	
-[2025-07-08T16:40:22.198Z] [breachDirectoryProbe] Breach Directory response for noxmetals.co: 0 breached accounts
-2025-07-08 09:40:22.139	
-[2025-07-08T16:40:22.139Z] [tlsScan] Scanning www.noxmetals.co with hybrid validation (sslscan + Python)...
-2025-07-08 09:40:22.139	
-[2025-07-08T16:40:22.139Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
-2025-07-08 09:40:22.138	
-[2025-07-08T16:40:22.138Z] [tlsScan] Cross-validation complete for noxmetals.co: 0 additional findings
-2025-07-08 09:40:22.124	
-[2025-07-08T16:40:22.122Z] [dynamicBrowser] Launching new browser instance
-2025-07-08 09:40:22.124	
-[2025-07-08T16:40:22.122Z] [dynamicBrowser] Initializing page semaphore with max 2 concurrent pages
-2025-07-08 09:40:22.116	
-[2025-07-08T16:40:22.116Z] [dynamicBrowser] Initializing page semaphore with max 2 concurrent pages
-2025-07-08 09:40:22.115	
-[2025-07-08T16:40:22.115Z] [accessibilityScan] accessibility=hash_computation domain="noxmetals.co" pages=15
-2025-07-08 09:40:22.115	
-[2025-07-08T16:40:22.115Z] [accessibilityScan] Discovered 15 pages to test for accessibility
-2025-07-08 09:40:21.775	
-[2025-07-08T16:40:21.775Z] [spfDmarc] Probing for common DKIM selectors...
-2025-07-08 09:40:21.766	
-[2025-07-08T16:40:21.765Z] [Shodan] Done — 0 services found, 0 unique after deduplication, 1 API calls for 1 targets
-2025-07-08 09:40:21.765	
+2025-07-09 07:59:25.550	
+[2025-07-09T14:59:25.550Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:25.471	
+[2025-07-09T14:59:25.471Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercel-app.com
+2025-07-09 07:59:25.471	
+[2025-07-09T14:59:25.471Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:25.471	
+[2025-07-09T14:59:25.471Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:25.471	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:25.471	
+[2025-07-09T14:59:25.470Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:25.145	
+[2025-07-09T14:59:25.144Z] [dynamicBrowser] Page operation completed in 636ms
+2025-07-09 07:59:24.509	
+[2025-07-09T14:59:24.508Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/register
+2025-07-09 07:59:24.165	
+[2025-07-09T14:59:24.164Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercel-app.com
+2025-07-09 07:59:24.152	
+[2025-07-09T14:59:24.152Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercelapp.com
+2025-07-09 07:59:24.152	
+[2025-07-09T14:59:24.152Z] [dnstwist] Batch 2/2
+2025-07-09 07:59:23.848	
+[2025-07-09T14:59:23.848Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.varcel.app marked as INFO severity - redirects to original
+2025-07-09 07:59:23.599	
+[2025-07-09T14:59:23.599Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vervel.app marked as INFO severity - redirects to original
+2025-07-09 07:59:23.597	
+[artifactStore] Inserted finding MALICIOUS_TYPOSQUAT for artifact 2619
+2025-07-09 07:59:23.596	
+[artifactStore] Inserted typo_domain artifact: Active typosquat threat detected: vulnerable-test-site.gerce...
+2025-07-09 07:59:23.390	
+[2025-07-09T14:59:23.390Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.varcel.app
+2025-07-09 07:59:23.361	
+[2025-07-09T14:59:23.361Z] [dynamicBrowser] Page operation completed in 694ms
+2025-07-09 07:59:23.205	
+[2025-07-09T14:59:23.205Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.gercel.app
+2025-07-09 07:59:23.143	
+[2025-07-09T14:59:23.143Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vervel.app
+2025-07-09 07:59:23.088	
+[artifactStore] Inserted finding MALICIOUS_TYPOSQUAT for artifact 2618
+2025-07-09 07:59:23.086	
+[artifactStore] Inserted typo_domain artifact: Active typosquat threat detected: vulnerable-test-site.cerce...
+2025-07-09 07:59:23.060	
+[2025-07-09T14:59:23.060Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.versel.app marked as INFO severity - redirects to original
+2025-07-09 07:59:22.668	
+[2025-07-09T14:59:22.668Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/login
+2025-07-09 07:59:22.648	
+[2025-07-09T14:59:22.648Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.cercel.app
+2025-07-09 07:59:22.645	
+[2025-07-09T14:59:22.645Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.versel.app
+2025-07-09 07:59:22.643	
+[2025-07-09T14:59:22.642Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.varcel.app
+2025-07-09 07:59:22.643	
+[2025-07-09T14:59:22.641Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:22.643	
+[2025-07-09T14:59:22.641Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.643	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:22.643	
+[2025-07-09T14:59:22.641Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.566	
+[2025-07-09T14:59:22.566Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.gercel.app
+2025-07-09 07:59:22.566	
+[2025-07-09T14:59:22.566Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:22.566	
+[2025-07-09T14:59:22.565Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.566	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:22.566	
+[2025-07-09T14:59:22.565Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.157	
+[2025-07-09T14:59:22.157Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vervel.app
+2025-07-09 07:59:22.157	
+[2025-07-09T14:59:22.156Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:22.156	
+[2025-07-09T14:59:22.156Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.156	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:22.156	
+[2025-07-09T14:59:22.156Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.126	
+[artifactStore] Inserted finding MALICIOUS_TYPOSQUAT for artifact 2615
+2025-07-09 07:59:22.125	
+[artifactStore] Inserted typo_domain artifact: Active typosquat threat detected: vulnerable-test-site.ferce...
+2025-07-09 07:59:22.124	
+[2025-07-09T14:59:22.124Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercell.app marked as INFO severity - redirects to original
+2025-07-09 07:59:22.122	
+[2025-07-09T14:59:22.121Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.verel.app marked as INFO severity - redirects to original
+2025-07-09 07:59:22.118	
+[2025-07-09T14:59:22.118Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.verce.app marked as INFO severity - redirects to original
+2025-07-09 07:59:22.037	
+[2025-07-09T14:59:22.037Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercle.app marked as INFO severity - redirects to original
+2025-07-09 07:59:22.017	
+[2025-07-09T14:59:22.017Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.versel.app
+2025-07-09 07:59:22.017	
+[2025-07-09T14:59:22.017Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:22.017	
+[2025-07-09T14:59:22.017Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:22.017	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:22.017	
+[2025-07-09T14:59:22.017Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.987	
+[2025-07-09T14:59:21.987Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercell.app
+2025-07-09 07:59:21.985	
+[2025-07-09T14:59:21.985Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.verel.app
+2025-07-09 07:59:21.983	
+[2025-07-09T14:59:21.982Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.verce.app
+2025-07-09 07:59:21.817	
+[2025-07-09T14:59:21.817Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.cercel.app
+2025-07-09 07:59:21.817	
+[2025-07-09T14:59:21.817Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:21.817	
+[2025-07-09T14:59:21.817Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.817	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:21.817	
+[2025-07-09T14:59:21.817Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.748	
+[2025-07-09T14:59:21.747Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercei.app marked as INFO severity - redirects to original
+2025-07-09 07:59:21.705	
+[2025-07-09T14:59:21.705Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.fercel.app
+2025-07-09 07:59:21.573	
+[2025-07-09T14:59:21.573Z] [dynamicBrowser] Page operation completed in 1443ms
+2025-07-09 07:59:21.448	
+[2025-07-09T14:59:21.446Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercell.app
+2025-07-09 07:59:21.441	
+[2025-07-09T14:59:21.440Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:21.441	
+[2025-07-09T14:59:21.440Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.440	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:21.440	
+[2025-07-09T14:59:21.440Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.393	
+[artifactStore] Inserted finding MALICIOUS_TYPOSQUAT for artifact 2609
+2025-07-09 07:59:21.391	
+[artifactStore] Inserted typo_domain artifact: Active typosquat threat detected: vulnerable-test-site.berce...
+2025-07-09 07:59:21.268	
+[2025-07-09T14:59:21.268Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercl.app marked as INFO severity - redirects to original
+2025-07-09 07:59:21.248	
+[2025-07-09T14:59:21.247Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.verel.app
+2025-07-09 07:59:21.247	
+[2025-07-09T14:59:21.246Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vecel.app marked as INFO severity - redirects to original
+2025-07-09 07:59:21.244	
+[2025-07-09T14:59:21.244Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:21.244	
+[2025-07-09T14:59:21.244Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.243	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:21.243	
+[2025-07-09T14:59:21.243Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.156	
+[2025-07-09T14:59:21.156Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercei.app
+2025-07-09 07:59:21.126	
+[2025-07-09T14:59:21.125Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.fercel.app
+2025-07-09 07:59:21.123	
+[2025-07-09T14:59:21.123Z] [dnstwist] ↪️ LEGITIMATE REDIRECT: vulnerable-test-site.vercal.app marked as INFO severity - redirects to original
+2025-07-09 07:59:21.122	
+[2025-07-09T14:59:21.122Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:21.122	
+[2025-07-09T14:59:21.122Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.120	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:21.119	
+[2025-07-09T14:59:21.119Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:21.107	
+[2025-07-09T14:59:21.107Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercle.app
+2025-07-09 07:59:21.084	
+[2025-07-09T14:59:21.084Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercl.app
+2025-07-09 07:59:20.925	
+[2025-07-09T14:59:20.925Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.verce.app
+2025-07-09 07:59:20.918	
+[2025-07-09T14:59:20.918Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:20.918	
+[2025-07-09T14:59:20.918Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.911	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:20.911	
+[2025-07-09T14:59:20.911Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.891	
+[2025-07-09T14:59:20.891Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vecel.app
+2025-07-09 07:59:20.815	
+[2025-07-09T14:59:20.815Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercal.app
+2025-07-09 07:59:20.588	
+[2025-07-09T14:59:20.588Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.bercel.app
+2025-07-09 07:59:20.434	
+[2025-07-09T14:59:20.434Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercei.app
+2025-07-09 07:59:20.433	
+[2025-07-09T14:59:20.433Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:20.433	
+[2025-07-09T14:59:20.432Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.432	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:20.432	
+[2025-07-09T14:59:20.432Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.280	
+[2025-07-09T14:59:20.280Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercl.app
+2025-07-09 07:59:20.279	
+[2025-07-09T14:59:20.279Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:20.279	
+[2025-07-09T14:59:20.279Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.279	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:20.279	
+[2025-07-09T14:59:20.278Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.267	
+[2025-07-09T14:59:20.267Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercle.app
+2025-07-09 07:59:20.267	
+[2025-07-09T14:59:20.267Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:20.267	
+[2025-07-09T14:59:20.267Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.267	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:20.267	
+[2025-07-09T14:59:20.267Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.131	
+[2025-07-09T14:59:20.130Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/signup
+2025-07-09 07:59:20.067	
+[2025-07-09T14:59:20.067Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vecel.app
+2025-07-09 07:59:20.067	
+[2025-07-09T14:59:20.067Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:20.067	
+[2025-07-09T14:59:20.067Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:20.056	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:20.056	
+[2025-07-09T14:59:20.056Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:19.936	
+[2025-07-09T14:59:19.936Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercal.app
+2025-07-09 07:59:19.936	
+[2025-07-09T14:59:19.935Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:19.935	
+[2025-07-09T14:59:19.935Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:19.935	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:19.935	
+[2025-07-09T14:59:19.935Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:19.697	
+[2025-07-09T14:59:19.694Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.bercel.app
+2025-07-09 07:59:19.692	
+[2025-07-09T14:59:19.691Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:59:19.692	
+[2025-07-09T14:59:19.691Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:19.692	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:59:19.692	
+[2025-07-09T14:59:19.691Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:59:18.248	
+[2025-07-09T14:59:18.247Z] [dynamicBrowser] Page operation completed in 695ms
+2025-07-09 07:59:18.079	
+[2025-07-09T14:59:18.079Z] [dnstwist] TLS cert check failed for vulnerable-test-site.vercle.app: Request failed with status code 429
+2025-07-09 07:59:17.934	
+[2025-07-09T14:59:17.929Z] [dnstwist] TLS cert check failed for vulnerable-test-site.bercel.app: Request failed with status code 429
+2025-07-09 07:59:17.874	
+[2025-07-09T14:59:17.874Z] [dnstwist] TLS cert check failed for vulnerable-test-site.vercei.app: Request failed with status code 429
+2025-07-09 07:59:17.553	
+[2025-07-09T14:59:17.552Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/pricing
+2025-07-09 07:59:17.205	
+[2025-07-09T14:59:17.204Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercle.app
+2025-07-09 07:59:17.173	
+[2025-07-09T14:59:17.172Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.cercel.app
+2025-07-09 07:59:17.152	
+[2025-07-09T14:59:17.151Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.gercel.app
+2025-07-09 07:59:17.130	
+[2025-07-09T14:59:17.130Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.bercel.app
+2025-07-09 07:59:17.107	
+[2025-07-09T14:59:17.107Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vervel.app
+2025-07-09 07:59:17.093	
+[2025-07-09T14:59:17.093Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.verel.app
+2025-07-09 07:59:17.073	
+[2025-07-09T14:59:17.073Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.verce.app
+2025-07-09 07:59:17.057	
+[2025-07-09T14:59:17.057Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vecel.app
+2025-07-09 07:59:17.039	
+[2025-07-09T14:59:17.039Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercl.app
+2025-07-09 07:59:17.020	
+[2025-07-09T14:59:17.020Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercei.app
+2025-07-09 07:59:17.003	
+[2025-07-09T14:59:17.003Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.fercel.app
+2025-07-09 07:59:16.972	
+[2025-07-09T14:59:16.972Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.varcel.app
+2025-07-09 07:59:16.961	
+[2025-07-09T14:59:16.960Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.versel.app
+2025-07-09 07:59:16.942	
+[2025-07-09T14:59:16.938Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercal.app
+2025-07-09 07:59:16.925	
+[2025-07-09T14:59:16.925Z] [dnstwist] Analyzing threat signals for vulnerable-test-site.vercell.app
+2025-07-09 07:59:16.925	
+[2025-07-09T14:59:16.925Z] [dnstwist] Batch 1/2
+2025-07-09 07:59:16.925	
+[2025-07-09T14:59:16.925Z] [dnstwist] Found 17 registered typosquat candidates to analyze
+2025-07-09 07:59:16.447	
+[2025-07-09T14:59:16.446Z] [dynamicBrowser] Page operation completed in 611ms
+2025-07-09 07:59:15.835	
+[2025-07-09T14:59:15.835Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/products
+2025-07-09 07:59:14.745	
+[2025-07-09T14:59:14.745Z] [dynamicBrowser] Page operation completed in 604ms
+2025-07-09 07:59:14.142	
+[2025-07-09T14:59:14.141Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/services
+2025-07-09 07:59:13.047	
+[2025-07-09T14:59:13.046Z] [dynamicBrowser] Page operation completed in 588ms
+2025-07-09 07:59:12.458	
+[2025-07-09T14:59:12.458Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/about
+2025-07-09 07:59:11.362	
+[2025-07-09T14:59:11.361Z] [dynamicBrowser] Page operation completed in 596ms
+2025-07-09 07:59:10.766	
+[2025-07-09T14:59:10.765Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/contact
+2025-07-09 07:59:09.653	
+[2025-07-09T14:59:09.652Z] [accessibilityScan] Accessibility test error for https://www.vulnerable-test-site.vercel.app/: net::ERR_CERT_COMMON_NAME_INVALID at https://www.vulnerable-test-site.vercel.app/
+2025-07-09 07:59:08.524	
+[2025-07-09T14:59:08.524Z] [dynamicBrowser] Metrics: browser_rss_mb=188, heap_used_mb=73, pages_open=1
+2025-07-09 07:59:06.594	
+[2025-07-09T14:59:06.594Z] [accessibilityScan] Testing accessibility for: https://www.vulnerable-test-site.vercel.app/
+2025-07-09 07:59:05.534	
+[2025-07-09T14:59:05.534Z] [accessibilityScan] Accessibility test error for https://www.vulnerable-test-site.vercel.app: net::ERR_CERT_COMMON_NAME_INVALID at https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:02.475	
+[2025-07-09T14:59:02.475Z] [accessibilityScan] Testing accessibility for: https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:59:01.396	
+[2025-07-09T14:59:01.396Z] [dynamicBrowser] Page operation completed in 636ms
+2025-07-09 07:59:00.890	
+[2025-07-09T14:59:00.890Z] [queue-monitor] Queue: 0 jobs, Workers: 0 running, 0 needed
+2025-07-09 07:59:00.890	
+[2025-07-09T14:59:00.890Z] [queue-monitor] Failed to fetch machines: 401 {"error":"verify: invalid token: all tokens missing third-party discharge tokens; no verified tokens; token e60f8cd1-a991-50f2-a3f8-cccca3b7f28c: missing third-party discharge token"}
+2025-07-09 07:59:00.761	
+[2025-07-09T14:59:00.760Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app/
+2025-07-09 07:58:59.663	
+[2025-07-09T14:58:59.662Z] [dynamicBrowser] Page operation completed in 695ms
+2025-07-09 07:58:58.967	
+[2025-07-09T14:58:58.967Z] [accessibilityScan] Testing accessibility for: https://vulnerable-test-site.vercel.app
+2025-07-09 07:58:58.876	
+[2025-07-09T14:58:58.875Z] [accessibilityScan] accessibility=running_full_scan domain="vulnerable-test-site.vercel.app" reason="changes_detected"
+2025-07-09 07:58:58.876	
+[2025-07-09T14:58:58.875Z] [accessibilityScan] accessibility=change_detected domain="vulnerable-test-site.vercel.app" url="https://vulnerable-test-site.vercel.app" reason="content_changed"
+2025-07-09 07:58:58.856	
+[2025-07-09T14:58:58.856Z] [dynamicBrowser] Page operation completed in 65ms
+2025-07-09 07:58:58.716	
+[2025-07-09T14:58:58.715Z] [accessibilityScan] Failed to compute hash for https://www.vulnerable-test-site.vercel.app/: net::ERR_CERT_COMMON_NAME_INVALID at https://www.vulnerable-test-site.vercel.app/
+2025-07-09 07:58:57.875	
+[2025-07-09T14:58:57.856Z] [tlsScan] Scan complete. Hosts: vulnerable-test-site.vercel.app, www.vulnerable-test-site.vercel.app. Findings: 1
+2025-07-09 07:58:57.875	
+[artifactStore] Inserted scan_summary artifact: TLS scan complete - 1 issue(s) found...
+2025-07-09 07:58:57.759	
+[2025-07-09T14:58:57.759Z] [tlsScan] Cross-validation complete for www.vulnerable-test-site.vercel.app: 0 additional findings
+2025-07-09 07:58:57.273	
+[artifactStore] Inserted scan_summary artifact: Document exposure scan completed: 0 exposed files...
+2025-07-09 07:58:57.271	
+[2025-07-09T14:58:57.270Z] [documentExposure] Completed: 0 files found, 10 parallel Serper calls (~$0.030)
+2025-07-09 07:58:57.270	
+[2025-07-09T14:58:57.270Z] [documentExposure] Query 4 returned 20 results
+2025-07-09 07:58:57.218	
+[2025-07-09T14:58:57.217Z] [documentExposure] Query 9 returned 20 results
+2025-07-09 07:58:57.182	
+[2025-07-09T14:58:57.181Z] [documentExposure] Query 3 returned 8 results
+2025-07-09 07:58:57.058	
+[2025-07-09T14:58:57.058Z] [documentExposure] Query 8 returned 7 results
+2025-07-09 07:58:56.915	
+[2025-07-09T14:58:56.914Z] [documentExposure] Query 5 returned 20 results
+2025-07-09 07:58:56.877	
+[2025-07-09T14:58:56.877Z] [documentExposure] Query 7 returned 20 results
+2025-07-09 07:58:56.821	
+[2025-07-09T14:58:56.820Z] [documentExposure] Query 10 returned 0 results
+2025-07-09 07:58:56.813	
+[2025-07-09T14:58:56.812Z] [documentExposure] Query 2 returned 0 results
+2025-07-09 07:58:56.777	
+[2025-07-09T14:58:56.776Z] [documentExposure] Query 6 returned 0 results
+2025-07-09 07:58:56.646	
+[2025-07-09T14:58:56.646Z] [documentExposure] Query 1 returned 0 results
+2025-07-09 07:58:55.987	
+[2025-07-09T14:58:55.986Z] [spfDmarc] Completed email security scan, found 3 issues
+2025-07-09 07:58:55.914	
+[2025-07-09T14:58:55.914Z] [spfDmarc] Checking for BIMI record...
+2025-07-09 07:58:55.759	
+[2025-07-09T14:58:55.759Z] [documentExposure] Serper API call 10: ""Vulnerable Test Site Enhanced" (ext:env OR ext:ini OR ext:cfg OR ext:conf OR ext:config OR ext:properties OR ext:yaml OR ext:yml)"
+2025-07-09 07:58:55.757	
+[2025-07-09T14:58:55.757Z] [documentExposure] Serper API call 9: ""Vulnerable Test Site Enhanced" (intext:"mysql_connect" OR intext:"mysql_pconnect" OR intext:"pg_connect" OR intext:"mssql_connect" OR intext:"oracle_connect" OR intext:"mongodb://" OR intext:"postgres://" OR intext:"redis://" OR intext:"ftp://" OR intext:"sftp://")"
+2025-07-09 07:58:55.756	
+[2025-07-09T14:58:55.755Z] [documentExposure] Serper API call 8: ""Vulnerable Test Site Enhanced" (intitle:"index of" OR intitle:"directory listing")"
+2025-07-09 07:58:55.753	
+[2025-07-09T14:58:55.753Z] [documentExposure] Serper API call 7: ""Vulnerable Test Site Enhanced" (inurl:"wp-config.php.txt" OR inurl:".env" OR inurl:"config.php" OR inurl:"settings.php" OR inurl:"database.yml" OR inurl:"credentials.json" OR inurl:"secrets.yml")"
+2025-07-09 07:58:55.750	
+[2025-07-09T14:58:55.750Z] [documentExposure] Serper API call 6: ""Vulnerable Test Site Enhanced" (site:github.com OR site:gitlab.com OR site:bitbucket.org OR site:pastebin.com OR site:paste.ee OR site:justpaste.it OR site:rentry.co)"
+2025-07-09 07:58:55.745	
+[2025-07-09T14:58:55.745Z] [documentExposure] Serper API call 5: ""Vulnerable Test Site Enhanced" ("config" OR "configuration" OR "password" OR "passwords" OR "credentials" OR "api key" OR "secret" OR "token") filetype:txt"
+2025-07-09 07:58:55.742	
+[2025-07-09T14:58:55.742Z] [documentExposure] Serper API call 4: ""Vulnerable Test Site Enhanced" ("database" OR "backup" OR "dump") filetype:sql"
+2025-07-09 07:58:55.741	
+[2025-07-09T14:58:55.740Z] [documentExposure] Serper API call 3: ""Vulnerable Test Site Enhanced" ("confidential" OR "internal" OR "private" OR "financial" OR "budget" OR "salary" OR "contract" OR "agreement" OR "employee" OR "org chart" OR "organization chart") filetype:pdf"
+2025-07-09 07:58:55.740	
+[2025-07-09T14:58:55.738Z] [documentExposure] Serper API call 2: ""Vulnerable Test Site Enhanced" (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx)"
+2025-07-09 07:58:55.740	
+[2025-07-09T14:58:55.738Z] [documentExposure] Serper API call 1: "site:vulnerable-test-site.vercel.app (filetype:pdf OR filetype:doc OR filetype:docx OR filetype:xls OR filetype:xlsx OR filetype:ppt OR filetype:pptx OR filetype:txt OR filetype:csv OR filetype:sql OR filetype:log OR filetype:zip OR filetype:tar OR filetype:gz OR filetype:backup OR filetype:bak OR filetype:old)"
+2025-07-09 07:58:55.740	
+[2025-07-09T14:58:55.738Z] [documentExposure] Starting 10 parallel Serper queries
+2025-07-09 07:58:55.566	
+}
+2025-07-09 07:58:55.566	
+"EMAIL_SECURITY_GAP": 2
+2025-07-09 07:58:55.566	
+[2025-07-09T14:58:55.565Z] [SyncWorker] ✅ New findings synced: 2 {
+2025-07-09 07:58:55.522	
+[2025-07-09T14:58:55.519Z] [Shodan] Done — 0 services found, 0 unique after deduplication, 3 API calls for 1 targets
+2025-07-09 07:58:55.519	
 [artifactStore] Inserted scan_summary artifact: Shodan scan: 0 services found, 0 unique after deduplication...
-2025-07-08 09:40:21.763	
-[2025-07-08T16:40:21.763Z] [Shodan] API call 1 - search query
-2025-07-08 09:40:21.760	
-[2025-07-08T16:40:21.759Z] [endpointDiscovery] +robots.txt / (-)
-2025-07-08 09:40:21.730	
-[2025-07-08T16:40:21.729Z] [tlsScan] Python validator: noxmetals.co - VALID
+2025-07-09 07:58:55.517	
+[2025-07-09T14:58:55.517Z] [Shodan] API call 3 - search query
+2025-07-09 07:58:55.516	
+[2025-07-09T14:58:55.515Z] [accessibilityScan] Failed to compute hash for https://www.vulnerable-test-site.vercel.app: net::ERR_CERT_COMMON_NAME_INVALID at https://www.vulnerable-test-site.vercel.app
+2025-07-09 07:58:55.404	
+[2025-07-09T14:58:55.404Z] [tlsScan] Python validator: www.vulnerable-test-site.vercel.app - INVALID
+2025-07-09 07:58:55.364	
+[2025-07-09T14:58:55.363Z] [dnstwist] ❌ Serper API: No search results found for vulnerable-test-site.vercel.app
+2025-07-09 07:58:55.341	
+[2025-07-09T14:58:55.341Z] [breachDirectoryProbe] Breach probe completed: 0 findings in 1942ms
+2025-07-09 07:58:55.339	
+[2025-07-09T14:58:55.339Z] [breachDirectoryProbe] Combined breach analysis complete: BD=0, LC=0, Total=0
+2025-07-09 07:58:55.339	
+[2025-07-09T14:58:55.338Z] [breachDirectoryProbe] LeakCheck response for vulnerable-test-site.vercel.app: 0 breached accounts, quota remaining: 999999
+2025-07-09 07:58:55.191	
+[2025-07-09T14:58:55.191Z] [dynamicBrowser] Page operation completed in 78ms
+2025-07-09 07:58:54.965	
+[2025-07-09T14:58:54.965Z] [tlsScan] Scanning www.vulnerable-test-site.vercel.app with hybrid validation (sslscan + Python)...
+2025-07-09 07:58:54.965	
+[2025-07-09T14:58:54.965Z] [tlsScan] Skipping false positive: "No SSL certificate presented" - Python validator confirmed valid certificate
+2025-07-09 07:58:54.965	
+[2025-07-09T14:58:54.964Z] [tlsScan] Cross-validation complete for vulnerable-test-site.vercel.app: 0 additional findings
+2025-07-09 07:58:54.946	
+[2025-07-09T14:58:54.945Z] [dynamicBrowser] Page operation completed in 107ms
+2025-07-09 07:58:54.847	
+[artifactStore] Inserted scan_summary artifact: TruffleHog scan completed: 0 potential secrets found...
+2025-07-09 07:58:54.844	
+[2025-07-09T14:58:54.844Z] [trufflehog] Finished comprehensive secret scan for vulnerable-test-site.vercel.app Total secrets found: 0
+2025-07-09 07:58:54.844	
+[2025-07-09T14:58:54.844Z] [trufflehog] [File Scan] Unable to scan file /tmp/spiderfoot-links-bcJIQcxk8ck.json: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-bcJIQcxk8ck.json'
+2025-07-09 07:58:54.844	
+[2025-07-09T14:58:54.843Z] [trufflehog] [File Scan] Checking file existence: /tmp/spiderfoot-links-bcJIQcxk8ck.json
+2025-07-09 07:58:54.844	
+[2025-07-09T14:58:54.843Z] [trufflehog] [File Scan] Scanning local artifacts...
+2025-07-09 07:58:54.844	
+[2025-07-09T14:58:54.843Z] [trufflehog] Unable to process SpiderFoot links file: File does not exist. Skipping Git repo scan.
+2025-07-09 07:58:54.843	
+[2025-07-09T14:58:54.843Z] [trufflehog] SpiderFoot links file does not exist: ENOENT: no such file or directory, access '/tmp/spiderfoot-links-bcJIQcxk8ck.json'
+2025-07-09 07:58:54.843	
+[2025-07-09T14:58:54.843Z] [trufflehog] Checking for SpiderFoot links file at: /tmp/spiderfoot-links-bcJIQcxk8ck.json
+2025-07-09 07:58:54.843	
+[2025-07-09T14:58:54.842Z] [trufflehog] [Targeted Scan] Completed high-value path scanning: 0 secrets found
+2025-07-09 07:58:54.802	
+[2025-07-09T14:58:54.801Z] [breachDirectoryProbe] Querying LeakCheck for domain: vulnerable-test-site.vercel.app
+2025-07-09 07:58:54.721	
+[2025-07-09T14:58:54.721Z] [dnstwist] 🔍 Calling Serper API for vulnerable-test-site.vercel.app
+2025-07-09 07:58:54.721	
+[2025-07-09T14:58:54.721Z] [dnstwist] Fetching original site content for AI comparison
+2025-07-09 07:58:54.714	
+[2025-07-09T14:58:54.714Z] [whoisWrapper] Saved $0.013 vs WhoisXML
+2025-07-09 07:58:54.714	
+[2025-07-09T14:58:54.714Z] [whoisWrapper] WHOIS resolution: 0 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:58:54.714	
+Saved $0.028 vs WhoisXML
+2025-07-09 07:58:54.714	
+[2025-07-09T14:58:54.713Z] [whoisWrapper] Python stderr: WHOIS Resolution: 1 RDAP (free) + 1 Whoxy (~$0.002)
+2025-07-09 07:58:54.713	
+[2025-07-09T14:58:54.712Z] [accessibilityScan] accessibility=hash_computation domain="vulnerable-test-site.vercel.app" pages=15
+2025-07-09 07:58:54.713	
+[2025-07-09T14:58:54.712Z] [accessibilityScan] Discovered 15 pages to test for accessibility
+2025-07-09 07:58:54.450	
+[2025-07-09T14:58:54.450Z] [breachDirectoryProbe] Breach Directory response for vulnerable-test-site.vercel.app: 0 breached accounts
+2025-07-09 07:58:53.706	
+[2025-07-09T14:58:53.704Z] [endpointDiscovery] +web_asset javascript https://vulnerable-test-site.vercel.app#inline-script-0 (5578 bytes)
+2025-07-09 07:58:53.706	
+[2025-07-09T14:58:53.702Z] [endpointDiscovery] +web_asset other https://vulnerable-test-site.vercel.app (8053 bytes)
+2025-07-09 07:58:53.594	
+[2025-07-09T14:58:53.594Z] [spfDmarc] Probing for common DKIM selectors...
+2025-07-09 07:58:53.581	
+[2025-07-09T14:58:53.580Z] [tlsScan] Python validator: vulnerable-test-site.vercel.app - VALID
+2025-07-09 07:58:53.537	
+[2025-07-09T14:58:53.537Z] [spfDmarc] Performing recursive SPF check...
+2025-07-09 07:58:53.529	
+[2025-07-09T14:58:53.529Z] [trufflehog] [Targeted Scan] Testing 12 high-value paths for secrets
+2025-07-09 07:58:53.529	
+[2025-07-09T14:58:53.529Z] [trufflehog] [Web Asset Scan] No discovered web assets found from endpointDiscovery
+2025-07-09 07:58:53.436	
+[2025-07-09T14:58:53.435Z] [Shodan] Querying 1 targets (PAGE_LIMIT=10)
+2025-07-09 07:58:53.420	
+[2025-07-09T14:58:53.420Z] [tlsScan] Scanning vulnerable-test-site.vercel.app with hybrid validation (sslscan + Python)...
+2025-07-09 07:58:53.420	
+
+2025-07-09 07:58:53.420	
+OpenSSL 3.5.1 1 Jul 2025
+2025-07-09 07:58:53.420	
+[2025-07-09T14:58:53.419Z] [tlsScan] sslscan found: [1;34m		2.1.6
+2025-07-09 07:58:53.416	
+[2025-07-09T14:58:53.416Z] [worker] [bcJIQcxk8ck] WAITING for endpoint discovery to complete for dependent modules...
+2025-07-09 07:58:53.414	
+[2025-07-09T14:58:53.414Z] [accessibilityScan] Starting accessibility scan for domain="vulnerable-test-site.vercel.app"
+2025-07-09 07:58:53.414	
+[2025-07-09T14:58:53.414Z] [worker] [bcJIQcxk8ck] STARTING accessibility compliance scan for vulnerable-test-site.vercel.app (immediate parallel)
+2025-07-09 07:58:53.414	
+[2025-07-09T14:58:53.414Z] [trufflehog] [Web Asset Scan] Scanning discovered web assets...
+2025-07-09 07:58:53.414	
+[2025-07-09T14:58:53.414Z] [trufflehog] Scanning discovered web assets from endpointDiscovery...
