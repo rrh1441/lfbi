@@ -461,6 +461,21 @@ async function getSiteSnippet(domain: string): Promise<{ snippet: string; title:
 }
 
 /**
+ * Sanitize input for AI prompts to prevent injection attacks
+ */
+function sanitizeForPrompt(input: string): string {
+  if (!input) return '';
+  
+  // Remove potential injection patterns
+  return input
+    .replace(/["\`]/g, "'")  // Replace quotes and backticks with single quotes
+    .replace(/\{|\}/g, '')   // Remove curly braces
+    .replace(/\n\s*\n/g, '\n') // Collapse multiple newlines
+    .replace(/^\s+|\s+$/g, '') // Trim whitespace
+    .slice(0, 500); // Limit length to prevent prompt bloating
+}
+
+/**
  * Use OpenAI to compare site content similarity for phishing detection
  */
 async function compareContentWithAI(
@@ -477,15 +492,23 @@ async function compareContentWithAI(
     return { similarityScore: 0, reasoning: 'OpenAI API key not configured', confidence: 0 };
   }
 
+  // Sanitize all inputs to prevent prompt injection
+  const safeDomain = sanitizeForPrompt(originalDomain);
+  const safeTyposquat = sanitizeForPrompt(typosquatDomain);
+  const safeOriginalTitle = sanitizeForPrompt(originalTitle);
+  const safeTyposquatTitle = sanitizeForPrompt(typosquatTitle);
+  const safeOriginalSnippet = sanitizeForPrompt(originalSnippet);
+  const safeTyposquatSnippet = sanitizeForPrompt(typosquatSnippet);
+
   const prompt = `You are a cybersecurity expert analyzing typosquat domains for phishing threat potential. Compare these two domains:
 
-ORIGINAL: ${originalDomain}
-Title: "${originalTitle}"  
-Description: "${originalSnippet}"
+ORIGINAL: ${safeDomain}
+Title: ${safeOriginalTitle}
+Description: ${safeOriginalSnippet}
 
-TYPOSQUAT: ${typosquatDomain}
-Title: "${typosquatTitle}"
-Description: "${typosquatSnippet}"
+TYPOSQUAT: ${safeTyposquat}
+Title: ${safeTyposquatTitle}
+Description: ${safeTyposquatSnippet}
 
 Key threat assessment priorities:
 1. ACTIVE IMPERSONATION: Is the typosquat copying/mimicking the original brand/content?
@@ -809,6 +832,14 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
       .filter((p) => (p.dns_a && p.dns_a.length) || (p.dns_aaaa && p.dns_aaaa.length));
 
     log(`[dnstwist] Found ${candidates.length} registered typosquat candidates to analyze`);
+
+    // --- bucket aggregators ---
+    const bucket = {
+      malicious: [] as string[],
+      suspicious: [] as string[],
+      parked: [] as string[],
+      benign: [] as string[],
+    };
 
     // Batch processing for rate‑control
     for (let i = 0; i < candidates.length; i += MAX_CONCURRENT_CHECKS) {
@@ -1206,6 +1237,23 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
             }
           }
 
+          // --- assign to bucket ---
+          switch (severity) {
+            case 'CRITICAL':
+            case 'HIGH':
+              bucket.malicious.push(entry.domain);
+              break;
+            case 'MEDIUM':
+              bucket.suspicious.push(entry.domain);
+              break;
+            case 'LOW':
+              bucket.parked.push(entry.domain);
+              break;
+            case 'INFO':
+            default:
+              bucket.benign.push(entry.domain);
+          }
+
           // ---------------- Artifact creation ---------------
           let artifactText: string;
           
@@ -1377,6 +1425,69 @@ export async function runDnsTwist(job: { domain: string; scanId?: string }): Pro
         await new Promise((res) => setTimeout(res, DELAY_BETWEEN_BATCHES_MS));
       }
     }
+
+    // --- consolidated Findings ---
+    const totalAnalysed = Object.values(bucket).reduce((n, arr) => n + arr.length, 0);
+
+    // Create a summary artifact for consolidated findings
+    const summaryArtifactId = await insertArtifact({
+      type: 'typosquat_summary',
+      val_text: `DNS Twist scan summary for ${job.domain}: ${totalAnalysed} domains analyzed across 4 risk categories`,
+      severity: totalAnalysed > 0 ? 'INFO' : 'LOW',
+      meta: {
+        scan_id: job.scanId,
+        scan_module: 'dnstwist',
+        total_analyzed: totalAnalysed,
+        malicious_count: bucket.malicious.length,
+        suspicious_count: bucket.suspicious.length,
+        parked_count: bucket.parked.length,
+        benign_count: bucket.benign.length,
+      },
+    });
+
+    const makeFinding = async (
+      type: string,
+      sev: 'CRITICAL'|'HIGH'|'MEDIUM'|'LOW'|'INFO',
+      domains: string[],
+      reason: string,
+    ) => {
+      if (!domains.length) return;
+      await insertFinding(
+        summaryArtifactId,
+        type,
+        reason,
+        `**${domains.length} / ${totalAnalysed} domains**\n\n` +
+        domains.map(d => `• ${d}`).join('\n')
+      );
+    };
+
+    await makeFinding(
+      'MALICIOUS_TYPOSQUAT_GROUP',
+      'CRITICAL',
+      bucket.malicious,
+      'Immediate takedown recommended for these active phishing or high-risk domains.'
+    );
+
+    await makeFinding(
+      'SUSPICIOUS_TYPOSQUAT_GROUP',
+      'MEDIUM',
+      bucket.suspicious,
+      'Investigate these domains – suspicious similarity or activity detected.'
+    );
+
+    await makeFinding(
+      'PARKED_TYPOSQUAT_GROUP',
+      'LOW',
+      bucket.parked,
+      'Domains are parked / for sale or resolve with no content. Monitor for changes.'
+    );
+
+    await makeFinding(
+      'BENIGN_TYPOSQUAT_GROUP',
+      'INFO',
+      bucket.benign,
+      'Legitimate redirects or unrelated businesses with similar names.'
+    );
 
     log('[dnstwist] Scan completed –', totalFindings, 'domains analysed');
     return totalFindings;

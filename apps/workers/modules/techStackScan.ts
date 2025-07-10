@@ -21,8 +21,11 @@ import { detectTechnologiesFast, detectMultipleUrlsFast, detectFromHeaders, type
 import { normalizeTechnology, batchNormalizeTechnologies, deduplicateComponents, type NormalizedComponent } from '../util/cpeNormalization.js';
 import { findVulnerabilitiesForComponent, batchVulnerabilityAnalysis, type ComponentVulnerabilityReport } from '../util/versionMatcher.js';
 import { batchFindOSVVulnerabilities, mergeVulnerabilityResults } from '../util/osvIntegration.js';
-import { generateSBOM as generateCycloneDXSBOM, exportSBOMAsJSON, getSBOMStats } from '../util/sbomGenerator.js';
+import { createSBOMGenerator } from './sbomGenerator/index.js';
 import { batchDetectFavicons } from '../util/faviconDetection.js';
+import { UnifiedCache } from './techCache/index.js';
+import { createTechStackConfig } from './techStackConfig.js';
+import type { CacheKey } from './techCache/index.js';
 
 const exec = promisify(execFile);
 
@@ -124,20 +127,7 @@ interface PackageIntelligence {
   dependents?: number;
 }
 
-interface CycloneDXComponent {
-  type: 'library' | 'framework' | 'application';
-  'bom-ref': string;
-  name: string;
-  version?: string;
-  scope?: string;
-  licenses?: Array<{ license: { name: string } }>;
-  purl?: string;
-  vulnerabilities?: Array<{
-    id: string;
-    source: { name: string; url: string };
-    ratings: Array<{ score: number; severity: string; method: string }>;
-  }>;
-}
+// CycloneDXComponent interface moved to sbomGenerator module
 
 interface ScanMetrics {
   totalTargets: number;
@@ -150,34 +140,14 @@ interface ScanMetrics {
   dynamic_browser_skipped?: boolean;
 }
 
-// ───────────────── Intelligent Cache ───────────────────────────────────────
-class IntelligentCache<T> {
-  private cache = new Map<string, { data: T; ts: number; hits: number }>();
-  private req = 0;
-  private hits = 0;
-  constructor(private ttlMs = CONFIG.CACHE_TTL_MS) {}
-  get(key: string): T | null {
-    this.req++;
-    const e = this.cache.get(key);
-    if (!e) return null;
-    if (Date.now() - e.ts > this.ttlMs) return null;
-    this.hits++;
-    e.hits++;
-    return e.data;
-  }
-  set(key: string, data: T): void {
-    this.cache.set(key, { data, ts: Date.now(), hits: 0 });
-  }
-  stats() {
-    return { size: this.cache.size, hitRate: this.req ? this.hits / this.req : 0, req: this.req, hits: this.hits };
-  }
-}
-
-const eolCache = new IntelligentCache<boolean>();
-const osvCache = new IntelligentCache<VulnRecord[]>();
-const githubCache = new IntelligentCache<VulnRecord[]>();
-const depsDevCache = new IntelligentCache<PackageIntelligence | undefined>();
-const epssCache = new IntelligentCache<number | undefined>(6 * 60 * 60 * 1000); // 6h
+// ───────────────── Unified Cache System ────────────────────────────────────
+// Initialize configuration and unified cache
+const techConfig = createTechStackConfig();
+const unifiedCache = new UnifiedCache({
+  maxEntries: 10_000,
+  maxMemoryMB: techConfig.cacheMaxMemoryMB,
+  defaultTtlMs: techConfig.cacheTtlMs,
+});
 
 // KEV list cached for full run
 let kevList: Set<string> | null = null;
@@ -626,25 +596,37 @@ async function discoverThirdPartyOrigins(domain: string): Promise<ClassifiedTarg
 
 // ───────────────── Batched EPSS lookup ─────────────────────────────────────
 async function getEPSSScores(cveIds: string[]): Promise<Map<string, number>> {
-  const uncached = cveIds.filter(id => epssCache.get(`e:${id}`) === null);
+  const uncached: string[] = [];
   const batched: Map<string, number> = new Map();
-  // Already cached results
-  cveIds.forEach(id => {
-    const v = epssCache.get(`e:${id}`);
-    if (v !== null) batched.set(id, v ?? 0);
-  });
+  
+  // Check cache for already cached results
+  for (const id of cveIds) {
+    const cacheKey: CacheKey = { type: 'epss', cveId: id };
+    const cached = await unifiedCache.get<number>(cacheKey);
+    if (cached !== null) {
+      batched.set(id, cached);
+    } else {
+      uncached.push(id);
+    }
+  }
+  
   // Batch query first.org 100‑ids per request
   for (let i = 0; i < uncached.length; i += CONFIG.EPSS_BATCH) {
     const chunk = uncached.slice(i, i + CONFIG.EPSS_BATCH);
     try {
       const { data } = await axios.get(`https://api.first.org/data/v1/epss?cve=${chunk.join(',')}`, { timeout: CONFIG.API_TIMEOUT_MS });
-      (data.data as any[]).forEach((d: any) => {
+      (data.data as any[]).forEach(async (d: any) => {
         const score = Number(d.epss) || 0;
-        epssCache.set(`e:${d.cve}`, score);
+        const cacheKey: CacheKey = { type: 'epss', cveId: d.cve };
+        await unifiedCache.set(cacheKey, score, 6 * 60 * 60 * 1000); // 6h TTL
         batched.set(d.cve, score);
       });
     } catch {
-      chunk.forEach(id => { epssCache.set(`e:${id}`, 0); batched.set(id, 0); });
+      for (const id of chunk) {
+        const cacheKey: CacheKey = { type: 'epss', cveId: id };
+        await unifiedCache.set(cacheKey, 0, 6 * 60 * 60 * 1000); // 6h TTL
+        batched.set(id, 0);
+      }
     }
   }
   return batched;
@@ -672,9 +654,9 @@ async function isEol(slug: string, version?: string): Promise<boolean> {
   if (!version) return false;
   
   const major = version.split('.')[0];
-  const key = `eol:${slug}:${major}`;
+  const cacheKey: CacheKey = { type: 'eol', slug, major };
   
-  const cached = eolCache.get(key);
+  const cached = await unifiedCache.get<boolean>(cacheKey);
   if (cached !== null) return cached;
 
   try {
@@ -685,10 +667,10 @@ async function isEol(slug: string, version?: string): Promise<boolean> {
     const cycle = (data as any[]).find((c) => c.cycle === major);
     const eol = !!cycle && new Date(cycle.eol) < new Date();
     
-    eolCache.set(key, eol);
+    await unifiedCache.set(cacheKey, eol);
     return eol;
   } catch {
-    eolCache.set(key, false);
+    await unifiedCache.set(cacheKey, false);
     return false;
   }
 }
@@ -807,8 +789,8 @@ async function getOSVVulns(t: WappTech): Promise<VulnRecord[]> {
   const ecosystem = detectEcosystem(t);
   if (!ecosystem) return [];
 
-  const key = `osv:${ecosystem}:${t.slug}:${t.version}`;
-  const cached = osvCache.get(key);
+  const cacheKey: CacheKey = { type: 'osv', ecosystem, package: t.slug, version: t.version };
+  const cached = await unifiedCache.get<VulnRecord[]>(cacheKey);
   if (cached !== null) return cached;
 
   try {
@@ -862,11 +844,11 @@ async function getOSVVulns(t: WappTech): Promise<VulnRecord[]> {
         ).filter(Boolean).join(', ')
       }));
 
-    osvCache.set(key, vulns);
+    await unifiedCache.set(cacheKey, vulns);
     return vulns;
   } catch (error) {
     log(`osv=error tech="${t.slug}" error="${(error as Error).message}"`);
-    osvCache.set(key, []);
+    await unifiedCache.set(cacheKey, []);
     return [];
   }
 }
@@ -876,8 +858,8 @@ async function getGitHubVulns(t: WappTech): Promise<VulnRecord[]> {
   const ecosystem = detectEcosystem(t);
   if (!ecosystem || !t.version) return [];
   
-  const key = `github:${ecosystem}:${t.slug}:${t.version}`;
-  const cached = githubCache.get(key);
+  const cacheKey: CacheKey = { type: 'github', ecosystem, package: t.slug, version: t.version };
+  const cached = await unifiedCache.get<VulnRecord[]>(cacheKey);
   if (cached !== null) return cached;
 
   const token = process.env.GITHUB_TOKEN;
@@ -936,10 +918,10 @@ async function getGitHubVulns(t: WappTech): Promise<VulnRecord[]> {
         affectedVersionRange: node.vulnerableVersionRange
       }));
 
-    githubCache.set(key, vulns);
+    await unifiedCache.set(cacheKey, vulns);
     return vulns;
   } catch {
-    githubCache.set(key, []);
+    await unifiedCache.set(cacheKey, []);
     return [];
   }
 }
@@ -1334,76 +1316,7 @@ async function analyzeSecurityEnhanced(
 }
 
 /* Generate CycloneDX 1.5 SBOM */
-function generateSBOM(
-  technologies: Map<string, WappTech>, 
-  analyses: Map<string, EnhancedSecAnalysis>,
-  domain: string
-): any {
-  const components: CycloneDXComponent[] = [];
-  
-  for (const [slug, tech] of technologies.entries()) {
-    const analysis = analyses.get(slug);
-    const ecosystem = detectEcosystem(tech);
-    
-    const component: CycloneDXComponent = {
-      type: 'library',
-      'bom-ref': `${ecosystem}/${tech.slug}@${tech.version || 'unknown'}`,
-      name: tech.name,
-      version: tech.version,
-      scope: 'runtime'
-    };
-
-    // Add PURL if ecosystem detected
-    if (ecosystem && tech.version) {
-      component.purl = `pkg:${ecosystem.toLowerCase()}/${tech.slug}@${tech.version}`;
-    }
-
-    // Add license information
-    if (analysis?.packageIntelligence?.license) {
-      component.licenses = [{
-        license: { name: analysis.packageIntelligence.license }
-      }];
-    }
-
-    // Add vulnerabilities
-    if (analysis?.vulns.length) {
-      component.vulnerabilities = analysis.vulns.map(vuln => ({
-        id: vuln.id,
-        source: {
-          name: vuln.source,
-          url: vuln.source === 'OSV' ? 'https://osv.dev' : 'https://github.com/advisories'
-        },
-        ratings: vuln.cvss ? [{
-          score: vuln.cvss,
-          severity: vuln.cvss >= 9 ? 'critical' : vuln.cvss >= 7 ? 'high' : vuln.cvss >= 4 ? 'medium' : 'low',
-          method: 'CVSSv3'
-        }] : []
-      }));
-    }
-
-    components.push(component);
-  }
-
-  return {
-    bomFormat: 'CycloneDX',
-    specVersion: '1.5',
-    version: 1,
-    metadata: {
-      timestamp: new Date().toISOString(),
-      tools: [{
-        vendor: 'DealBrief',
-        name: 'techStackScan',
-        version: '4.0'
-      }],
-      component: {
-        type: 'application',
-        name: domain,
-        version: '1.0.0'
-      }
-    },
-    components
-  };
-}
+// generateSBOM function moved to sbomGenerator module
 
 // ───────────────── Main export (enhanced with new helpers & severities) ─
 export async function runTechStackScan(job: { 
@@ -1582,8 +1495,10 @@ export async function runTechStackScan(job: {
       }
     }
     
-    // Generate SBOM
-    const cyclonDxSbom = generateCycloneDXSBOM(vulnerabilityReports, {
+    // Generate SBOM using new module
+    const sbomGenerator = createSBOMGenerator();
+    const sbomResult = sbomGenerator.generate({
+      vulnerabilityReports,
       targetName: domain,
       targetVersion: undefined,
       targetDescription: `Security scan of ${domain}`,
@@ -1591,20 +1506,19 @@ export async function runTechStackScan(job: {
       domain: domain
     });
     
-    const sbomStats = getSBOMStats(cyclonDxSbom);
-    log(`techstack=sbom_generated components=${sbomStats.componentCount} vulnerabilities=${sbomStats.vulnerabilityCount} critical=${sbomStats.criticalCount}`);
+    log(`techstack=sbom_generated components=${sbomResult.stats.componentCount} vulnerabilities=${sbomResult.stats.vulnerabilityCount} critical=${sbomResult.stats.criticalCount}`);
     
     // Store SBOM as artifact
     await insertArtifact({
       type: 'sbom',
-      val_text: `SBOM generated: ${sbomStats.componentCount} components, ${sbomStats.vulnerabilityCount} vulnerabilities`,
-      severity: sbomStats.criticalCount > 0 ? 'CRITICAL' : sbomStats.highCount > 0 ? 'HIGH' : 'INFO',
+      val_text: `SBOM generated: ${sbomResult.stats.componentCount} components, ${sbomResult.stats.vulnerabilityCount} vulnerabilities`,
+      severity: sbomResult.stats.criticalCount > 0 ? 'CRITICAL' : sbomResult.stats.highCount > 0 ? 'HIGH' : 'INFO',
       meta: {
         scan_id: scanId,
         scan_module: 'techStackScan',
-        sbom_format: 'CycloneDX-1.5',
-        sbom_data: exportSBOMAsJSON(cyclonDxSbom),
-        stats: sbomStats
+        sbom_format: sbomResult.format,
+        sbom_data: sbomGenerator.export(sbomResult.sbom, 'json'),
+        stats: sbomResult.stats
       }
     });
     // artefacts
@@ -1658,22 +1572,30 @@ export async function runTechStackScan(job: {
       if (a.supplyChainScore >= CONFIG.SUPPLY_CHAIN_THRESHOLD) supplyFindings++;
     }
     
-    // Generate legacy SBOM
-    const legacySbom = generateSBOM(techMap, analysisMap, domain);
+    // Generate legacy SBOM using new module
+    const legacySbomResult = sbomGenerator.generate({
+      technologies: techMap,
+      analyses: analysisMap,
+      targetName: domain,
+      domain: domain
+    });
+    
     await insertArtifact({
       type: 'sbom_cyclonedx',
-      val_text: `Software Bill of Materials (CycloneDX 1.5) - ${techMap.size} components`,
+      val_text: `Software Bill of Materials (${legacySbomResult.format}) - ${legacySbomResult.stats.componentCount} components`,
       severity: 'INFO',
       meta: {
         scan_id: scanId,
         scan_module: 'techStackScan',
-        sbom: legacySbom,
+        sbom: legacySbomResult.sbom,
         format: 'CycloneDX',
-        version: '1.5'
+        version: '1.5',
+        stats: legacySbomResult.stats
       }
     });
 
     // Metrics and summary
+    const cacheStats = unifiedCache.stats();
     const metrics: ScanMetrics = {
       totalTargets: allTargets.length,
       thirdPartyOrigins: thirdPartyCount,
@@ -1681,7 +1603,7 @@ export async function runTechStackScan(job: {
       supplyFindings,
       runMs: Date.now() - start,
       circuitBreakerTripped: cb.isTripped(),
-      cacheHitRate: eolCache.stats().hitRate,
+      cacheHitRate: cacheStats.hitRate,
       dynamic_browser_skipped: process.env.ENABLE_PUPPETEER === '0'
     };
 
@@ -1694,11 +1616,7 @@ export async function runTechStackScan(job: {
         scan_module: 'techStackScan',
         metrics,
         cache_stats: {
-          eol: eolCache.stats(),
-          osv: osvCache.stats(),
-          github: githubCache.stats(),
-          epss: epssCache.stats(),
-          depsDev: depsDevCache.stats()
+          unified: cacheStats
         }
       }
     });
