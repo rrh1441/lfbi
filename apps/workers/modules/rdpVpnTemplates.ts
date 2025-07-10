@@ -8,7 +8,7 @@
 import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
-import { scanTargetList, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
+import { runNuclei, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
 
 // Configuration constants
 const NUCLEI_TIMEOUT_MS = 300_000; // 5 minutes
@@ -158,7 +158,10 @@ async function runNucleiRdpVpn(targets: string[]): Promise<NucleiResult[]> {
     
     log(`Running Nuclei with ${RDP_VPN_TEMPLATES.length} RDP/VPN templates against ${targets.length} targets`);
     
-    const result = await scanTargetList(targetsFile, RDP_VPN_TEMPLATES, {
+    // Use the standardized nuclei wrapper with specific RDP/VPN templates
+    const result = await runNuclei({
+      targetList: targetsFile,
+      templates: RDP_VPN_TEMPLATES,
       retries: 2,
       concurrency: CONCURRENCY,
       headless: true // RDP/VPN portals may need headless for login detection

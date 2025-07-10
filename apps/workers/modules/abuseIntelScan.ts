@@ -8,13 +8,14 @@
 import axios from 'axios';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
+import { executeModule, apiCall, errorHandler } from '../util/errorHandler.js';
 
 // Configuration constants
 const ABUSEIPDB_ENDPOINT = 'https://api.abuseipdb.com/api/v2/check';
 const RATE_LIMIT_DELAY_MS = 2000; // 30 requests/minute = 2 second intervals
 const JITTER_MS = 200; // ±200ms jitter
 const REQUEST_TIMEOUT_MS = 10000;
-const MAX_RETRIES = 3;
+
 
 // Risk assessment thresholds
 const SUSPICIOUS_THRESHOLD = 25;
@@ -115,24 +116,36 @@ async function checkAbuseIPDB(ip: string): Promise<RiskAssessment | null> {
     return null;
   }
 
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      log(`Checking IP ${ip} (attempt ${attempt}/${MAX_RETRIES})`);
-      
-      const response = await axios.get(ABUSEIPDB_ENDPOINT, {
-        params: {
-          ipAddress: ip,
-          maxAgeInDays: 90,
-          verbose: ''
-        },
-        headers: {
-          'Key': apiKey,
-          'Accept': 'application/json'
-        },
-        timeout: REQUEST_TIMEOUT_MS
-      });
+  // Use standardized API call with retry logic
+  const result = await apiCall(async () => {
+    log(`Checking IP ${ip} with AbuseIPDB`);
+    
+    const response = await axios.get(ABUSEIPDB_ENDPOINT, {
+      params: {
+        ipAddress: ip,
+        maxAgeInDays: 90,
+        verbose: ''
+      },
+      headers: {
+        'Key': apiKey,
+        'Accept': 'application/json'
+      },
+      timeout: REQUEST_TIMEOUT_MS
+    });
 
-      const data: AbuseIPDBResponse = response.data.data;
+    return response.data.data as AbuseIPDBResponse;
+  }, {
+    moduleName: 'abuseIntelScan',
+    operation: 'checkAbuseIPDB',
+    target: ip
+  });
+  
+  if (!result.success) {
+    log(`Failed to check IP ${ip}: ${result.error}`);
+    return null;
+  }
+  
+  const data = result.data;
       
       // Only generate findings for IPs with material risk
       if (data.abuseConfidenceScore < SUSPICIOUS_THRESHOLD) {
@@ -156,40 +169,16 @@ async function checkAbuseIPDB(ip: string): Promise<RiskAssessment | null> {
         recommendation = `Monitor ${ip} for suspicious activity. Consider rate limiting or enhanced logging.`;
       }
 
-      log(`IP ${ip} flagged as ${findingType} (confidence: ${data.abuseConfidenceScore}%)`);
-      
-      return {
-        confidence: data.abuseConfidenceScore,
-        findingType,
-        severity,
-        description,
-        evidence: data,
-        recommendation
-      };
-
-    } catch (error) {
-      const errorMsg = (error as Error).message;
-      
-      // Handle rate limiting with exponential backoff
-      if (errorMsg.includes('429') || errorMsg.includes('rate limit')) {
-        const backoffDelay = Math.pow(2, attempt) * 1000; // Exponential backoff
-        log(`Rate limited for IP ${ip}, backing off ${backoffDelay}ms`);
-        await new Promise(resolve => setTimeout(resolve, backoffDelay));
-        continue;
-      }
-      
-      // Log error and continue with next IP on final attempt
-      if (attempt === MAX_RETRIES) {
-        log(`Failed to check IP ${ip} after ${MAX_RETRIES} attempts: ${errorMsg}`);
-        return null;
-      }
-      
-      // Short delay before retry for other errors
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-  }
+  log(`IP ${ip} flagged as ${findingType} (confidence: ${data.abuseConfidenceScore}%)`);
   
-  return null;
+  return {
+    confidence: data.abuseConfidenceScore,
+    findingType,
+    severity,
+    description,
+    evidence: data,
+    recommendation
+  };
 }
 
 /**
@@ -213,29 +202,27 @@ function deduplicateIPs(artifacts: IPArtifact[]): IPArtifact[] {
  */
 export async function runAbuseIntelScan(job: { scanId: string }): Promise<number> {
   const { scanId } = job;
-  const startTime = Date.now();
   
-  log(`Starting AbuseIPDB scan for scanId=${scanId}`);
-  
-  // Check for API key first
-  if (!process.env.ABUSEIPDB_API_KEY) {
-    log('ABUSEIPDB_API_KEY not configured, emitting warning and exiting gracefully');
+  return executeModule('abuseIntelScan', async () => {
+    log(`Starting AbuseIPDB scan for scanId=${scanId}`);
     
-    await insertArtifact({
-      type: 'scan_warning',
-      val_text: 'AbuseIPDB scan skipped - API key not configured',
-      severity: 'LOW',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'abuseIntelScan',
-        reason: 'missing_api_key'
-      }
-    });
-    
-    return 0;
-  }
-  
-  try {
+    // Check for API key first
+    if (!process.env.ABUSEIPDB_API_KEY) {
+      log('ABUSEIPDB_API_KEY not configured, emitting warning and exiting gracefully');
+      
+      await insertArtifact({
+        type: 'scan_warning',
+        val_text: 'AbuseIPDB scan skipped - API key not configured',
+        severity: 'LOW',
+        meta: {
+          scan_id: scanId,
+          scan_module: 'abuseIntelScan',
+          reason: 'missing_api_key'
+        }
+      });
+      
+      return 0;
+    }
     // Get all IP artifacts for this scan
     const ipArtifacts = await getIPArtifacts(scanId);
     
@@ -302,8 +289,7 @@ export async function runAbuseIntelScan(job: { scanId: string }): Promise<number
       }
     }
     
-    // Calculate final metrics
-    metrics.scanTimeMs = Date.now() - startTime;
+    // Calculate final metrics (duration will be handled by executeModule wrapper)
     
     // Create summary artifact
     await insertArtifact({
@@ -314,8 +300,7 @@ export async function runAbuseIntelScan(job: { scanId: string }): Promise<number
         scan_id: scanId,
         scan_module: 'abuseIntelScan',
         metrics: metrics,
-        api_quota_used: metrics.totalIPs - metrics.errors,
-        scan_duration_ms: metrics.scanTimeMs
+        api_quota_used: metrics.totalIPs - metrics.errors
       }
     });
     
@@ -324,23 +309,5 @@ export async function runAbuseIntelScan(job: { scanId: string }): Promise<number
     
     return findingsCount;
     
-  } catch (error) {
-    const errorMsg = (error as Error).message;
-    log(`AbuseIPDB scan failed: ${errorMsg}`);
-    
-    // Create error artifact
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: `AbuseIPDB scan failed: ${errorMsg}`,
-      severity: 'MEDIUM',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'abuseIntelScan',
-        error: true,
-        scan_duration_ms: Date.now() - startTime
-      }
-    });
-    
-    return 0;
-  }
+  }, { scanId });
 }

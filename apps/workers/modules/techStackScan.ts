@@ -17,7 +17,14 @@ import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { withPage } from '../util/dynamicBrowser.js';
 import { runNuclei as runNucleiWrapper, scanUrl, scanUrlEnhanced, runTwoPassScan, BASELINE_TAGS, COMMON_VULN_TAGS, filterWebVulnUrls, isNonHtmlAsset } from '../util/nucleiWrapper.js';
-import { detectTechnologiesFast, detectMultipleUrlsFast, detectFromHeaders, type FastTechResult } from '../util/fastTechDetection.js';
+import { 
+  createTechDetection, 
+  DEFAULT_TECH_CONFIG, 
+  type WappTech,
+  detectEcosystem,
+  calculateVersionAccuracy,
+  classifyTargetAssetType
+} from './techDetection/index.js';
 import { normalizeTechnology, batchNormalizeTechnologies, deduplicateComponents, type NormalizedComponent } from '../util/cpeNormalization.js';
 import { findVulnerabilitiesForComponent, batchVulnerabilityAnalysis, type ComponentVulnerabilityReport } from '../util/versionMatcher.js';
 import { batchFindOSVVulnerabilities, mergeVulnerabilityResults } from '../util/osvIntegration.js';
@@ -68,17 +75,7 @@ interface ClassifiedTarget {
   assetType: 'html' | 'nonHtml';
 }
 
-interface WappTech {
-  name: string;
-  slug: string;
-  version?: string;
-  confidence: number;
-  cpe?: string;
-  purl?: string;
-  vendor?: string;
-  ecosystem?: string;
-  categories: { id: number; name: string; slug: string }[];
-}
+
 
 interface VulnRecord {
   id: string;
@@ -165,19 +162,7 @@ async function getKEVList(): Promise<Set<string>> {
   return kevList;
 }
 
-// ───────────────── Circuit Breaker ─────────────────────────────────────────
-class TechnologyScanCircuitBreaker {
-  private to = 0;
-  private tripped = false;
-  recordTimeout() {
-    if (this.tripped) return;
-    if (++this.to >= CONFIG.TECH_CIRCUIT_BREAKER) {
-      this.tripped = true;
-      log('circuitBreaker=tripped');
-    }
-  }
-  isTripped() { return this.tripped; }
-}
+// Circuit breaker now handled by techDetection module
 
 const log = (...m: unknown[]) => rootLog('[techStackScan]', ...m);
 
@@ -245,227 +230,9 @@ function convertNucleiToWappTech(nucleiResults: any[]): WappTech[] {
   return technologies;
 }
 
-/* Convert FastTechResult to WappTech format with CPE/PURL normalization */
-function convertFastTechToWappTech(fastTech: FastTechResult): WappTech {
-  // Normalize the technology to get CPE/PURL identifiers
-  const normalized = normalizeTechnology(
-    fastTech.name,
-    fastTech.version,
-    fastTech.confidence,
-    'webtech'
-  );
-  
-  return {
-    name: fastTech.name,
-    slug: fastTech.slug,
-    version: fastTech.version,
-    confidence: fastTech.confidence,
-    cpe: normalized.cpe,
-    purl: normalized.purl,
-    vendor: normalized.vendor,
-    ecosystem: normalized.ecosystem,
-    categories: fastTech.categories.map((cat: string) => ({
-      id: 0,
-      name: cat,
-      slug: cat.toLowerCase().replace(/[^a-z0-9]/g, '-')
-    }))
-  };
-}
-
-/* Enhanced ecosystem detection */
-function detectEcosystem(t: WappTech): string | null {
-  const cats = t.categories.map((c) => c.slug.toLowerCase());
-  const name = t.name.toLowerCase();
-
-  // Enhanced patterns for better ecosystem detection
-  if (cats.some((c) => /javascript|node\.?js|npm|react|vue|angular/.test(c)) || 
-      /react|vue|angular|express|lodash|webpack|babel/.test(name)) return 'npm';
-  
-  if (cats.some((c) => /python|django|flask|pyramid/.test(c)) || 
-      /django|flask|requests|numpy|pandas|fastapi/.test(name)) return 'PyPI';
-  
-  if (cats.some((c) => /php|laravel|symfony|wordpress|drupal|composer/.test(c)) || 
-      /laravel|symfony|composer|codeigniter/.test(name)) return 'Packagist';
-  
-  if (cats.some((c) => /ruby|rails|gem/.test(c)) || 
-      /rails|sinatra|jekyll/.test(name)) return 'RubyGems';
-  
-  if (cats.some((c) => /java|maven|gradle|spring/.test(c)) || 
-      /spring|hibernate|struts|maven/.test(name)) return 'Maven';
-  
-  if (cats.some((c) => /\.net|nuget|csharp/.test(c)) || 
-      /entityframework|mvc|blazor/.test(name)) return 'NuGet';
-  
-  if (cats.some((c) => /go|golang/.test(c)) || 
-      /gin|echo|fiber|gorm/.test(name)) return 'Go';
-  
-  if (cats.some((c) => /rust|cargo/.test(c)) || 
-      /actix|rocket|tokio/.test(name)) return 'crates.io';
-
-  return null;
-}
-
-/* Calculate version accuracy from multiple detections */
-function calculateVersionAccuracy(detections: WappTech[]): number {
-  if (detections.length <= 1) return 1.0;
-  
-  const versions = detections
-    .filter(d => d.version)
-    .map(d => d.version!)
-    .map(v => v.split('.').map(Number).filter(n => !isNaN(n)));
-  
-  if (versions.length <= 1) return 1.0;
-  
-  // Calculate standard deviation of version numbers
-  const majorVersions = versions.map(v => v[0] || 0);
-  const mean = majorVersions.reduce((a, b) => a + b, 0) / majorVersions.length;
-  const variance = majorVersions.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / majorVersions.length;
-  const stddev = Math.sqrt(variance);
-  
-  return Math.max(0, 1 - (stddev / 10));
-}
-
-/* Analyze HTTP headers for basic technology detection (fallback) */
-function analyzeHttpHeaders(headers: Headers, url: string): WappTech[] {
-  const technologies: WappTech[] = [];
-  
-  // Server header analysis
-  const server = headers.get('server');
-  if (server) {
-    if (/nginx/i.test(server)) {
-      technologies.push({
-        name: 'Nginx',
-        slug: 'nginx',
-        confidence: 100,
-        categories: [{ id: 22, name: 'Web Servers', slug: 'web-servers' }]
-      });
-    }
-    if (/apache/i.test(server)) {
-      technologies.push({
-        name: 'Apache',
-        slug: 'apache',
-        confidence: 100,
-        categories: [{ id: 22, name: 'Web Servers', slug: 'web-servers' }]
-      });
-    }
-    if (/cloudflare/i.test(server)) {
-      technologies.push({
-        name: 'Cloudflare',
-        slug: 'cloudflare',
-        confidence: 100,
-        categories: [{ id: 31, name: 'CDN', slug: 'cdn' }]
-      });
-    }
-  }
-  
-  // X-Powered-By header
-  const poweredBy = headers.get('x-powered-by');
-  if (poweredBy) {
-    if (/php/i.test(poweredBy)) {
-      const versionMatch = poweredBy.match(/php\/?([\d.]+)/i);
-      technologies.push({
-        name: 'PHP',
-        slug: 'php',
-        version: versionMatch?.[1],
-        confidence: 100,
-        categories: [{ id: 27, name: 'Programming Languages', slug: 'programming-languages' }]
-      });
-    }
-    if (/asp\.net/i.test(poweredBy)) {
-      technologies.push({
-        name: 'ASP.NET',
-        slug: 'asp-net',
-        confidence: 100,
-        categories: [{ id: 18, name: 'Web Frameworks', slug: 'web-frameworks' }]
-      });
-    }
-  }
-  
-  // Content-Type analysis
-  const contentType = headers.get('content-type');
-  if (contentType && /application\/json/i.test(contentType)) {
-    technologies.push({
-      name: 'JSON API',
-      slug: 'json-api',
-      confidence: 75,
-      categories: [{ id: 19, name: 'Miscellaneous', slug: 'miscellaneous' }]
-    });
-  }
-  
-  return technologies;
-}
 
 
-/**
- * Classify target as HTML or non-HTML asset based on expensive URL patterns
- * Targets expensive endpoints like /player_api, maxcdn, direct// that should bypass Nuclei
- */
-function classifyTargetAssetType(url: string): 'html' | 'nonHtml' {
-  try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname.toLowerCase();
-    const hostname = urlObj.hostname.toLowerCase();
-    
-    // Known expensive non-HTML patterns that should bypass Nuclei entirely (~2min savings)
-    const expensiveNonHtmlPatterns = [
-      // Player APIs - very expensive and never return HTML
-      /player_api/i,
-      /\/api\/player/i,
-      /\/player\//i,
-      
-      // CDN assets - maxcdn.bootstrapcdn.com and similar
-      /maxcdn\.bootstrapcdn/i,
-      /cdn\.jsdelivr/i,
-      /cdnjs\.cloudflare/i,
-      /unpkg\.com/i,
-      
-      // Direct file endpoints that never return HTML
-      /\/direct\//i,
-      /\/assets\/direct/i,
-      /\/static\/direct/i,
-      
-      // Common API endpoints that return JSON/XML
-      /\/v\d+\/api/i,
-      /\/rest\/api/i,
-      /\/graphql/i,
-      /\/api\/v\d+/i,
-      
-      // Analytics and tracking endpoints
-      /analytics/i,
-      /tracking/i,
-      /metrics/i,
-      /telemetry/i,
-      
-      // Streaming and media endpoints
-      /stream/i,
-      /media/i,
-      /video/i,
-      /audio/i
-    ];
-    
-    // Check pathname patterns first (most common case)
-    if (expensiveNonHtmlPatterns.some(pattern => pattern.test(pathname))) {
-      return 'nonHtml';
-    }
-    
-    // Check hostname patterns for CDN detection
-    if (expensiveNonHtmlPatterns.some(pattern => pattern.test(hostname))) {
-      return 'nonHtml';
-    }
-    
-    // File extensions that are definitely non-HTML
-    const nonHtmlExtensions = /\.(js|css|png|jpg|jpeg|gif|svg|ico|pdf|zip|exe|dmg|mp4|mp3|woff|woff2|ttf|eot|json|xml)$/i;
-    if (nonHtmlExtensions.test(pathname)) {
-      return 'nonHtml';
-    }
-    
-    // Default to HTML for potential web content
-    return 'html';
-  } catch {
-    // Invalid URL, classify as HTML to be safe
-    return 'html';
-  }
-}
+// Technology detection functions moved to techDetection module
 
 /* Build enhanced target list with asset type classification */
 async function buildTargets(scanId: string, domain: string): Promise<ClassifiedTarget[]> {
@@ -1340,7 +1107,6 @@ export async function runTechStackScan(job: {
   }
   
   // Note: CVE active testing with Nuclei is optional and happens in analyzeSecurityEnhanced
-  const cb = new TechnologyScanCircuitBreaker();
   const limit = pLimit(CONFIG.MAX_CONCURRENCY);
   try {
     // Build classified targets or use provided targets
@@ -1376,94 +1142,41 @@ export async function runTechStackScan(job: {
       log(`techstack=bypass_nuclei targets=[${bypassedUrls}${nonHtmlTargets.length > 5 ? '...' : ''}] (~2min time savings by skipping expensive non-HTML assets)`);
     }
     
+    // Use new unified technology detection module
+    const techDetection = createTechDetection({
+      ...DEFAULT_TECH_CONFIG,
+      maxConcurrency: CONFIG.MAX_CONCURRENCY,
+      timeout: CONFIG.PAGE_TIMEOUT_MS,
+      maxTargets: 5 // Limit for performance
+    });
+
+    log(`techstack=tech_detection starting unified detection for ${allTargets.length} targets`);
+    const detectionResult = await techDetection.detectTechnologies(allTargets, {
+      maxConcurrency: CONFIG.MAX_CONCURRENCY,
+      timeout: CONFIG.PAGE_TIMEOUT_MS,
+      circuitBreakerLimit: CONFIG.TECH_CIRCUIT_BREAKER,
+      enableFavicons: true,
+      enableNuclei: false,
+      maxTargets: 5
+    });
+    
+    // Build tech maps from detection results
     const techMap = new Map<string, WappTech>();
     const detectMap = new Map<string, WappTech[]>();
-    // Fast technology detection with WebTech (replaces heavy Nuclei scanning)
-    log(`techstack=fast_detection starting WebTech scan for ${allTargets.length} targets`);
     
-    // Use fast batch detection for multiple URLs
-    const fastResults = await detectMultipleUrlsFast(allTargets.slice(0, 5)); // Limit to 5 key URLs for speed
-    
-    // Process fast detection results
-    for (const result of fastResults) {
-      if (result.error) {
-        log(`techstack=webtech_error url="${result.url}" error="${result.error}"`);
-        continue;
-      }
+    for (const tech of detectionResult.technologies) {
+      techMap.set(tech.slug, tech);
       
-      log(`techstack=webtech_success url="${result.url}" techs=${result.technologies.length} duration=${result.duration}ms`);
-      
-      // Convert FastTechResult to WappTech format
-      for (const fastTech of result.technologies) {
-        const wappTech = convertFastTechToWappTech(fastTech);
-        techMap.set(wappTech.slug, wappTech);
-        
-        if (!detectMap.has(wappTech.slug)) {
-          detectMap.set(wappTech.slug, []);
-        }
-        detectMap.get(wappTech.slug)!.push(wappTech);
+      if (!detectMap.has(tech.slug)) {
+        detectMap.set(tech.slug, []);
       }
+      detectMap.get(tech.slug)!.push(tech);
     }
     
-    // Additional favicon-based detection for unique app identification
-    log(`techstack=favicon_detection starting favicon analysis for ${Math.min(allTargets.length, 3)} URLs`);
-    const faviconResults = await batchDetectFavicons(allTargets.slice(0, 3));
-    
-    for (let i = 0; i < faviconResults.length; i++) {
-      const faviconTechs = faviconResults[i];
-      const url = allTargets[i];
-      
-      if (faviconTechs.length > 0) {
-        log(`techstack=favicon_found url="${url}" techs=${faviconTechs.length}`);
-        
-        for (const faviconTech of faviconTechs) {
-          const wappTech = convertFastTechToWappTech(faviconTech);
-          
-          // Only add if not already detected by other methods
-          if (!techMap.has(wappTech.slug)) {
-            techMap.set(wappTech.slug, wappTech);
-            
-            if (!detectMap.has(wappTech.slug)) {
-              detectMap.set(wappTech.slug, []);
-            }
-            detectMap.get(wappTech.slug)!.push(wappTech);
-          }
-        }
-      }
-    }
-    
-    const totalDetectedTechs = Array.from(techMap.keys()).length;
-    const totalDuration = fastResults.reduce((sum, r) => sum + r.duration, 0);
-    log(`techstack=fast_detection_complete total_techs=${totalDetectedTechs} total_duration=${totalDuration}ms avg_per_url=${Math.round(totalDuration / fastResults.length)}ms`);
+    log(`techstack=tech_detection_complete techs=${detectionResult.technologies.length} duration=${detectionResult.totalDuration}ms methods=[${detectionResult.detectionMethods.join(',')}] circuit_breaker=${detectionResult.circuitBreakerTripped}`);
     
     // Store tech count for Nuclei optimization
-    const detectedTechList = Array.from(techMap.values()).map(t => t.name.toLowerCase());
-    
-    // If WebTech found no technologies, fall back to header analysis for key URLs
-    if (totalDetectedTechs === 0) {
-      log(`techstack=fallback_headers starting header analysis for ${Math.min(allTargets.length, 3)} URLs`);
-      
-      await Promise.all(allTargets.slice(0, 3).map(url => limit(async () => {
-        if (cb.isTripped()) return;
-        try {
-          log(`techstack=header_scan url="${url}"`);
-          const headerTechs = await detectFromHeaders(url);
-          
-          log(`techstack=header_detected url="${url}" techs=${headerTechs.length}`);
-          for (const fastTech of headerTechs) {
-            const wappTech = convertFastTechToWappTech(fastTech);
-            techMap.set(wappTech.slug, wappTech);
-            
-            if (!detectMap.has(wappTech.slug)) {
-              detectMap.set(wappTech.slug, []);
-            }
-            detectMap.get(wappTech.slug)!.push(wappTech);
-          }
-        } catch (e) {
-          log(`techstack=header_error url="${url}" error="${(e as Error).message}"`);
-        }
-      })));
-    }
+    const detectedTechList = detectionResult.technologies.map(t => t.name.toLowerCase());
     // analysis
     const analysisMap = new Map<string, EnhancedSecAnalysis>();
     await Promise.all(Array.from(techMap.entries()).map(([slug, tech]) => limit(async () => {
@@ -1602,7 +1315,7 @@ export async function runTechStackScan(job: {
       uniqueTechs: techMap.size,
       supplyFindings,
       runMs: Date.now() - start,
-      circuitBreakerTripped: cb.isTripped(),
+      circuitBreakerTripped: detectionResult.circuitBreakerTripped,
       cacheHitRate: cacheStats.hitRate,
       dynamic_browser_skipped: process.env.ENABLE_PUPPETEER === '0'
     };

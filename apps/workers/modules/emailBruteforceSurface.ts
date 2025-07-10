@@ -8,7 +8,7 @@
 import * as fs from 'node:fs/promises';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
-import { scanTargetList, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
+import { runNuclei, createTargetsFile, cleanupFile } from '../util/nucleiWrapper.js';
 
 // Configuration constants
 const NUCLEI_TIMEOUT_MS = 300_000; // 5 minutes
@@ -165,8 +165,10 @@ async function runNucleiEmailScan(targets: string[]): Promise<NucleiResult[]> {
     
     log(`Running Nuclei with ${EMAIL_TEMPLATES.length} email templates against ${targets.length} targets`);
     
-    // Use specific templates for email services (not two-pass since we need specific templates)
-    const result = await scanTargetList(targetsFile, EMAIL_TEMPLATES, {
+    // Use the standardized nuclei wrapper with specific email templates
+    const result = await runNuclei({
+      targetList: targetsFile,
+      templates: EMAIL_TEMPLATES,
       retries: 2,
       concurrency: CONCURRENCY,
       headless: true // Email services may need headless for form detection

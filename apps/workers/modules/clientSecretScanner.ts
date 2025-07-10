@@ -49,37 +49,68 @@ const BUILTIN_PATTERNS: SecretPattern[] = [
 ];
 
 // ------------------------------------------------------------------
-// 2. Optional YAML plug-in patterns
+// 2. Optional YAML plug-in patterns (lazy loaded with caching)
 // ------------------------------------------------------------------
+let cachedPluginPatterns: SecretPattern[] | null = null;
+
 function loadPluginPatterns(): SecretPattern[] {
+  // Return cached patterns if already loaded
+  if (cachedPluginPatterns !== null) {
+    return cachedPluginPatterns;
+  }
+
   try {
     const p = process.env.CLIENT_SECRET_REGEX_YAML ?? '/app/config/extra-client-regex.yml';
-    if (!fs.existsSync(p)) return [];
+    if (!fs.existsSync(p)) {
+      cachedPluginPatterns = [];
+      return cachedPluginPatterns;
+    }
+    
     const doc = yaml.parse(fs.readFileSync(p, 'utf8')) as Array<{name:string; regex:string; severity:string}>;
-    if (!Array.isArray(doc)) return [];
-    return doc.flatMap(e => {
+    if (!Array.isArray(doc)) {
+      cachedPluginPatterns = [];
+      return cachedPluginPatterns;
+    }
+    
+    cachedPluginPatterns = doc.flatMap(e => {
       try {
         return [{
           name: e.name,
           regex: new RegExp(e.regex, 'gi'),
           severity: (e.severity ?? 'HIGH').toUpperCase() as 'CRITICAL'|'HIGH'|'MEDIUM'
         } satisfies SecretPattern];
-      } catch { log(`[clientSecretScanner] ⚠️  invalid regex in YAML: ${e.name}`); return []; }
+      } catch { 
+        log(`[clientSecretScanner] ⚠️  invalid regex in YAML: ${e.name}`); 
+        return []; 
+      }
     });
+    
+    log(`[clientSecretScanner] loaded ${cachedPluginPatterns.length} plugin patterns from YAML`);
+    return cachedPluginPatterns;
+    
   } catch (err) {
     log('[clientSecretScanner] Failed to load plug-in regexes:', (err as Error).message);
-    return [];
+    cachedPluginPatterns = [];
+    return cachedPluginPatterns;
   }
 }
 
-const SECRET_PATTERNS: SecretPattern[] = [...BUILTIN_PATTERNS, ...loadPluginPatterns()];
+// Lazy initialization function
+let secretPatterns: SecretPattern[] | null = null;
+function getSecretPatterns(): SecretPattern[] {
+  if (secretPatterns === null) {
+    secretPatterns = [...BUILTIN_PATTERNS, ...loadPluginPatterns()];
+    log(`[clientSecretScanner] initialized ${secretPatterns.length} total patterns (${BUILTIN_PATTERNS.length} builtin + ${cachedPluginPatterns?.length || 0} plugin)`);
+  }
+  return secretPatterns;
+}
 
 // ------------------------------------------------------------------
 // 3. Helpers
 // ------------------------------------------------------------------
 function findSecrets(content: string): SecretHit[] {
   const hits: SecretHit[] = [];
-  for (const pattern of SECRET_PATTERNS) {
+  for (const pattern of getSecretPatterns()) {
     for (const m of content.matchAll(pattern.regex)) {
       hits.push({ pattern, match: m[1] || m[0] });
     }

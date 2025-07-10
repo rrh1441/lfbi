@@ -21,6 +21,7 @@ import { promisify } from 'node:util';
 import { XMLParser } from 'fast-xml-parser';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log } from '../core/logger.js';
+import { runNuclei } from '../util/nucleiWrapper.js';
 
 const exec = promisify(execFile);
 const xmlParser = new XMLParser({ ignoreAttributes: false });
@@ -55,17 +56,17 @@ const PORT_TO_TECH_MAP: Record<string, string> = {
  */
 async function validateDependencies(): Promise<{ nmap: boolean; nuclei: boolean }> {
     log('[dbPortScan] Validating dependencies...');
-    const checks = await Promise.allSettled([
-        exec('nmap', ['--version']),
-        exec('nuclei', ['-version'])
-    ]);
-    const nmapOk = checks[0].status === 'fulfilled';
-    const nucleiOk = checks[1].status === 'fulfilled';
+    
+    // Check nmap
+    const nmapCheck = await exec('nmap', ['--version']).then(() => true).catch(() => false);
+    
+    // Check nuclei using the wrapper
+    const nucleiCheck = await runNuclei({ version: true }).then(result => result.success).catch(() => false);
 
-    if (!nmapOk) log('[dbPortScan] [CRITICAL] nmap binary not found. Scans will be severely limited.');
-    if (!nucleiOk) log('[dbPortScan] [CRITICAL] nuclei binary not found. Dynamic vulnerability scanning is disabled.');
+    if (!nmapCheck) log('[dbPortScan] [CRITICAL] nmap binary not found. Scans will be severely limited.');
+    if (!nucleiCheck) log('[dbPortScan] [CRITICAL] nuclei binary not found. Dynamic vulnerability scanning is disabled.');
 
-    return { nmap: nmapOk, nuclei: nucleiOk };
+    return { nmap: nmapCheck, nuclei: nucleiCheck };
 }
 
 function getCloudProvider(host: string): string | null {
@@ -129,43 +130,31 @@ async function runNucleiForDb(host: string, port: string, type: string, scanId?:
     log(`[dbPortScan] Running Nuclei scan on ${host}:${port} for technology: ${techTag}`);
 
     try {
-        // REFACTOR: Using tags is more resilient than specific template paths.
-        const { stdout } = await exec('nuclei', [
-            '-u', `${host}:${port}`,
-            '-json',
-            '-silent',
-            '-t', '/opt/nuclei-templates',
-            '-timeout', '5',
-            '-retries', '1',
-            '-tags', `cve,misconfiguration,default-credentials,${techTag}`
-        ], { timeout: 300000 });
+        // Use the standardized nuclei wrapper with consistent configuration
+        const result = await runNuclei({
+            url: `${host}:${port}`,
+            tags: ['cve', 'misconfiguration', 'default-credentials', techTag],
+            timeout: 5,
+            retries: 1,
+            scanId: scanId
+        });
 
-        const findings = stdout.trim().split('\n').filter(Boolean);
-        for (const line of findings) {
-            const vuln = JSON.parse(line);
-            const severity = (vuln.info.severity.toUpperCase() as any) || 'INFO';
-            const cve = (vuln.info.classification?.['cve-id']?.[0] || '').toUpperCase();
+        if (!result.success) {
+            log(`[dbPortScan] Nuclei scan failed for ${host}:${port}: exit code ${result.exitCode}`);
+            return;
+        }
 
-            const artifactId = await insertArtifact({
-                type: 'vuln',
-                val_text: `${vuln.info.name} on ${host}:${port}`,
-                severity,
-                src_url: cve ? `https://nvd.nist.gov/vuln/detail/${cve}` : vuln.info.reference?.[0],
-                meta: {
-                    scan_id: scanId,
-                    scan_module: 'dbPortScan:nuclei',
-                    template_id: vuln['template-id'],
-                    vulnerability: vuln.info,
-                    host,
-                    port
-                }
-            });
-            await insertFinding(artifactId, 'KNOWN_VULNERABILITY', `Remediate based on Nuclei finding details for ${vuln['template-id']}.`, vuln.info.description);
+        log(`[dbPortScan] Nuclei scan completed for ${host}:${port}: ${result.results.length} findings, ${result.persistedCount || 0} persisted`);
+
+        // Additional processing for database-specific findings if needed
+        for (const vuln of result.results) {
+            const cve = vuln.info.classification?.['cve-id'];
+            if (cve) {
+                log(`[dbPortScan] Database vulnerability found: ${vuln.info.name} (${cve}) on ${host}:${port}`);
+            }
         }
     } catch (error) {
-        if ((error as any).stderr && !(error as any).stderr.includes('no templates were loaded')) {
-           log(`[dbPortScan] Nuclei scan failed for ${host}:${port}:`, (error as Error).message);
-        }
+        log(`[dbPortScan] Nuclei scan failed for ${host}:${port}:`, (error as Error).message);
     }
 }
 
