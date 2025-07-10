@@ -8,22 +8,21 @@ import { scanGitRepos } from './scanGitRepos.js';
 const exec = promisify(execFile);
 const EXPECTED_TRUFFLEHOG_VER = '3.83.7';
 const GITHUB_RE = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
+const GITLAB_RE = /^https:\/\/gitlab\.com\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
+const BITBUCKET_RE = /^https:\/\/bitbucket\.org\/([\w.-]+\/[\w.-]+)(\.git)?$/i;
 const MAX_GIT_REPOS = 10;
 
 type SourceType = 'git' | 'file' | 'http';
 
-/** Ensure TruffleHog binary exists & is the pinned version */
-async function guardTrufflehog() {
+async function guardTrufflehog(): Promise<void> {
   try {
-    const { stdout } = await exec('trufflehog', ['--version']);
-    if (!stdout.includes(EXPECTED_TRUFFLEHOG_VER)) {
-      log(`[trufflehog] ⚠️ wrong trufflehog version → ${stdout.trim()}, continuing anyway`);
-    } else {
-      log(`[trufflehog] ✅ binary ${stdout.trim()}`);
+    const { stdout } = await exec('trufflehog', ['--version'], { timeout: 5000 });
+    const version = stdout.match(/(\d+\.\d+\.\d+)/)?.[1];
+    if (version !== EXPECTED_TRUFFLEHOG_VER) {
+      log(`[trufflehog] Version mismatch: expected ${EXPECTED_TRUFFLEHOG_VER}, found ${version}`);
     }
-  } catch (e) {
-    log('[trufflehog] ❌ binary check failed', (e as Error).message);
-    throw e; // Still throw if binary doesn't exist at all
+  } catch (error) {
+    throw new Error(`TruffleHog binary not available: ${(error as Error).message}`);
   }
 }
 
@@ -72,16 +71,92 @@ async function emitFindings(results: { DetectorName: string; Raw: string; Verifi
   return count;
 }
 
-// Web asset scanning has been moved to clientSecretScanner.ts
-// This module now only handles Git repository scanning
-
-async function getGitRepos(scanId: string) {
+// Get Git repositories from discovered web assets and endpoint discovery artifacts
+async function getGitRepos(scanId: string): Promise<string[]> {
   try {
-    const links = JSON.parse(
-      await fs.readFile(`/tmp/spiderfoot-links-${scanId}.json`, 'utf8')
-    ) as string[];
-    return links.filter(l => GITHUB_RE.test(l)).slice(0, MAX_GIT_REPOS);
-  } catch {
+    const gitUrls = new Set<string>();
+    
+    // 1. Check discovered web assets for Git repository URLs
+    const webAssetsResult = await pool.query(`
+      SELECT meta 
+      FROM artifacts 
+      WHERE meta->>'scan_id' = $1 
+        AND type = 'discovered_web_assets'
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [scanId]);
+    
+    if (webAssetsResult.rows.length > 0) {
+      const assets = webAssetsResult.rows[0].meta?.assets || [];
+      for (const asset of assets) {
+        if (asset.url && (
+          GITHUB_RE.test(asset.url) || 
+          GITLAB_RE.test(asset.url) || 
+          BITBUCKET_RE.test(asset.url) ||
+          asset.url.includes('.git')
+        )) {
+          gitUrls.add(asset.url);
+          log(`[trufflehog] Found Git repo in web assets: ${asset.url}`);
+        }
+      }
+    }
+    
+    // 2. Check discovered endpoints for Git-related paths
+    const endpointsResult = await pool.query(`
+      SELECT meta 
+      FROM artifacts 
+      WHERE meta->>'scan_id' = $1 
+        AND type = 'discovered_endpoints'
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `, [scanId]);
+    
+    if (endpointsResult.rows.length > 0) {
+      const endpoints = endpointsResult.rows[0].meta?.endpoints || [];
+      for (const endpoint of endpoints) {
+        if (endpoint.path && (
+          endpoint.path.includes('.git') ||
+          endpoint.path.includes('/git/') ||
+          endpoint.path.includes('/.git/')
+        )) {
+          // Construct full URL from endpoint
+          const baseUrl = endpoint.baseUrl || `https://${scanId.split('-')[0]}.com`; // fallback
+          const fullUrl = new URL(endpoint.path, baseUrl).toString();
+          gitUrls.add(fullUrl);
+          log(`[trufflehog] Found Git repo in endpoints: ${fullUrl}`);
+        }
+      }
+    }
+    
+    // 3. Check for any linked_url artifacts that might contain Git repos
+    const linkedUrlsResult = await pool.query(`
+      SELECT val_text 
+      FROM artifacts 
+      WHERE meta->>'scan_id' = $1 
+        AND type = 'linked_url'
+        AND (
+          val_text ~ 'github\.com' OR 
+          val_text ~ 'gitlab\.com' OR 
+          val_text ~ 'bitbucket\.org' OR
+          val_text ~ '\.git'
+        )
+      LIMIT 20
+    `, [scanId]);
+    
+    for (const row of linkedUrlsResult.rows) {
+      const url = row.val_text;
+      if (GITHUB_RE.test(url) || GITLAB_RE.test(url) || BITBUCKET_RE.test(url)) {
+        gitUrls.add(url);
+        log(`[trufflehog] Found Git repo in linked URLs: ${url}`);
+      }
+    }
+    
+    const repos = Array.from(gitUrls).slice(0, MAX_GIT_REPOS);
+    log(`[trufflehog] Discovered ${repos.length} Git repositories from artifacts`);
+    return repos;
+    
+  } catch (error) {
+    log(`[trufflehog] Error retrieving Git repositories from artifacts: ${(error as Error).message}`);
     return [];
   }
 }
@@ -91,7 +166,7 @@ export async function runTrufflehog(job: { domain: string; scanId: string }) {
 
   let findings = 0;
   
-  // Only scan Git repositories - web assets are now handled by clientSecretScanner
+  // Get Git repositories from discovered artifacts instead of spiderfoot file
   const repos = await getGitRepos(job.scanId);
   if (repos.length) {
     log(`[trufflehog] Scanning ${repos.length} Git repositories for secrets`);
@@ -100,15 +175,34 @@ export async function runTrufflehog(job: { domain: string; scanId: string }) {
       return await emitFindings(secrets, src, url);
     });
   } else {
-    log('[trufflehog] No Git repositories found to scan');
+    log('[trufflehog] No Git repositories found to scan from discovered artifacts');
+    
+    // Create an informational artifact about the lack of Git repositories
+    await insertArtifact({
+      type: 'scan_summary',
+      val_text: `TruffleHog scan completed but no Git repositories were discovered for ${job.domain}`,
+      severity: 'INFO',
+      meta: { 
+        scan_id: job.scanId, 
+        total_findings: 0, 
+        scope: 'git_discovery_failed',
+        note: 'No Git repositories found in web assets, endpoints, or linked URLs'
+      }
+    });
   }
 
   await insertArtifact({
     type: 'scan_summary',
-    val_text: `TruffleHog Git scan finished – ${findings} secret(s)`,
-    severity: 'INFO',
-    meta: { scan_id: job.scanId, total_findings: findings, scope: 'git_only' }
+    val_text: `TruffleHog Git scan finished – ${findings} secret(s) found across ${repos.length} repositories`,
+    severity: findings > 0 ? 'MEDIUM' : 'INFO',
+    meta: { 
+      scan_id: job.scanId, 
+      total_findings: findings, 
+      scope: 'git_only',
+      repositories_scanned: repos.length,
+      repositories_found: repos
+    }
   });
-  log(`[trufflehog] finished Git scan – findings=${findings}`);
+  log(`[trufflehog] finished Git scan – findings=${findings}, repos=${repos.length}`);
   return findings;
 }

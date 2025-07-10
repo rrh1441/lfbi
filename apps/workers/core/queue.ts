@@ -19,6 +19,8 @@ export interface JobStatus {
 
 export class UpstashQueue {
   redis: Redis;
+  private workerId: string;
+  private processingList: string;
 
   constructor(url: string) {
     // Parse the Redis URL to extract token and URL for Upstash
@@ -36,6 +38,12 @@ export class UpstashQueue {
       // Fallback to environment variables
       this.redis = Redis.fromEnv();
     }
+    
+    // Generate unique worker ID for processing list
+    this.workerId = process.env.FLY_MACHINE_ID || `worker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this.processingList = `processing:${this.workerId}`;
+    
+    console.log(`[queue] Worker initialized with ID: ${this.workerId}`);
   }
 
   async addJob(id: string, job: any): Promise<void> {
@@ -49,11 +57,10 @@ export class UpstashQueue {
   }
 
   async getNextJob(): Promise<ScanJob | null> {
-    const workerId = process.env.FLY_MACHINE_ID || `worker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
     try {
-      // Simple atomic pop - no locking complications
-      const jobData = await this.redis.rpop('scan.jobs');
+      // Use RPOPLPUSH for failure-resistant job processing
+      // This atomically moves job from main queue to worker-specific processing list
+      const jobData = await this.redis.rpoplpush('scan.jobs', this.processingList);
       if (!jobData) {
         return null;
       }
@@ -74,19 +81,113 @@ export class UpstashQueue {
       
       // Additional safety check - if it doesn't look like JSON, skip it
       if (!jobString.trim().startsWith('{') && !jobString.trim().startsWith('[')) {
-        console.log('[queue] Invalid job data format, skipping:', jobString);
+        console.log('[queue] Invalid job data format, removing from processing list:', jobString);
+        await this.redis.lrem(this.processingList, 1, jobData);
         return null;
       }
       
       const job = JSON.parse(jobString) as ScanJob;
       console.log('[queue] Parsed job:', job);
       
-      console.log(`[queue] Job ${job.id} successfully retrieved by worker ${workerId}`);
+      // Update job status to processing
+      await this.updateStatus(job.id, 'processing', 'Job picked up by worker');
+      
+      console.log(`[queue] Job ${job.id} successfully retrieved by worker ${this.workerId}`);
       return job;
     } catch (error) {
       console.error('[queue] Error in getNextJob:', error);
       console.error('[queue] Failed to parse job data, skipping...');
       return null;
+    }
+  }
+
+  async completeJob(jobId: string): Promise<void> {
+    try {
+      // Remove job from processing list when completed successfully
+      const job = await this.redis.lrange(this.processingList, 0, -1);
+      for (const jobData of job) {
+        try {
+          const parsedJob = JSON.parse(jobData as string);
+          if (parsedJob.id === jobId) {
+            await this.redis.lrem(this.processingList, 1, jobData);
+            console.log(`[queue] Job ${jobId} removed from processing list after completion`);
+            break;
+          }
+        } catch (e) {
+          // Skip malformed jobs
+          continue;
+        }
+      }
+      
+      await this.updateStatus(jobId, 'done', 'Scan completed successfully');
+    } catch (error) {
+      console.error(`[queue] Error completing job ${jobId}:`, error);
+    }
+  }
+
+  async failJob(jobId: string, error: string): Promise<void> {
+    try {
+      // Remove job from processing list when failed
+      const jobs = await this.redis.lrange(this.processingList, 0, -1);
+      for (const jobData of jobs) {
+        try {
+          const parsedJob = JSON.parse(jobData as string);
+          if (parsedJob.id === jobId) {
+            await this.redis.lrem(this.processingList, 1, jobData);
+            console.log(`[queue] Job ${jobId} removed from processing list after failure`);
+            break;
+          }
+        } catch (e) {
+          // Skip malformed jobs
+          continue;
+        }
+      }
+      
+      await this.updateStatus(jobId, 'failed', `Scan failed: ${error}`);
+    } catch (error) {
+      console.error(`[queue] Error failing job ${jobId}:`, error);
+    }
+  }
+
+  async cleanupStaleJobs(): Promise<void> {
+    try {
+      // Clean up jobs that have been in processing lists for too long (>30 minutes)
+      const STALE_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+      const now = Date.now();
+      
+      // Get all processing lists
+      const keys = await this.redis.keys('processing:*');
+      let reclaimedCount = 0;
+      
+      for (const key of keys) {
+        const jobs = await this.redis.lrange(key, 0, -1);
+        
+        for (const jobData of jobs) {
+          try {
+            const job = JSON.parse(jobData as string);
+            const jobAge = now - new Date(job.createdAt).getTime();
+            
+            if (jobAge > STALE_TIMEOUT) {
+              // Move stale job back to main queue
+              await this.redis.lpush('scan.jobs', jobData);
+              await this.redis.lrem(key, 1, jobData);
+              await this.updateStatus(job.id, 'queued', 'Job reclaimed from stale worker');
+              reclaimedCount++;
+              console.log(`[queue] Reclaimed stale job ${job.id} from ${key}`);
+            }
+          } catch (e) {
+            // Remove malformed jobs from processing lists
+            await this.redis.lrem(key, 1, jobData);
+            console.log(`[queue] Removed malformed job from ${key}`);
+          }
+        }
+      }
+      
+      if (reclaimedCount > 0) {
+        console.log(`[queue] Cleanup completed: ${reclaimedCount} stale jobs reclaimed`);
+      }
+    } catch (error) {
+      console.error('[queue] Error during stale job cleanup:', error);
     }
   }
 
@@ -102,7 +203,6 @@ export class UpstashQueue {
     await this.redis.hset(`job:${id}`, statusUpdate);
     console.log(`[queue] Updated job ${id} status: ${state}${message ? ` - ${message}` : ''}`);
   }
-
 
   async getStatus(id: string): Promise<JobStatus | null> {
     const obj = await this.redis.hgetall(`job:${id}`);

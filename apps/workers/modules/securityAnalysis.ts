@@ -41,7 +41,7 @@ export class SecurityAnalysis {
     this.vulnerabilityAnalysis = createVulnerabilityAnalysis(config);
   }
 
-  /* Enhanced security analysis with active testing */
+  /* Enhanced security analysis with CVE discovery for external consolidation */
   async analyzeSecurityEnhanced(
     t: WappTech, 
     detections: WappTech[], 
@@ -66,51 +66,19 @@ export class SecurityAnalysis {
     // Merge and deduplicate passive results
     const passiveVulns = this.vulnerabilityAnalysis.dedupeVulns([...osvProcessed, ...ghProcessed]);
     
-    // Get CVE IDs for active testing
+    // Get CVE IDs for external nuclei consolidation
     const cveIds = passiveVulns
       .filter(v => v.id.startsWith('CVE-'))
       .map(v => v.id);
     
-    // Run active Nuclei verification if enabled and we have CVEs
-    let nucleiResults = new Map<string, any>();
-    let activeVerification = {
-      tested: 0,
-      exploitable: 0,
-      notExploitable: 0
-    };
-
-    if (this.config.enableActiveVerification !== false && 
-        cveIds.length > 0 && targets && targets.length > 0) {
-      // Use the first available target for testing
-      const target = targets[0];
-      nucleiResults = await this.vulnerabilityAnalysis.runNucleiCVETests(target, cveIds, t.name);
-      
-      if (nucleiResults.size === 0) {
-        log(`nuclei=skipped tech="${t.name}" reason="not available or no templates"`);
-      } else {
-        // Calculate active verification stats
-        activeVerification.tested = nucleiResults.size;
-        for (const [, result] of nucleiResults) {
-          if (result.exploitable) {
-            activeVerification.exploitable++;
-          } else {
-            activeVerification.notExploitable++;
-          }
-        }
-      }
-    }
-    
-    // Enrich vulnerabilities with both passive and active data
-    const enrichedVulns = passiveVulns.map(vuln => {
-      const nucleiResult = nucleiResults.get(vuln.id);
-      
-      return {
-        ...vuln,
-        activelyTested: !!nucleiResult,
-        exploitable: nucleiResult?.exploitable,
-        verificationDetails: nucleiResult?.details
-      };
-    });
+    // REMOVED: Active Nuclei verification - now handled by consolidated nuclei module
+    // This avoids redundant nuclei scans and allows for centralized coordination
+    const enrichedVulns = passiveVulns.map(vuln => ({
+      ...vuln,
+      // Mark for external nuclei testing
+      needsActiveVerification: vuln.id.startsWith('CVE-'),
+      cveIds: vuln.id.startsWith('CVE-') ? [vuln.id] : []
+    }));
     
     // Get EPSS and KEV data
     const epssMap = await this.vulnerabilityAnalysis.getEPSSScores(cveIds);
@@ -133,7 +101,7 @@ export class SecurityAnalysis {
     // Calculate supply chain score
     const scScore = this.vulnerabilityAnalysis.supplyChainScore(filtered);
     
-    // Enhanced risk assessment considering active testing
+    // Enhanced risk assessment (without active testing - that's handled externally)
     let risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' = 'LOW';
     const advice: string[] = [];
     
@@ -143,10 +111,6 @@ export class SecurityAnalysis {
     }
     
     if (filtered.length) {
-      // Count actively exploitable vulnerabilities (if tested)
-      const exploitableCount = filtered.filter(v => v.exploitable === true).length;
-      const testedCount = filtered.filter(v => v.activelyTested).length;
-      
       // Base risk on standard criteria (CVSS, EPSS, KEV)
       const hasHighRisk = filtered.some(v => 
         v.cisaKev || 
@@ -156,18 +120,8 @@ export class SecurityAnalysis {
       
       risk = hasHighRisk ? 'HIGH' : risk === 'LOW' ? 'MEDIUM' : risk;
       
-      // UPGRADE to CRITICAL if we have confirmed exploitable vulns
-      if (exploitableCount > 0) {
-        risk = 'CRITICAL';
-        advice.push(`⚠️ CRITICAL: ${exploitableCount} vulnerabilities confirmed as actively exploitable!`);
-      }
-      
       // Build appropriate advice message
-      if (testedCount > 0) {
-        advice.push(`Patch – ${filtered.length} vulnerabilities found (${testedCount} tested by Nuclei: ${exploitableCount} exploitable).`);
-      } else {
-        advice.push(`Patch – ${filtered.length} vulnerabilities found.`);
-      }
+      advice.push(`Patch – ${filtered.length} vulnerabilities found (${cveIds.length} CVEs require active verification).`);
       
       if (filtered.some(v => v.cisaKev)) {
         advice.push('CISA Known-Exploited vulnerability present.');
@@ -185,7 +139,8 @@ export class SecurityAnalysis {
       advice,
       versionAccuracy: calculateVersionAccuracy([t]),
       supplyChainScore: scScore,
-      activeVerification: activeVerification.tested > 0 ? activeVerification : undefined
+      // NEW: Return CVE IDs for external nuclei consolidation
+      cveIds: cveIds.length > 0 ? cveIds : undefined
     };
   }
 

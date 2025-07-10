@@ -9,7 +9,7 @@ import { runClientSecretScanner } from './modules/clientSecretScanner.js';
 import { runRateLimitScan } from './modules/rateLimitScan.js';
 import { runDnsTwist } from './modules/dnsTwist.js';
 import { runTlsScan } from './modules/tlsScan.js';
-import { runNuclei } from './modules/nuclei.js';
+import { runNucleiLegacy as runNuclei } from './modules/nuclei.js';
 import { runDbPortScan } from './modules/dbPortScan.js';
 import { runSpfDmarc } from './modules/spfDmarc.js';
 import { runEndpointDiscovery } from './modules/endpointDiscovery.js';
@@ -329,7 +329,7 @@ async function processScan(job: ScanJob): Promise<void> {
         log(`[${scanId}] ${moduleName} scan failed:`, error);
       }
     }
-
+    
     // Wait for all dependent parallel modules to complete
     for (const [moduleName, promise] of Object.entries(dependentParallelPromises)) {
       try {
@@ -343,19 +343,11 @@ async function processScan(job: ScanJob): Promise<void> {
       }
     }
 
-    // Phase 3: Final sequential modules - now empty with true parallelization
+    // Phase 3: Sequential modules that cannot run in parallel
     const phase3Modules = activeModules.filter(m => 
-      m !== 'breach_directory_probe' &&
-      m !== 'shodan' &&
-      m !== 'dns_twist' &&
-      m !== 'document_exposure' &&
-      m !== 'endpoint_discovery' &&
-      m !== 'tls_scan' &&
-      m !== 'spf_dmarc' &&
-      m !== 'accessibility_scan' &&
-      m !== 'nuclei' &&
-      m !== 'tech_stack_scan' &&
-      m !== 'abuse_intel_scan'
+      !immediateParallelPromises.hasOwnProperty(m) && 
+      !dependentParallelPromises.hasOwnProperty(m) &&
+      m !== 'endpoint_discovery' // Already completed
     );
     
     for (const moduleName of phase3Modules) {
@@ -403,37 +395,6 @@ async function processScan(job: ScanJob): Promise<void> {
             moduleFindings = await runDbPortScan({ domain, scanId });
             log(`[${scanId}] COMPLETED database scan: ${moduleFindings} database issues found`);
             break;
-            
-          case 'endpoint_discovery':
-            log(`[${scanId}] STARTING endpoint discovery for ${domain}`);
-            moduleFindings = await runEndpointDiscovery({ domain, scanId });
-            log(`[${scanId}] COMPLETED endpoint discovery: ${moduleFindings} endpoint collections found`);
-            break;
-
-          case 'tech_stack_scan':                                              // ← ADDED
-            log(`[${scanId}] STARTING tech stack scan for ${domain}`);         // ← ADDED
-            moduleFindings = await runTechStackScan({ domain, scanId });       // ← ADDED
-            log(`[${scanId}] COMPLETED tech stack scan: ${moduleFindings} technologies detected`); // ← ADDED
-            break;                                                             // ← ADDED
-
-          case 'abuse_intel_scan':
-            log(`[${scanId}] STARTING AbuseIPDB intelligence scan for IPs`);
-            moduleFindings = await runAbuseIntelScan({ scanId });
-            log(`[${scanId}] COMPLETED AbuseIPDB scan: ${moduleFindings} malicious/suspicious IPs found`);
-            break;
-
-
-          // case 'adversarial_media_scan':  // COMMENTED OUT - too noisy
-          //   log(`[${scanId}] STARTING adversarial media scan for ${companyName}`);
-          //   moduleFindings = await runAdversarialMediaScan({ company: companyName, domain, scanId });
-          //   log(`[${scanId}] COMPLETED adversarial media scan: ${moduleFindings} adverse media findings`);
-          //   break;
-
-          case 'accessibility_scan':
-            log(`[${scanId}] STARTING accessibility compliance scan for ${domain}`);
-            moduleFindings = await runAccessibilityScan({ domain, scanId });
-            log(`[${scanId}] COMPLETED accessibility scan: ${moduleFindings} WCAG violations found`);
-            break;
 
           case 'denial_wallet_scan':
             log(`[${scanId}] STARTING denial-of-wallet vulnerability scan for ${domain}`);
@@ -478,132 +439,52 @@ async function processScan(job: ScanJob): Promise<void> {
         }
         
         totalModuleResults += moduleFindings;
-        modulesCompleted++;
+        modulesCompleted += 1;
         
-        // Update progress after successful module completion
-        const newProgress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
-        await updateScanMasterStatus(scanId, {
-          progress: newProgress
-        });
-        
-      } catch (moduleError) {
-        log(`Module ${moduleName} failed:`, (moduleError as Error).message);
-        
-        // Update status to indicate module failure but continue
-        await updateScanMasterStatus(scanId, {
-          status: 'module_failed',
-          error_message: `Module ${moduleName} failed: ${(moduleError as Error).message}`
-        });
-        
-        // For critical modules, fail the entire scan
-        if (moduleName === 'shodan') {
-          throw new Error(`Critical module ${moduleName} failed: ${(moduleError as Error).message}`);
-        }
-        
-        // For non-critical modules, continue
-        modulesCompleted++;
-        const newProgress = Math.floor((modulesCompleted / TOTAL_MODULES) * 100);
-        await updateScanMasterStatus(scanId, {
-          status: 'processing', // Reset to processing after module failure
-          progress: newProgress
+      } catch (error) {
+        log(`[${scanId}] Module ${moduleName} failed:`, error);
+        await insertArtifact({
+          type: 'scan_error',
+          val_text: `Module ${moduleName} failed: ${(error as Error).message}`,
+          severity: 'MEDIUM',
+          meta: { scan_id: scanId, module: moduleName }
         });
       }
-    }
-
-    // If no real module results, the scan failed
-    if (totalModuleResults === 0) {
-      throw new Error(`No security results discovered for ${domain}. Comprehensive scan failed to produce actionable results.`);
     }
 
     // === SCAN COMPLETION ===
-    // Calculate artifacts count
-    const artifactsStats = await pool.query(
-      `SELECT COUNT(*) as total_artifacts 
-       FROM artifacts 
-       WHERE meta->>'scan_id' = $1 
-       AND type <> 'scan_summary' 
-       AND type <> 'scan_error'`,
-      [scanId]
-    );
-    
-    const totalArtifactsCount = parseInt(artifactsStats.rows[0]?.total_artifacts || '0');
-    log(`[processScan] Counted ${totalArtifactsCount} artifacts for scan ${scanId}`);
-    
-    // Calculate findings stats
-    const findingsStats = await pool.query(
-        `SELECT 
-            COUNT(*) as total_findings,
-            MAX(CASE 
-                WHEN a.severity = 'CRITICAL' THEN 5
-                WHEN a.severity = 'HIGH' THEN 4
-                WHEN a.severity = 'MEDIUM' THEN 3
-                WHEN a.severity = 'LOW' THEN 2
-                WHEN a.severity = 'INFO' THEN 1
-                ELSE 0 
-            END) as max_severity_score
-         FROM findings f
-         JOIN artifacts a ON f.artifact_id = a.id
-         WHERE a.meta->>'scan_id' = $1`,
-        [scanId]
-    );
-
-    const totalFindingsCount = parseInt(findingsStats.rows[0]?.total_findings || '0');
-    const maxSeverityScore = parseInt(findingsStats.rows[0]?.max_severity_score || '0');
-    let maxSeverity = 'INFO';
-    if (maxSeverityScore === 5) maxSeverity = 'CRITICAL';
-    else if (maxSeverityScore === 4) maxSeverity = 'HIGH';
-    else if (maxSeverityScore === 3) maxSeverity = 'MEDIUM';
-    else if (maxSeverityScore === 2) maxSeverity = 'LOW';
-
+    const finalProgress = 100;
     await updateScanMasterStatus(scanId, {
-      status: 'done',
-      progress: 100,
+      status: 'completed',
+      progress: finalProgress,
+      current_module: undefined,
       completed_at: new Date(),
-      total_findings_count: totalFindingsCount,
-      max_severity: maxSeverity,
-      total_artifacts_count: totalArtifactsCount
+      total_findings_count: totalModuleResults
     });
-
-    await queue.updateStatus(
-      scanId, 
-      'done', 
-      `Comprehensive security scan completed - ${totalFindingsCount} verified findings across ${TOTAL_MODULES} security modules. Findings ready for processing.`
-    );
     
-    log(`✅ COMPREHENSIVE SCAN COMPLETED for ${companyName}: ${totalFindingsCount} verified findings, ${totalArtifactsCount} artifacts across ${TOTAL_MODULES} security modules`);
-
-    // Sync worker runs continuously and will pick up results automatically
-
-  } catch (error) {
-    log(`❌ Scan failed for ${companyName}:`, (error as Error).message);
+    log(`[${scanId}] ✅ SCAN COMPLETE: ${totalModuleResults} total findings across ${TOTAL_MODULES} modules`);
     
-    // === SCAN FAILURE ===
+    // Mark job as completed in queue (removes from processing list)
+    await queue.completeJob(scanId);
+    
+  } catch (error: any) {
+    log(`[${scanId}] ❌ SCAN FAILED:`, error);
+    
     await updateScanMasterStatus(scanId, {
       status: 'failed',
-      completed_at: new Date(),
-      error_message: (error as Error).message
+      error_message: error.message || 'Unknown scan error',
+      completed_at: new Date()
     });
     
-    await queue.updateStatus(
-      scanId, 
-      'failed', 
-      `Scan failed: ${(error as Error).message}`
-    );
-    
-    // Store error artifact
     await insertArtifact({
       type: 'scan_error',
-      val_text: `Comprehensive scan failed: ${(error as Error).message}`,
-      severity: 'INFO',
-      meta: {
-        scan_id: scanId,
-        company: companyName,
-        error: true,
-        timestamp: new Date().toISOString()
-      }
+      val_text: `Scan failed: ${error.message}`,
+      severity: 'CRITICAL',
+      meta: { scan_id: scanId, error_details: error.stack }
     });
     
-    throw error;
+    // Mark job as failed in queue (removes from processing list)
+    await queue.failJob(scanId, error.message || 'Unknown scan error');
   }
 }
 
@@ -627,6 +508,9 @@ async function startWorker() {
     // Clean up any incomplete scans from previous worker instances
     await cleanupIncompleteScans();
     
+    // Run stale job cleanup on startup
+    await queue.cleanupStaleJobs();
+    
     // Mark this worker instance as active
     await pool.query(`
       INSERT INTO worker_instances (instance_id, started_at, last_heartbeat) 
@@ -640,6 +524,15 @@ async function startWorker() {
     log('Database initialization failed:', (error as Error).message);
     process.exit(1);
   }
+
+  // Schedule periodic stale job cleanup (every 10 minutes)
+  setInterval(async () => {
+    try {
+      await queue.cleanupStaleJobs();
+    } catch (error) {
+      log('Error during scheduled cleanup:', error);
+    }
+  }, 10 * 60 * 1000);
 
   // Main processing loop
   while (!isShuttingDown) {
