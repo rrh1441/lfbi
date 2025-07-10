@@ -23,5 +23,4 @@ export interface ICache<T> {
 }
 
 // Export the implementation
-export { UnifiedCache } from './lruCache.js';
-export type { CacheKey, CacheStats, ICache }; 
+export { UnifiedCache } from './lruCache.js'; 

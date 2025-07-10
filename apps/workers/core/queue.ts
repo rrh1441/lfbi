@@ -58,9 +58,9 @@ export class UpstashQueue {
 
   async getNextJob(): Promise<ScanJob | null> {
     try {
-      // Use RPOPLPUSH for failure-resistant job processing
-      // This atomically moves job from main queue to worker-specific processing list
-      const jobData = await this.redis.rpoplpush('scan.jobs', this.processingList);
+      // Use RPOP as fallback since RPOPLPUSH might not be available in Upstash Redis
+      // This is less failure-resistant but allows the system to work
+      const jobData = await this.redis.rpop('scan.jobs');
       if (!jobData) {
         return null;
       }

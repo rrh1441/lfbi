@@ -62,7 +62,7 @@ export async function detectTechnologiesFast(
     // Use the existing fast detection utility
     const result = await fastTechDetect(url);
     
-    if (!result.success || !result.technologies) {
+    if (result.error || !result.technologies) {
       return {
         url,
         technologies: [],

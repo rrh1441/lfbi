@@ -238,7 +238,7 @@ export class UnifiedTechDetection implements TechDetectionInterface {
           // Add ecosystem detection
           const techWithEcosystem = {
             ...tech,
-            ecosystem: detectEcosystem(tech)
+            ecosystem: detectEcosystem(tech) || undefined
           };
           techMap.set(tech.slug, techWithEcosystem);
         }
@@ -267,7 +267,7 @@ export class UnifiedTechDetection implements TechDetectionInterface {
           for (const tech of result.technologies) {
             const techWithEcosystem = {
               ...tech,
-              ecosystem: detectEcosystem(tech)
+              ecosystem: detectEcosystem(tech) || undefined
             };
             techMap.set(tech.slug, techWithEcosystem);
           }

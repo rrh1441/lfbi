@@ -1,7 +1,7 @@
 import pLimit from 'p-limit';
 import { OpenAI } from 'openai';
 import { log } from '../core/logger.js';
-import { supabase } from '../core/env.js';
+import { pool } from '../core/artifactStore.js';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const MODEL = 'o4-mini-2025-04-16';  // Exact model name as specified
@@ -36,24 +36,23 @@ export async function enrichFindingsWithRemediation(scanId: string): Promise<num
   }
 
   // Get findings that need remediation (all except INFO)
-  const { data: findings, error } = await supabase
-    .from('findings')
-    .select(`
-      id,
-      artifact_id,
-      type,
-      severity,
-      description,
-      artifacts!inner(src_url, meta)
-    `)
-    .eq('artifacts.meta->>scan_id', scanId)
-    .neq('severity', 'INFO')
-    .is('remediation', null);
+  const result = await pool.query(`
+    SELECT 
+      f.id,
+      f.artifact_id,
+      f.finding_type as type,
+      a.severity,
+      f.description,
+      a.src_url,
+      a.meta
+    FROM findings f
+    INNER JOIN artifacts a ON f.artifact_id = a.id
+    WHERE a.meta->>'scan_id' = $1
+      AND a.severity != 'INFO'
+      AND f.remediation IS NULL
+  `, [scanId]);
 
-  if (error) {
-    log('[remediationPlanner] Database error:', error.message);
-    return 0;
-  }
+  const findings = result.rows;
 
   if (!findings?.length) {
     log(`[remediationPlanner] No findings requiring remediation for scan ${scanId}`);
@@ -65,7 +64,7 @@ export async function enrichFindingsWithRemediation(scanId: string): Promise<num
   let processed = 0;
   const updates: { id: string; remediation: RemediationJson }[] = [];
 
-  await Promise.all(findings.slice(0, MAX_FINDINGS_PER_SCAN).map(f => limit(async () => {
+  await Promise.all(findings.slice(0, MAX_FINDINGS_PER_SCAN).map((f: any) => limit(async () => {
     try {
       const enrichedFinding: Finding = {
         id: f.id,
@@ -73,8 +72,8 @@ export async function enrichFindingsWithRemediation(scanId: string): Promise<num
         type: f.type,
         severity: f.severity,
         description: f.description,
-        src_url: f.artifacts.src_url,
-        meta: f.artifacts.meta
+        src_url: f.src_url,
+        meta: f.meta
       };
 
       const prompt = buildPrompt(enrichedFinding);
@@ -99,10 +98,10 @@ export async function enrichFindingsWithRemediation(scanId: string): Promise<num
   // Batch update findings with remediation
   if (updates.length > 0) {
     for (const update of updates) {
-      await supabase
-        .from('findings')
-        .update({ remediation: update.remediation })
-        .eq('id', update.id);
+      await pool.query(
+        'UPDATE findings SET remediation = $1 WHERE id = $2',
+        [JSON.stringify(update.remediation), update.id]
+      );
     }
   }
 

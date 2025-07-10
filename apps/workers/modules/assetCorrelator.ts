@@ -50,8 +50,16 @@ interface RawArtifact {
   severity: string;
   ip?: string;
   host?: string;
-  port?: number;
+  port?: number | string;
   meta: any;
+  hostnames_json?: string;
+  product?: string;
+  version?: string;
+  org?: string;
+  asn?: string;
+  cve?: string;
+  cvss?: string;
+  epss?: string;
 }
 
 // DNS cache for the scan session
@@ -75,8 +83,8 @@ class DNSCache {
       );
       
       const ips = Array.isArray(result) 
-        ? result.map(r => r.address) 
-        : [result.address];
+        ? result.map((r: any) => r.address) 
+        : [(result as any).address];
       
       this.cache.set(hostname, ips);
       return ips;
@@ -134,7 +142,7 @@ export async function runAssetCorrelator(job: {
         scan_id: scanId, 
         scan_module: 'assetCorrelator',
         elapsed_ms: elapsed,
-        truncated: error.message === 'Correlation timeout'
+        truncated: (error as Error).message === 'Correlation timeout'
       }
     });
   }
@@ -219,7 +227,7 @@ async function correlateAssets(scanId: string, domain: string): Promise<void> {
 
     for (const ip of ips) {
       // Create asset key (IP:port for services, IP for host-level)
-      const port = artifact.port ? parseInt(artifact.port) : undefined;
+      const port = artifact.port ? parseInt(String(artifact.port)) : undefined;
       const assetKey = port ? `${ip}:${port}` : ip;
       
       // Get or create asset

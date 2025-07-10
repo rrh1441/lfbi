@@ -3,7 +3,7 @@ import type { UnifiedCache, CacheKey } from '../techCache/index.js';
 
 // Vulnerability intelligence interface
 export interface IVulnerabilityAnalyzer {
-  analyze(tech: WappTech): Promise<VulnReport[]>;
+  analyze(tech: WappTech): Promise<VulnRecord[]>;
   validateTimeline(cve: string, version: string): boolean;
   getEPSSScores(cveIds: string[]): Promise<Map<string, number>>;
   getKEVList(): Promise<Set<string>>;

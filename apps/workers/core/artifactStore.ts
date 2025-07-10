@@ -107,6 +107,7 @@ export async function initializeDatabase(): Promise<void> {
         recommendation TEXT NOT NULL,
         description TEXT NOT NULL,
         repro_command TEXT,
+        remediation JSONB,
         created_at TIMESTAMP DEFAULT NOW()
       )
     `);
@@ -127,6 +128,24 @@ export async function initializeDatabase(): Promise<void> {
       `);
     } catch (error) {
       console.log('[artifactStore] Warning: Could not add repro_command column:', (error as Error).message);
+    }
+
+    // Add remediation column to existing findings table if it doesn't exist
+    try {
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'findings' AND column_name = 'remediation'
+          ) THEN
+            ALTER TABLE findings ADD COLUMN remediation JSONB;
+            RAISE NOTICE 'Added remediation column to findings table';
+          END IF;
+        END$$;
+      `);
+    } catch (error) {
+      console.log('[artifactStore] Warning: Could not add remediation column:', (error as Error).message);
     }
 
     // Create scans_master table for tracking scan status
