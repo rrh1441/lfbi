@@ -31,7 +31,7 @@ export const SCAN_TIERS: Record<'tier1' | 'tier2', ScanTier> = {
 export const ENDPOINT_DISCOVERY_CONFIG = {
     tier1: {
         maxCrawlDepth: 2,
-        maxConcurrentRequests: 20,      // Increased from 5
+        maxConcurrentRequests: 12,      // Reduced from 20 to 12 for stability
         requestTimeout: 3000,           // Reduced from 8000
         maxJsFileSize: 2 * 1024 * 1024, // 2MB max
         maxFilesPerCrawl: 25,           // Reduced from 35
@@ -41,7 +41,7 @@ export const ENDPOINT_DISCOVERY_CONFIG = {
     },
     tier2: {
         maxCrawlDepth: 3,               // Deeper crawling
-        maxConcurrentRequests: 15,      // Moderate for stability  
+        maxConcurrentRequests: 10,      // Reduced from 15 for stability  
         requestTimeout: 8000,           // Full timeout
         maxJsFileSize: 5 * 1024 * 1024, // 5MB max
         maxFilesPerCrawl: 75,           // Full coverage
@@ -70,13 +70,13 @@ export const TRUFFLEHOG_CONFIG = {
 // Database Port Scan Configuration
 export const DB_PORT_SCAN_CONFIG = {
     tier1: {
-        maxConcurrentScans: 12,             // Increased from 4
+        maxConcurrentScans: 8,              // Reduced from 12 to 8 for stability
         nmapTimeout: 30000,                 // Reduced from 60000
         nucleiTimeout: 60000,               // Reduced from 300000
         skipSlowScripts: true
     },
     tier2: {
-        maxConcurrentScans: 8,              // Moderate for stability
+        maxConcurrentScans: 6,              // Reduced from 8 to 6 for stability
         nmapTimeout: 120000,                // Full timeout
         nucleiTimeout: 300000,              // Full timeout
         skipSlowScripts: false
@@ -88,14 +88,14 @@ export const WEB_ARCHIVE_CONFIG = {
     tier1: {
         maxArchiveUrls: 20,                 // Quick scan: 20 URLs
         maxYearsBack: 1,                    // Recent year only
-        maxConcurrentFetches: 12,           // Increased speed
+        maxConcurrentFetches: 8,            // Reduced from 12 to 8 for stability
         archiveTimeout: 5000,               // Quick timeout
         skipGau: false                      // Keep gau for speed
     },
     tier2: {
         maxArchiveUrls: 200,                // Deep dive: 200 URLs  
         maxYearsBack: 3,                    // 3 years back
-        maxConcurrentFetches: 8,            // Moderate for stability
+        maxConcurrentFetches: 6,            // Reduced from 8 to 6 for stability
         archiveTimeout: 15000,              // Full timeout
         skipGau: false
     }
@@ -105,14 +105,14 @@ export const WEB_ARCHIVE_CONFIG = {
 export const AI_PATH_FINDER_CONFIG = {
     tier1: {
         maxPathsToGenerate: 25,             // Reduced from 50
-        maxConcurrentProbes: 15,            // Increased from 8
+        maxConcurrentProbes: 10,            // Reduced from 15 to 10 for stability
         probeTimeout: 4000,                 // Reduced from 8000
         aiTimeout: 15000,                   // Quick AI response
         fallbackOnly: false                 // Use AI for better results
     },
     tier2: {
         maxPathsToGenerate: 75,             // More comprehensive
-        maxConcurrentProbes: 10,            // Moderate for stability
+        maxConcurrentProbes: 8,             // Reduced from 10 to 8 for stability
         probeTimeout: 8000,                 // Full timeout
         aiTimeout: 30000,                   // Full AI timeout
         fallbackOnly: false

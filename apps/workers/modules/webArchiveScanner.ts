@@ -17,7 +17,7 @@ const TIER1_MAX_ARCHIVE_URLS = 20;      // Quick scan: 20 URLs
 const TIER2_MAX_ARCHIVE_URLS = 200;     // Deep dive: 200 URLs
 const TIER1_MAX_YEARS_BACK = 1;         // Quick scan: 1 year
 const TIER2_MAX_YEARS_BACK = 3;         // Deep dive: 3 years
-const MAX_CONCURRENT_FETCHES = 12;      // Increased for speed
+const MAX_CONCURRENT_FETCHES = 8;      // Reduced from 12 for stability
 const ARCHIVE_TIMEOUT = 8000;           // Reduced timeout
 const WAYBACK_API_URL = 'https://web.archive.org/cdx/search/cdx';
 

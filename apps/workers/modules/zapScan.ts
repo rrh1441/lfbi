@@ -13,6 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
 import { isNonHtmlAsset } from '../util/nucleiWrapper.js';
+import { executeModule, fileOperation } from '../util/errorHandler.js';
 
 // Enhanced logging
 const log = (...args: unknown[]) => rootLog('[zapScan]', ...args);
@@ -66,30 +67,31 @@ export async function runZAPScan(job: {
   scanId: string 
 }): Promise<number> {
   const { domain, scanId } = job;
-  log(`Starting OWASP ZAP web application security scan for ${domain}`);
+  
+  return executeModule('zapScan', async () => {
+    log(`Starting OWASP ZAP web application security scan for ${domain}`);
 
-  // Check if Docker is available for ZAP
-  if (!await isDockerAvailable()) {
-    log(`Docker not available for ZAP scanning - skipping web application scan`);
-    
-    await insertArtifact({
-      type: 'scan_warning',
-      val_text: `Docker not available - ZAP web application security testing skipped`,
-      severity: 'LOW',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'zapScan',
-        reason: 'docker_unavailable'
-      }
-    });
-    
-    return 0;
-  }
+    // Check if Docker is available for ZAP
+    if (!await isDockerAvailable()) {
+      log(`Docker not available for ZAP scanning - skipping web application scan`);
+      
+      await insertArtifact({
+        type: 'scan_warning',
+        val_text: `Docker not available - ZAP web application security testing skipped`,
+        severity: 'LOW',
+        meta: {
+          scan_id: scanId,
+          scan_module: 'zapScan',
+          reason: 'docker_unavailable'
+        }
+      });
+      
+      return 0;
+    }
 
-  // Ensure ZAP Docker image is available
-  await ensureZAPImage();
+    // Ensure ZAP Docker image is available
+    await ensureZAPImage();
 
-  try {
     // Get high-value web application targets
     const targets = await getZAPTargets(scanId, domain);
     if (targets.length === 0) {
@@ -142,24 +144,8 @@ export async function runZAPScan(job: {
 
     log(`ZAP scan completed: ${totalFindings} web application vulnerabilities found`);
     return totalFindings;
-
-  } catch (error) {
-    log(`ZAP scan failed: ${(error as Error).message}`);
     
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: `ZAP web application scan failed: ${(error as Error).message}`,
-      severity: 'MEDIUM',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'zapScan',
-        domain,
-        error_message: (error as Error).message
-      }
-    });
-    
-    return 0;
-  }
+  }, { scanId, target: domain });
 }
 
 /**
@@ -278,166 +264,184 @@ async function getZAPTargets(scanId: string, domain: string): Promise<Array<{url
 }
 
 /**
- * Execute ZAP baseline scan using Docker
+ * Execute ZAP baseline scan against target
  */
 async function executeZAPBaseline(target: string, assetType: string, scanId: string): Promise<number> {
-  const sessionId = randomBytes(8).toString('hex');
-  const outputFile = `zap_report_${sessionId}.json`;
+  const outputFileName = `zap_report_${Date.now()}.json`;
+  const outputFile = `${ARTIFACTS_DIR}/${outputFileName}`;
   
-  try {
-    log(`Running ZAP baseline scan for ${target} (${assetType})`);
-    
-    // Ensure artifacts directory exists
-    await mkdir(ARTIFACTS_DIR, { recursive: true });
-    
-    // Build Docker command arguments
-    const dockerArgs = [
-      'run', '--rm',
-      '-v', `${process.cwd()}/${ARTIFACTS_DIR}:/zap/wrk:rw`,
-      ZAP_DOCKER_IMAGE,
-      'zap-baseline.py',
-      '-t', target,           // Target URL
-      '-J', outputFile,       // JSON output file
-      '-I'                    // Ignore warnings
-    ];
-    
-    // Execute ZAP baseline scan using Docker
-    await new Promise<void>((resolve, reject) => {
-      const zapProcess = spawn('docker', dockerArgs, {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        timeout: ZAP_TIMEOUT_MS
-      });
-      
-      let stdout = '';
-      let stderr = '';
-      
-      zapProcess.stdout?.on('data', (data) => {
-        const output = data.toString();
-        stdout += output;
-        // Log ZAP progress
-        if (output.includes('PASS:') || output.includes('WARN:') || output.includes('FAIL:')) {
-          log(`ZAP: ${output.trim()}`);
-        }
-      });
-      
-      zapProcess.stderr?.on('data', (data) => {
-        stderr += data.toString();
-      });
-      
-      zapProcess.on('exit', (code) => {
-        if (code === 0 || code === 2) {
-          // Exit code 0 = success, 2 = warnings found (normal for ZAP)
-          log(`ZAP scan completed for ${target} (exit code: ${code})`);
-          resolve();
-        } else {
-          log(`ZAP scan failed for ${target} (exit code: ${code})`);
-          if (stderr) log(`ZAP stderr: ${stderr}`);
-          if (stdout) log(`ZAP stdout summary: ${stdout.slice(-500)}`); // Last 500 chars
-          reject(new Error(`ZAP baseline scan failed with exit code ${code}: ${stderr}`));
-        }
-      });
-      
-      zapProcess.on('error', (error) => {
-        reject(new Error(`ZAP Docker process error: ${error.message}`));
-      });
-    });
-    
-    // Parse results and create findings
-    const outputPath = `${ARTIFACTS_DIR}/${outputFile}`;
-    const findings = await parseZAPResults(outputPath, target, assetType, scanId);
-    
-    return findings;
-    
-  } catch (error) {
-    log(`ZAP baseline scan failed for ${target}: ${(error as Error).message}`);
-    throw error;
-    
-  } finally {
-    // Cleanup temporary files
-    try {
-      const outputPath = `${ARTIFACTS_DIR}/${outputFile}`;
-      if (existsSync(outputPath)) {
-        await unlink(outputPath);
-      }
-    } catch (cleanupError) {
-      log(`Failed to cleanup ZAP output file: ${cleanupError}`);
+  // Ensure artifacts directory exists
+  const dirOperation = async () => {
+    if (!existsSync(ARTIFACTS_DIR)) {
+      await mkdir(ARTIFACTS_DIR, { recursive: true });
     }
+  };
+
+  const dirResult = await fileOperation(dirOperation, {
+    moduleName: 'zapScan',
+    operation: 'createDirectory',
+    target: ARTIFACTS_DIR
+  });
+
+  if (!dirResult.success) {
+    throw new Error(`Failed to create artifacts directory: ${dirResult.error}`);
   }
+
+  log(`Running ZAP baseline scan for ${target}`);
+  
+  const zapArgs = [
+    'run', '--rm',
+    '-v', `${process.cwd()}/${ARTIFACTS_DIR}:/zap/wrk/:rw`,
+    ZAP_DOCKER_IMAGE,
+    'zap-baseline.py',
+    '-t', target,
+    '-J', outputFileName, // JSON output
+    '-x', outputFileName.replace('.json', '.xml'), // XML output (backup)
+    '-d', // Include response details
+    '-I', // Don't return failure codes
+    '-r', outputFileName.replace('.json', '.html') // HTML report
+  ];
+
+  log(`ZAP command: docker ${zapArgs.join(' ')}`);
+  
+  return new Promise<number>((resolve, reject) => {
+    const zapProcess = spawn('docker', zapArgs, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: ZAP_TIMEOUT_MS
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    zapProcess.stdout?.on('data', (data) => {
+      stdout += data.toString();
+      log(`ZAP stdout: ${data.toString().trim()}`);
+    });
+
+    zapProcess.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      log(`ZAP stderr: ${data.toString().trim()}`);
+    });
+
+    zapProcess.on('exit', async (code, signal) => {
+      log(`ZAP process exited with code ${code}, signal ${signal}`);
+      
+      // Check if output file was created
+      if (existsSync(outputFile)) {
+        try {
+          const findings = await parseZAPResults(outputFile, target, assetType, scanId);
+          
+          // Clean up the output file
+          const cleanupResult = await fileOperation(
+            () => unlink(outputFile),
+            {
+              moduleName: 'zapScan',
+              operation: 'cleanupFile',
+              target: outputFile
+            }
+          );
+
+          if (!cleanupResult.success) {
+            log(`Failed to cleanup ZAP output file: ${cleanupResult.error}`);
+          }
+          
+          resolve(findings);
+        } catch (error) {
+          reject(new Error(`Failed to parse ZAP results: ${(error as Error).message}`));
+        }
+      } else {
+        reject(new Error(`ZAP scan failed - no output file generated. Exit code: ${code}`));
+      }
+    });
+
+    zapProcess.on('error', (error) => {
+      reject(new Error(`ZAP process error: ${error.message}`));
+    });
+
+    zapProcess.on('timeout', () => {
+      zapProcess.kill('SIGKILL');
+      reject(new Error(`ZAP scan timeout after ${ZAP_TIMEOUT_MS}ms`));
+    });
+  });
 }
 
 /**
- * Parse ZAP JSON results and create artifacts/findings with asset-aware severity escalation
+ * Parse ZAP JSON results and create findings
  */
 async function parseZAPResults(outputFile: string, target: string, assetType: string, scanId: string): Promise<number> {
-  try {
-    if (!existsSync(outputFile)) {
-      log(`ZAP output file not found: ${outputFile}`);
-      return 0;
-    }
-    
-    const reportData = await readFile(outputFile, 'utf-8');
-    const zapResult: ZAPScanResult = JSON.parse(reportData);
-    
-    let findingsCount = 0;
-    
-    // Process each site in the result
-    for (const site of zapResult.site || []) {
-      // Process each alert/vulnerability
-      for (const alert of site.alerts || []) {
-        // Skip informational alerts with very low risk
-        if (alert.riskcode === '0') continue;
-        
-        // Apply asset-aware severity escalation
-        const baseSeverity = mapZAPRiskToSeverity(alert.riskcode);
-        const escalatedSeverity = escalateSeverityForAsset(baseSeverity, assetType);
-        
-        const artifactId = await insertArtifact({
-          type: 'zap_vulnerability',
-          val_text: `${alert.name} on ${assetType}`,
-          severity: escalatedSeverity,
-          src_url: target,
-          meta: {
-            scan_id: scanId,
-            scan_module: 'zapScan',
-            target_url: target,
-            asset_type: assetType,
-            alert_id: alert.alert,
-            confidence: alert.confidence,
-            risk_code: alert.riskcode,
-            risk_desc: alert.riskdesc,
-            base_severity: baseSeverity,
-            escalated_severity: escalatedSeverity,
-            cwe_id: alert.cweid,
-            wasc_id: alert.wascid,
-            instances_count: alert.instances?.length || 0
-          }
+  const parseOperation = async () => {
+    const content = await readFile(outputFile, 'utf-8');
+    return JSON.parse(content) as ZAPScanResult;
+  };
+
+  const result = await fileOperation(parseOperation, {
+    moduleName: 'zapScan',
+    operation: 'parseResults',
+    target: outputFile
+  });
+
+  if (!result.success) {
+    throw new Error(`Failed to parse ZAP results: ${result.error}`);
+  }
+
+  const zapResult = result.data;
+  let findingsCount = 0;
+
+  for (const site of zapResult.site || []) {
+    for (const alert of site.alerts || []) {
+      // Create artifact for each vulnerability
+      const severity = escalateSeverityForAsset(
+        mapZAPRiskToSeverity(alert.riskcode),
+        assetType
+      );
+
+      const artifactId = await insertArtifact({
+        type: 'zap_vulnerability',
+        val_text: `ZAP detected ${alert.name} on ${target}`,
+        severity,
+        meta: {
+          scan_id: scanId,
+          scan_module: 'zapScan',
+          target_url: target,
+          asset_type: assetType,
+          alert_name: alert.name,
+          risk_code: alert.riskcode,
+          confidence: alert.confidence,
+          cwe_id: alert.cweid,
+          wasc_id: alert.wascid,
+          instances: alert.instances?.length || 0
+        }
+      });
+
+      // Build detailed description with instances
+      let description = alert.desc;
+      if (alert.instances && alert.instances.length > 0) {
+        description += '\n\nInstances:\n';
+        alert.instances.slice(0, 3).forEach((instance, idx) => {
+          description += `${idx + 1}. ${instance.method} ${instance.uri}`;
+          if (instance.param) description += ` (param: ${instance.param})`;
+          if (instance.evidence) description += ` - Evidence: ${instance.evidence.slice(0, 100)}`;
+          description += '\n';
         });
         
-        // Create finding with detailed description
-        const instancesText = alert.instances?.length > 0 
-          ? ` Found in ${alert.instances.length} location(s): ${alert.instances[0].uri}`
-          : '';
-          
-        await insertFinding(
-          artifactId,
-          'ZAP_WEB_VULNERABILITY',
-          alert.desc.slice(0, 250) + (alert.desc.length > 250 ? '...' : ''),
-          `Risk: ${alert.riskdesc} | Confidence: ${alert.confidence} | Asset: ${assetType} | Solution: ${alert.solution.slice(0, 150)}${instancesText}`
-        );
-        
-        log(`Created ZAP finding: ${alert.name} (${escalatedSeverity}) for ${target}`);
-        
-        findingsCount++;
+        if (alert.instances.length > 3) {
+          description += `... and ${alert.instances.length - 3} more instances`;
+        }
       }
+
+      await insertFinding(
+        artifactId,
+        'WEB_APPLICATION_VULNERABILITY',
+        alert.solution || 'Review and remediate according to ZAP recommendations',
+        description
+      );
+
+      findingsCount++;
     }
-    
-    log(`Parsed ${findingsCount} vulnerabilities from ZAP report for ${target}`);
-    return findingsCount;
-    
-  } catch (error) {
-    log(`Failed to parse ZAP results: ${(error as Error).message}`);
-    return 0;
   }
+
+  log(`Parsed ${findingsCount} vulnerabilities from ZAP results for ${target}`);
+  return findingsCount;
 }
 
 /**

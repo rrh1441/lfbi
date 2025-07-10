@@ -8,6 +8,7 @@
 import axios from 'axios';
 import { insertArtifact, insertFinding, pool } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
+import { executeModule, apiCall } from '../util/errorHandler.js';
 
 // Configuration constants
 const TESTING_CONFIG = {
@@ -253,62 +254,77 @@ async function getEndpointArtifacts(scanId: string): Promise<EndpointReport[]> {
  * Analyze endpoint response for backend service indicators
  */
 async function analyzeEndpointResponse(url: string): Promise<BackendIndicators> {
-  const indicators: BackendIndicators = {
-    responseTimeMs: 0,
-    serverHeaders: [],
-    errorPatterns: [],
-    costIndicators: [],
-    authPatterns: []
-  };
-  
-  try {
-    const startTime = Date.now();
-    const response = await axios.get(url, { 
+  const operation = async () => {
+    const response = await axios.get(url, {
       timeout: SAFETY_CONTROLS.TIMEOUT_SECONDS * 1000,
-      validateStatus: () => true // Accept all status codes
+      validateStatus: () => true, // Accept all status codes
+      maxRedirects: 2
     });
-    
-    indicators.responseTimeMs = Date.now() - startTime;
-    
-    // Analyze headers for cloud service indicators
+
+    const indicators: BackendIndicators = {
+      responseTimeMs: response.headers['x-response-time-ms'] ? 
+        parseInt(response.headers['x-response-time-ms']) : 0,
+      serverHeaders: [],
+      errorPatterns: [],
+      costIndicators: [],
+      authPatterns: []
+    };
+
+    // Extract server headers that indicate cloud services
     Object.entries(response.headers).forEach(([key, value]) => {
-      const headerKey = key.toLowerCase();
-      const headerValue = String(value).toLowerCase();
+      const lowerKey = key.toLowerCase();
+      const stringValue = String(value).toLowerCase();
       
-      // Cloud service headers
-      if (headerKey.startsWith('x-aws-') || headerKey.startsWith('x-amz-')) {
-        indicators.serverHeaders.push(`AWS: ${key}`);
-      } else if (headerKey.startsWith('x-goog-') || headerKey.startsWith('x-cloud-')) {
-        indicators.serverHeaders.push(`GCP: ${key}`);
-      } else if (headerKey.startsWith('x-azure-') || headerKey.startsWith('x-ms-')) {
-        indicators.serverHeaders.push(`Azure: ${key}`);
+      if (lowerKey.includes('server') || lowerKey.includes('x-powered-by')) {
+        indicators.serverHeaders.push(`${key}: ${value}`);
       }
       
-      // Cost-related headers
-      if (headerKey.includes('quota') || headerKey.includes('billing') || headerKey.includes('usage')) {
+      if (lowerKey.includes('x-amz') || lowerKey.includes('x-goog') || lowerKey.includes('x-azure')) {
         indicators.costIndicators.push(`${key}: ${value}`);
       }
       
-      // Auth patterns
-      if (headerKey.includes('api-key') || headerKey.includes('authorization')) {
-        indicators.authPatterns.push(`Auth header: ${key}`);
+      if (lowerKey.includes('auth') || lowerKey.includes('api-key') || lowerKey.includes('token')) {
+        indicators.authPatterns.push(`${key}: ${value}`);
       }
     });
-    
-    // Analyze response body for service-specific error patterns
-    const responseText = String(response.data).toLowerCase();
-    if (responseText.includes('quota exceeded') || responseText.includes('rate limit')) {
-      indicators.errorPatterns.push('Quota/rate limit errors detected');
+
+    // Analyze response body for service patterns
+    if (typeof response.data === 'string') {
+      const body = response.data.toLowerCase();
+      
+      // Error patterns that indicate specific services
+      if (body.includes('lambda') || body.includes('aws')) {
+        indicators.errorPatterns.push('aws_service_detected');
+      }
+      if (body.includes('cloudfunctions') || body.includes('gcp')) {
+        indicators.errorPatterns.push('gcp_service_detected');
+      }
+      if (body.includes('azurewebsites') || body.includes('azure')) {
+        indicators.errorPatterns.push('azure_service_detected');
+      }
     }
-    if (responseText.includes('billing') || responseText.includes('payment')) {
-      indicators.errorPatterns.push('Billing-related errors detected');
-    }
-    
-  } catch (error) {
-    log(`Error analyzing endpoint ${url}: ${(error as Error).message}`);
+
+    return indicators;
+  };
+
+  const result = await apiCall(operation, {
+    moduleName: 'denialWalletScan',
+    operation: 'analyzeEndpoint',
+    target: url
+  });
+
+  if (!result.success) {
+    // Return empty indicators if analysis fails
+    return {
+      responseTimeMs: 0,
+      serverHeaders: [],
+      errorPatterns: [],
+      costIndicators: [],
+      authPatterns: []
+    };
   }
-  
-  return indicators;
+
+  return result.data;
 }
 
 /**
@@ -355,69 +371,86 @@ function detectServiceAndCalculateCost(endpoint: EndpointReport, indicators: Bac
 }
 
 /**
- * Classify authentication bypass opportunities
+ * Test authentication bypass possibilities
  */
 async function classifyAuthBypass(endpoint: string): Promise<AuthBypassAnalysis> {
-  const analysis: AuthBypassAnalysis = {
-    authType: AuthGuardType.NONE,
-    bypassProbability: 0.0,
-    bypassMethods: []
-  };
-  
-  try {
-    // Test anonymous access
-    const anonResponse = await axios.get(endpoint, { 
-      timeout: 10000,
-      validateStatus: () => true 
-    });
-    
-    if (anonResponse.status === 200) {
-      analysis.authType = AuthGuardType.NONE;
-      analysis.bypassProbability = 1.0;
-      analysis.bypassMethods.push('Anonymous access allowed');
-      return analysis;
+  const operation = async () => {
+    // Test various bypass methods
+    const bypassMethods: string[] = [];
+    let bypassProbability = 0;
+    let authType = AuthGuardType.NONE;
+
+    // Test 1: Direct access without authentication
+    try {
+      const response = await axios.get(endpoint, {
+        timeout: SAFETY_CONTROLS.TIMEOUT_SECONDS * 1000,
+        validateStatus: () => true
+      });
+
+      if (response.status === 200) {
+        bypassMethods.push('direct_access');
+        bypassProbability += 0.9;
+        authType = AuthGuardType.NONE;
+      } else if (response.status === 401) {
+        authType = AuthGuardType.USER_SCOPED;
+      } else if (response.status === 403) {
+        authType = AuthGuardType.RATE_LIMIT_ONLY;
+        bypassProbability += 0.3;
+      }
+    } catch (error) {
+      // Endpoint might be protected or unavailable
     }
-    
-    // Test for weak API key patterns
-    if (anonResponse.status === 401 || anonResponse.status === 403) {
-      const weakKeyTests = [
-        { key: 'api-key', value: 'test' },
-        { key: 'authorization', value: 'Bearer test' },
-        { key: 'x-api-key', value: 'anonymous' }
+
+    // Test 2: Common header bypasses
+    try {
+      const headerTests = [
+        { 'X-Forwarded-For': '127.0.0.1' },
+        { 'X-Originating-IP': '127.0.0.1' },
+        { 'X-API-Key': 'test' },
+        { 'Authorization': 'Bearer test' }
       ];
-      
-      for (const test of weakKeyTests) {
-        try {
-          const testResponse = await axios.get(endpoint, {
-            headers: { [test.key]: test.value },
-            timeout: 10000,
-            validateStatus: () => true
-          });
-          
-          if (testResponse.status === 200) {
-            analysis.authType = AuthGuardType.WEAK_API_KEY;
-            analysis.bypassProbability = 0.8;
-            analysis.bypassMethods.push(`Weak API key accepted: ${test.key}`);
-            break;
-          }
-        } catch {
-          // Continue testing
+
+      for (const headers of headerTests) {
+        const response = await axios.get(endpoint, {
+          headers,
+          timeout: SAFETY_CONTROLS.TIMEOUT_SECONDS * 1000,
+          validateStatus: () => true
+        });
+
+        if (response.status === 200) {
+          bypassMethods.push(`header_bypass_${Object.keys(headers)[0]}`);
+          bypassProbability += 0.5;
+          authType = AuthGuardType.WEAK_API_KEY;
+          break;
         }
       }
+    } catch (error) {
+      // Header bypass tests failed
     }
-    
-    // If still no bypass found, check for rate limiting only
-    if (analysis.bypassProbability === 0.0 && anonResponse.status === 429) {
-      analysis.authType = AuthGuardType.RATE_LIMIT_ONLY;
-      analysis.bypassProbability = 0.3;
-      analysis.bypassMethods.push('Only rate limiting detected, no authentication');
-    }
-    
-  } catch (error) {
-    log(`Error testing auth bypass for ${endpoint}: ${(error as Error).message}`);
+
+    return {
+      authType,
+      bypassProbability: Math.min(bypassProbability, 1.0),
+      bypassMethods
+    };
+  };
+
+  const result = await apiCall(operation, {
+    moduleName: 'denialWalletScan',
+    operation: 'classifyAuthBypass',
+    target: endpoint
+  });
+
+  if (!result.success) {
+    // Return conservative assessment if testing fails
+    return {
+      authType: AuthGuardType.USER_SCOPED,
+      bypassProbability: 0.1,
+      bypassMethods: []
+    };
   }
-  
-  return analysis;
+
+  return result.data;
 }
 
 /**
@@ -516,14 +549,15 @@ function calculateRiskAssessment(
  */
 export async function runDenialWalletScan(job: { domain: string; scanId: string }): Promise<number> {
   const { domain, scanId } = job;
-  const startTime = Date.now();
   
-  log(`Starting denial-of-wallet scan for domain="${domain}"`);
-  
-  const safetyController = new DoWSafetyController();
-  let findingsCount = 0;
-  
-  try {
+  return executeModule('denialWalletScan', async () => {
+    const startTime = Date.now();
+    
+    log(`Starting denial-of-wallet scan for domain="${domain}"`);
+    
+    const safetyController = new DoWSafetyController();
+    let findingsCount = 0;
+    
     // Get endpoints from previous discovery
     const endpoints = await getEndpointArtifacts(scanId);
     
@@ -615,22 +649,5 @@ export async function runDenialWalletScan(job: { domain: string; scanId: string 
     
     return findingsCount;
     
-  } catch (error) {
-    const errorMsg = (error as Error).message;
-    log(`Denial-of-wallet scan failed: ${errorMsg}`);
-    
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: `Denial-of-wallet scan failed: ${errorMsg}`,
-      severity: 'MEDIUM',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'denialWalletScan',
-        error: true,
-        scan_duration_ms: Date.now() - startTime
-      }
-    });
-    
-    return 0;
-  }
+  }, { scanId, target: domain });
 }

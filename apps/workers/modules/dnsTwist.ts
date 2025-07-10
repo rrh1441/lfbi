@@ -35,7 +35,7 @@ const exec = promisify(execFile);
 // -----------------------------------------------------------------------------
 // Tuning constants
 // -----------------------------------------------------------------------------
-const MAX_CONCURRENT_CHECKS = 15; // Increased from 5 to 15 for speed
+const MAX_CONCURRENT_CHECKS = 10; // Reduced from 15 to 10 for stability and OpenAI rate limiting
 const DELAY_BETWEEN_BATCHES_MS = 300; // Reduced from 1000ms to 300ms  
 const WHOIS_TIMEOUT_MS = 10_000; // Reduced from 30s to 10s
 const MAX_DOMAINS_TO_ANALYZE = 25; // Limit total domains for speed
@@ -461,18 +461,85 @@ async function getSiteSnippet(domain: string): Promise<{ snippet: string; title:
 }
 
 /**
- * Sanitize input for AI prompts to prevent injection attacks
+ * Validate that input is a legitimate domain name (basic validation)
  */
-function sanitizeForPrompt(input: string): string {
+function isValidDomainFormat(domain: string): boolean {
+  if (!domain || typeof domain !== 'string') return false;
+  
+  // Basic domain validation - alphanumeric, dots, hyphens only
+  const domainRegex = /^[a-zA-Z0-9.-]+$/;
+  if (!domainRegex.test(domain)) return false;
+  
+  // Length checks
+  if (domain.length > 253 || domain.length < 1) return false;
+  
+  // Must contain at least one dot
+  if (!domain.includes('.')) return false;
+  
+  // No consecutive dots or hyphens
+  if (domain.includes('..') || domain.includes('--')) return false;
+  
+  // Can't start or end with hyphen or dot
+  if (domain.startsWith('-') || domain.endsWith('-') || 
+      domain.startsWith('.') || domain.endsWith('.')) return false;
+  
+  return true;
+}
+
+/**
+ * Enhanced sanitization for AI prompts to prevent injection attacks
+ * Specifically designed for domain inputs and content strings
+ */
+function sanitizeForPrompt(input: string, isDomain: boolean = false): string {
   if (!input) return '';
   
-  // Remove potential injection patterns
+  // For domain inputs, validate domain format first
+  if (isDomain) {
+    if (!isValidDomainFormat(input)) {
+      // If not a valid domain, return a safe placeholder
+      return '[INVALID_DOMAIN]';
+    }
+    // For valid domains, just do basic cleaning and length limiting
+    return input.trim().slice(0, 253); // Max domain length
+  }
+  
+  // For content strings (titles, snippets), apply comprehensive sanitization
   return input
-    .replace(/["\`]/g, "'")  // Replace quotes and backticks with single quotes
-    .replace(/\{|\}/g, '')   // Remove curly braces
-    .replace(/\n\s*\n/g, '\n') // Collapse multiple newlines
-    .replace(/^\s+|\s+$/g, '') // Trim whitespace
-    .slice(0, 500); // Limit length to prevent prompt bloating
+    .replace(/["\`]/g, "'")           // Replace quotes and backticks with single quotes
+    .replace(/\{|\}/g, '')            // Remove curly braces (JSON injection)
+    .replace(/\[|\]/g, '')            // Remove square brackets (array injection) 
+    .replace(/\n\s*\n/g, '\n')        // Collapse multiple newlines
+    .replace(/^\s+|\s+$/g, '')        // Trim whitespace
+    .replace(/\${.*?}/g, '')          // Remove template literals
+    .replace(/<!--.*?-->/g, '')       // Remove HTML comments
+    .replace(/<script.*?<\/script>/gi, '') // Remove any script tags
+    .replace(/javascript:/gi, '')     // Remove javascript: URLs
+    .replace(/on\w+\s*=\s*['"]/gi, '') // Remove inline event handlers
+    .slice(0, 500);                   // Limit length to prevent prompt bloating
+}
+
+// OpenAI rate limiting
+let openaiQueue: Promise<any> = Promise.resolve();
+const OPENAI_RATE_LIMIT_DELAY = 1000; // 1 second between OpenAI calls
+
+/**
+ * Rate-limited OpenAI API call wrapper
+ */
+async function rateLimitedOpenAI<T>(operation: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    openaiQueue = openaiQueue
+      .then(async () => {
+        try {
+          const result = await operation();
+          // Add delay after each call
+          await new Promise(resolve => setTimeout(resolve, OPENAI_RATE_LIMIT_DELAY));
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      })
+      .catch(reject);
+  });
 }
 
 /**
@@ -493,12 +560,12 @@ async function compareContentWithAI(
   }
 
   // Sanitize all inputs to prevent prompt injection
-  const safeDomain = sanitizeForPrompt(originalDomain);
-  const safeTyposquat = sanitizeForPrompt(typosquatDomain);
-  const safeOriginalTitle = sanitizeForPrompt(originalTitle);
-  const safeTyposquatTitle = sanitizeForPrompt(typosquatTitle);
-  const safeOriginalSnippet = sanitizeForPrompt(originalSnippet);
-  const safeTyposquatSnippet = sanitizeForPrompt(typosquatSnippet);
+  const safeDomain = sanitizeForPrompt(originalDomain, true);  // Mark as domain input
+  const safeTyposquat = sanitizeForPrompt(typosquatDomain, true);  // Mark as domain input
+  const safeOriginalTitle = sanitizeForPrompt(originalTitle, false);
+  const safeTyposquatTitle = sanitizeForPrompt(typosquatTitle, false);
+  const safeOriginalSnippet = sanitizeForPrompt(originalSnippet, false);
+  const safeTyposquatSnippet = sanitizeForPrompt(typosquatSnippet, false);
 
   const prompt = `You are a cybersecurity expert analyzing typosquat domains for phishing threat potential. Compare these two domains:
 
@@ -531,60 +598,62 @@ Respond with ONLY a JSON object:
   "isImpersonation": true/false
 }`;
 
-  try {
-    log(`[dnstwist] 🤖 Calling OpenAI API to compare ${originalDomain} vs ${typosquatDomain}`);
-    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
-      model: 'gpt-4o-mini-2024-07-18',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 300,
-      temperature: 0.1
-    }, {
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      timeout: 10000
-    });
+  return rateLimitedOpenAI(async () => {
+    try {
+      log(`[dnstwist] 🤖 Calling OpenAI API to compare ${originalDomain} vs ${typosquatDomain}`);
+      const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+        model: 'gpt-4o-mini-2024-07-18',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.1
+      }, {
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      });
 
-    const content = response.data.choices[0]?.message?.content;
-    if (!content) {
-      log(`[dnstwist] ❌ OpenAI API: No response content for ${originalDomain} vs ${typosquatDomain}`);
-      return { similarityScore: 0, reasoning: 'No OpenAI response', confidence: 0 };
-    }
-
-    // Clean up markdown code blocks that OpenAI sometimes adds - handle all variations
-    let cleanContent = content.trim();
-    
-    // More aggressive cleanup to handle all markdown variations
-    // Remove markdown code block wrappers (```json ... ```)
-    cleanContent = cleanContent.replace(/^```(?:json|JSON)?\s*\n?/i, '');
-    cleanContent = cleanContent.replace(/\n?\s*```\s*$/i, '');
-    
-    // Remove any remaining backticks at start/end
-    cleanContent = cleanContent.replace(/^`+/g, '').replace(/`+$/g, '');
-    
-    // Remove any remaining newlines or whitespace
-    cleanContent = cleanContent.trim();
-    
-    // Additional safety: if content starts with non-JSON characters, try to find JSON block
-    if (!cleanContent.startsWith('{')) {
-      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cleanContent = jsonMatch[0];
+      const content = response.data.choices[0]?.message?.content;
+      if (!content) {
+        log(`[dnstwist] ❌ OpenAI API: No response content for ${originalDomain} vs ${typosquatDomain}`);
+        return { similarityScore: 0, reasoning: 'No OpenAI response', confidence: 0 };
       }
+
+      // Clean up markdown code blocks that OpenAI sometimes adds - handle all variations
+      let cleanContent = content.trim();
+      
+      // More aggressive cleanup to handle all markdown variations
+      // Remove markdown code block wrappers (```json ... ```)
+      cleanContent = cleanContent.replace(/^```(?:json|JSON)?\s*\n?/i, '');
+      cleanContent = cleanContent.replace(/\n?\s*```\s*$/i, '');
+      
+      // Remove any remaining backticks at start/end
+      cleanContent = cleanContent.replace(/^`+/g, '').replace(/`+$/g, '');
+      
+      // Remove any remaining newlines or whitespace
+      cleanContent = cleanContent.trim();
+      
+      // Additional safety: if content starts with non-JSON characters, try to find JSON block
+      if (!cleanContent.startsWith('{')) {
+        const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          cleanContent = jsonMatch[0];
+        }
+      }
+      
+      const analysis = JSON.parse(cleanContent);
+      log(`[dnstwist] ✅ OpenAI API: Analysis complete for ${originalDomain} vs ${typosquatDomain} - Score: ${analysis.similarityScore}%, Confidence: ${analysis.confidence}%`);
+      return {
+        similarityScore: analysis.similarityScore || 0,
+        reasoning: analysis.reasoning || 'AI analysis completed',
+        confidence: analysis.confidence || 0
+      };
+    } catch (error) {
+      log(`[dnstwist] ❌ OpenAI API error for ${originalDomain} vs ${typosquatDomain}: ${(error as Error).message}`);
+      return { similarityScore: 0, reasoning: `AI analysis failed: ${(error as Error).message}`, confidence: 0 };
     }
-    
-    const analysis = JSON.parse(cleanContent);
-    log(`[dnstwist] ✅ OpenAI API: Analysis complete for ${originalDomain} vs ${typosquatDomain} - Score: ${analysis.similarityScore}%, Confidence: ${analysis.confidence}%`);
-    return {
-      similarityScore: analysis.similarityScore || 0,
-      reasoning: analysis.reasoning || 'AI analysis completed',
-      confidence: analysis.confidence || 0
-    };
-  } catch (error) {
-    log(`[dnstwist] ❌ OpenAI API error for ${originalDomain} vs ${typosquatDomain}: ${(error as Error).message}`);
-    return { similarityScore: 0, reasoning: `AI analysis failed: ${(error as Error).message}`, confidence: 0 };
-  }
+  });
 }
 
 /**

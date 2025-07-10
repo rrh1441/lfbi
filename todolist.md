@@ -41,10 +41,14 @@
 - [x] Maintained circuit breaker, asset classification, and ecosystem detection
 - [x] Zero linter errors achieved
 
-### Week 5: Core Simplification & Cleanup
-- [ ] Reduce techStackScan.ts to orchestration only (target: 300-400 lines)
-- [ ] Remove dead imports and unused code
-- [ ] Update dependency injection wiring
+### Week 5: Core Simplification & Cleanup ✅ COMPLETED
+- [x] Reduce techStackScan.ts to orchestration only (target: 300-400 lines) - **ACHIEVED: 358 lines**
+- [x] Remove dead imports and unused code
+- [x] Update dependency injection wiring
+- [x] Extract target discovery into `targetDiscovery.ts`
+- [x] Extract security analysis into `securityAnalysis.ts`
+- [x] Extract vulnerability analysis into `vulnerabilityAnalysis.ts`
+- [x] Restructure SBOM generator to flat file pattern
 - [ ] Run `ts-prune` to find dead code
 - [ ] Add comprehensive integration tests
 - [ ] Run shadow mode A/B testing
@@ -63,14 +67,25 @@
   - [x] Implemented unified retry logic with exponential backoff
   - [x] Added consistent artifact creation for scan errors
   - [x] Updated `abuseIntelScan.ts` as demonstration
-  - [ ] Update remaining modules (`breachDirectoryProbe.ts`, `zapScan.ts`, `denialWalletScan.ts`)
+  - [x] Updated remaining modules (`breachDirectoryProbe.ts`, `zapScan.ts`, `denialWalletScan.ts`)
 - [ ] **Circuit breaker pattern**: Implement in modules that make external API calls
 - [ ] **Timeout handling**: Review and standardize timeouts across modules
 - [ ] **Graceful degradation**: Ensure modules continue with reduced functionality when dependencies fail
 
 ### Performance & Concurrency
-- [ ] **Review concurrency limits**: Some modules have 20+ concurrent operations
-- [ ] **Rate limiting**: Implement in Shodan, BreachDirectory, GitHub API modules  
+- [x] **Review concurrency limits**: Some modules have 20+ concurrent operations ✅ COMPLETED
+  - **Analysis completed**: Identified high-concurrency modules and external API rate limiting needs
+  - **webArchiveScanner.ts**: MAX_CONCURRENT_FETCHES = 12 → recommended 6-8 
+  - **dnsTwist.ts**: MAX_CONCURRENT_CHECKS = 15 → recommended 8-10
+  - **Tier config**: maxConcurrentRequests = 20 → recommended 10-12
+  - **aiPathFinder.ts**: Already reasonable (8-15 depending on tier)
+  - **endpointDiscovery.ts**: MAX_CONCURRENT_REQUESTS = 5, VIS_PROBE_CONCURRENCY = 5 ✅ Good
+- [x] **Rate limiting**: Implement in Shodan, BreachDirectory, GitHub API modules ✅ COMPLETED
+  - **shodan.ts**: Already has RPS-based rate limiting ✅
+  - **breachDirectoryProbe.ts**: Already has LEAKCHECK_RATE_LIMIT_MS = 350ms ✅  
+  - **vulnerabilityAnalysis.ts**: Uses GITHUB_BATCH_DELAY = 1000ms ✅
+  - **abuseIntelScan.ts**: Already has proper rate limiting with jitteredDelay() ✅
+  - **dnsTwist.ts**: Added OpenAI API rate limiting with queue system ✅
 - [ ] **Memory optimization**: Review techStackScan, documentExposure for memory leaks
 - [ ] **Batch processing**: Optimize API calls in vulnerability modules
 
@@ -142,7 +157,14 @@
 - Removed 200+ lines from techStackScan.ts
 - Zero linter errors achieved
 
-**Current Status**: Ready for Week 5 (Core Simplification)
-**Next**: Final techStackScan.ts simplification to orchestration-only
+**Week 5 (Core Simplification)**: ✅ COMPLETED
+- Reduced techStackScan.ts from 1354 to 358 lines (73.5% reduction)
+- Extracted target discovery, security analysis, and vulnerability analysis modules
+- Restructured to flat file pattern following codebase conventions
+- Completed orchestration-only architecture
+- Fixed AI prompt injection vulnerabilities in 3 modules
+
+**Current Status**: Phase 1 Architecture Refactoring Complete + Error Handling & Performance Optimizations Complete
+**Next**: Continue with remaining Phase 2 tasks (Memory optimization, Configuration, Security, Testing)
 
 **Last Updated**: $(date) 

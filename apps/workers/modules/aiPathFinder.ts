@@ -123,11 +123,15 @@ async function generateIntelligentPaths(domain: string, techStack: TechStack): P
     try {
         const openai = new OpenAI({ timeout: 30000 });
         
+        // Sanitize domain input to prevent AI prompt injection
+        const safeDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '').slice(0, 253);
+        const safeTechStack = JSON.stringify(techStack).slice(0, 2000); // Limit tech stack size
+        
         const prompt = `You are a cybersecurity expert specializing in web application reconnaissance. Your task is to generate a list of potential file paths that might expose sensitive information or provide insight into the application's structure.
 
 TARGET INFORMATION:
-- Domain: ${domain}
-- Detected Technologies: ${JSON.stringify(techStack)}
+- Domain: ${safeDomain}
+- Detected Technologies: ${safeTechStack}
 
 REQUIREMENTS:
 1. Generate ${MAX_PATHS_TO_GENERATE} potential paths that are likely to exist on this specific technology stack

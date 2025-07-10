@@ -8,6 +8,7 @@
 import axios from 'axios';
 import { insertArtifact, insertFinding } from '../core/artifactStore.js';
 import { log as rootLog } from '../core/logger.js';
+import { executeModule, apiCall } from '../util/errorHandler.js';
 
 // Configuration constants
 const BREACH_DIRECTORY_API_BASE = 'https://BreachDirectory.com/api_usage';
@@ -108,7 +109,7 @@ interface UserBreachRecord {
  * Query Breach Directory API for domain breach data
  */
 async function queryBreachDirectory(domain: string, apiKey: string): Promise<BreachDirectoryResponse> {
-  try {
+  const operation = async () => {
     log(`Querying Breach Directory for domain: ${domain}`);
     
     const response = await axios.get(BREACH_DIRECTORY_API_BASE, {
@@ -133,59 +134,34 @@ async function queryBreachDirectory(domain: string, apiKey: string): Promise<Bre
       const responseData = response.data || {};
       const errorMessage = responseData.error || responseData.message || 'Access forbidden';
       log(`Breach Directory API returned 403 Forbidden for ${domain}: ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      log(`This may indicate an invalid API key, insufficient permissions, or rate limiting`);
-      return { error: `API access forbidden (403): ${errorMessage}` };
+      throw new Error(`API access forbidden (403): ${errorMessage}`);
     } else {
       // Enhanced generic error handling with response data
       const responseData = response.data || {};
       const errorMessage = responseData.error || responseData.message || `HTTP ${response.status}`;
       log(`Breach Directory API returned status ${response.status} for ${domain}: ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      return { error: `API returned status ${response.status}: ${errorMessage}` };
+      throw new Error(`API returned status ${response.status}: ${errorMessage}`);
     }
-    
-  } catch (error: any) {
-    if (error.response?.status === 429) {
-      const responseData = error.response?.data || {};
-      const errorMessage = responseData.error || responseData.message || 'Rate limit exceeded';
-      log(`Rate limit exceeded on Breach Directory API: ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      throw new Error('Rate limit exceeded on Breach Directory API');
-    } else if (error.response?.status === 401) {
-      const responseData = error.response?.data || {};
-      const errorMessage = responseData.error || responseData.message || 'Unauthorized';
-      log(`Invalid API key for Breach Directory: ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      throw new Error('Invalid API key for Breach Directory');
-    } else if (error.response?.status === 403) {
-      // Additional 403 handling in catch block for network-level errors
-      const responseData = error.response?.data || {};
-      const errorMessage = responseData.error || responseData.message || 'Access forbidden';
-      log(`Breach Directory API access forbidden (403): ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      log(`Check API key validity and permissions`);
-      throw new Error(`API access forbidden: ${errorMessage}`);
-    } else if (error.response) {
-      // Generic response error with enhanced logging
-      const responseData = error.response.data || {};
-      const errorMessage = responseData.error || responseData.message || error.message;
-      log(`Breach Directory API error (${error.response.status}): ${errorMessage}`);
-      log(`Response data: ${JSON.stringify(responseData)}`);
-      throw new Error(`Breach Directory API error: ${errorMessage}`);
-    }
-    
-    // Network or other non-response errors
-    log(`Breach Directory network/connection error: ${error.message}`);
-    throw new Error(`Breach Directory API error: ${error.message}`);
+  };
+
+  const result = await apiCall(operation, {
+    moduleName: 'breachDirectoryProbe',
+    operation: 'queryBreachDirectory',
+    target: domain
+  });
+
+  if (!result.success) {
+    throw new Error(result.error);
   }
+
+  return result.data;
 }
 
 /**
  * Query LeakCheck API for domain breach data
  */
 async function queryLeakCheck(domain: string, apiKey: string): Promise<LeakCheckResponse> {
-  try {
+  const operation = async () => {
     log(`Querying LeakCheck for domain: ${domain}`);
     
     const response = await axios.get(`${LEAKCHECK_API_BASE}/query/${domain}`, {
@@ -203,46 +179,29 @@ async function queryLeakCheck(domain: string, apiKey: string): Promise<LeakCheck
     
     if (response.status === 200) {
       const data = response.data as LeakCheckResponse;
-      log(`LeakCheck response for ${domain}: ${data.found || 0} breached accounts, quota remaining: ${data.quota}`);
+      log(`LeakCheck response for ${domain}: ${data.found || 0} accounts found`);
       return data;
-    } else if (response.status === 422) {
-      log(`LeakCheck could not determine search type for domain: ${domain}`);
-      return { success: false, found: 0, quota: 0, result: [], error: 'Could not determine search type' };
-    } else if (response.status === 403) {
-      const responseData = response.data || {};
-      const errorMessage = responseData.error || 'Limit reached or plan required';
-      log(`LeakCheck API returned 403 Forbidden for ${domain}: ${errorMessage}`);
-      return { success: false, found: 0, quota: 0, result: [], error: `API access forbidden (403): ${errorMessage}` };
-    } else if (response.status === 429) {
-      log(`LeakCheck API rate limit exceeded for ${domain}`);
-      return { success: false, found: 0, quota: 0, result: [], error: 'Rate limit exceeded' };
+    } else if (response.status === 404) {
+      log(`No leak data found for domain: ${domain}`);
+      return { success: false, found: 0, quota: 0, result: [] };
     } else {
       const responseData = response.data || {};
       const errorMessage = responseData.error || `HTTP ${response.status}`;
-      log(`LeakCheck API returned status ${response.status} for ${domain}: ${errorMessage}`);
-      return { success: false, found: 0, quota: 0, result: [], error: `API returned status ${response.status}: ${errorMessage}` };
+      throw new Error(`LeakCheck API error: ${errorMessage}`);
     }
-    
-  } catch (error: any) {
-    if (error.response?.status === 429) {
-      log(`Rate limit exceeded on LeakCheck API`);
-      return { success: false, found: 0, quota: 0, result: [], error: 'Rate limit exceeded' };
-    } else if (error.response?.status === 401) {
-      log(`Invalid API key for LeakCheck`);
-      return { success: false, found: 0, quota: 0, result: [], error: 'Invalid API key' };
-    } else if (error.response?.status === 403) {
-      log(`LeakCheck API access forbidden (403) - check plan and quota`);
-      return { success: false, found: 0, quota: 0, result: [], error: 'Access forbidden - check plan and quota' };
-    } else if (error.response) {
-      const responseData = error.response.data || {};
-      const errorMessage = responseData.error || error.message;
-      log(`LeakCheck API error (${error.response.status}): ${errorMessage}`);
-      return { success: false, found: 0, quota: 0, result: [], error: `API error: ${errorMessage}` };
-    }
-    
-    log(`LeakCheck network/connection error: ${error.message}`);
-    return { success: false, found: 0, quota: 0, result: [], error: `Network error: ${error.message}` };
+  };
+
+  const result = await apiCall(operation, {
+    moduleName: 'breachDirectoryProbe', 
+    operation: 'queryLeakCheck',
+    target: domain
+  });
+
+  if (!result.success) {
+    throw new Error(result.error);
   }
+
+  return result.data;
 }
 
 /**
@@ -579,20 +538,21 @@ function generateBreachSummary(results: BreachProbeSummary[]): {
  */
 export async function runBreachDirectoryProbe(job: { domain: string; scanId: string }): Promise<number> {
   const { domain, scanId } = job;
-  const startTime = Date.now();
   
-  log(`Starting comprehensive breach probe for domain="${domain}" (BreachDirectory + LeakCheck)`);
-  
-  // Check for API keys
-  const breachDirectoryApiKey = process.env.BREACH_DIRECTORY_API_KEY;
-  const leakCheckApiKey = process.env.LEAKCHECK_API_KEY;
-  
-  if (!breachDirectoryApiKey && !leakCheckApiKey) {
-    log('No breach API keys found - need BREACH_DIRECTORY_API_KEY or LEAKCHECK_API_KEY environment variable');
-    return 0;
-  }
-  
-  try {
+  return executeModule('breachDirectoryProbe', async () => {
+    const startTime = Date.now();
+    
+    log(`Starting comprehensive breach probe for domain="${domain}" (BreachDirectory + LeakCheck)`);
+    
+    // Check for API keys
+    const breachDirectoryApiKey = process.env.BREACH_DIRECTORY_API_KEY;
+    const leakCheckApiKey = process.env.LEAKCHECK_API_KEY;
+    
+    if (!breachDirectoryApiKey && !leakCheckApiKey) {
+      log('No breach API keys found - need BREACH_DIRECTORY_API_KEY or LEAKCHECK_API_KEY environment variable');
+      return 0;
+    }
+    
     let breachData: BreachDirectoryResponse = { breached_total: 0, sample_usernames: [] };
     let leakCheckData: LeakCheckResponse = { success: false, found: 0, quota: 0, result: [] };
     
@@ -600,12 +560,8 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
     if (breachDirectoryApiKey) {
       try {
         breachData = await queryBreachDirectory(domain, breachDirectoryApiKey);
-        if (breachData.error) {
-          log(`BreachDirectory query failed: ${breachData.error}`);
-          breachData = { breached_total: 0, sample_usernames: [], error: breachData.error };
-        }
       } catch (error) {
-        log(`BreachDirectory query error: ${(error as Error).message}`);
+        log(`BreachDirectory query failed: ${(error as Error).message}`);
         breachData = { breached_total: 0, sample_usernames: [], error: (error as Error).message };
       }
     } else {
@@ -621,11 +577,8 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
         }
         
         leakCheckData = await queryLeakCheck(domain, leakCheckApiKey);
-        if (leakCheckData.error) {
-          log(`LeakCheck query failed: ${leakCheckData.error}`);
-        }
       } catch (error) {
-        log(`LeakCheck query error: ${(error as Error).message}`);
+        log(`LeakCheck query failed: ${(error as Error).message}`);
         leakCheckData = { success: false, found: 0, quota: 0, result: [], error: (error as Error).message };
       }
     } else {
@@ -746,21 +699,5 @@ export async function runBreachDirectoryProbe(job: { domain: string; scanId: str
     
     return findingsCount;
     
-  } catch (error) {
-    const errorMsg = (error as Error).message;
-    log(`Breach probe failed: ${errorMsg}`);
-    
-    await insertArtifact({
-      type: 'scan_error',
-      val_text: `Breach probe failed: ${errorMsg}`,
-      severity: 'MEDIUM',
-      meta: {
-        scan_id: scanId,
-        scan_module: 'breachDirectoryProbe',
-        scan_duration_ms: Date.now() - startTime
-      }
-    });
-    
-    return 0;
-  }
+  }, { scanId, target: domain });
 }

@@ -174,9 +174,14 @@ const openai = process.env.OPENAI_API_KEY ? new OpenAI({ timeout: 8_000 }) : nul
 /* 5.1 YES/NO relevance */
 async function gptRelevant(sample: string, sig: BrandSignature): Promise<boolean> {
   if (!openai) return true;
+  
+  // Sanitize domain to prevent prompt injection
+  const safeDomain = sig.primary_domain.replace(/[^a-zA-Z0-9.-]/g, '').slice(0, 253);
+  const safeSample = sample.slice(0, MAX_CONTENT_FOR_GPT).replace(/["`]/g, "'");
+  
   const prompt =
-    `Does the text below clearly relate to the company whose domain is "${sig.primary_domain}"? ` +
-    'Reply YES or NO.\n\n' + sample.slice(0, MAX_CONTENT_FOR_GPT);
+    `Does the text below clearly relate to the company whose domain is "${safeDomain}"? ` +
+    'Reply YES or NO.\n\n' + safeSample;
   try {
     const { choices } = await openai.chat.completions.create({
       model: GPT_MODEL,
@@ -212,7 +217,14 @@ async function fetchSnippet(domain: string): Promise<string> {
 }
 async function gptIndustry(company: string, domain: string): Promise<IndustryGuard> {
   if (!openai) return { industry: 'Unknown', conf: 0 };
-  const snippet = await fetchSnippet(domain);
+  
+  // Sanitize inputs to prevent prompt injection
+  const safeCompany = company.replace(/["`]/g, "'").slice(0, 200);
+  const safeDomain = domain.replace(/[^a-zA-Z0-9.-]/g, '').slice(0, 253);
+  
+  const snippet = await fetchSnippet(safeDomain);
+  const safeSnippet = snippet.replace(/["`]/g, "'").slice(0, 500);
+  
   try {
     const { choices } = await openai.chat.completions.create({
       model: GPT_MODEL,
@@ -223,7 +235,7 @@ async function gptIndustry(company: string, domain: string): Promise<IndustryGua
         {
           role: 'user',
           content:
-            `Company: ${company}\nDomain: ${domain}\nSnippet: ${snippet}\nIdentify primary industry:` }
+            `Company: ${safeCompany}\nDomain: ${safeDomain}\nSnippet: ${safeSnippet}\nIdentify primary industry:` }
       ]
     });
     return JSON.parse(choices[0]?.message?.content ?? '{"industry":"Unknown","conf":0}') as IndustryGuard;
