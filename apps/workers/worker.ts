@@ -24,6 +24,8 @@ import { runEmailBruteforceSurface } from './modules/emailBruteforceSurface.js';
 import { runCensysScan } from './modules/censysPlatformScan.js';
 // import { runOpenVASScan } from './modules/openvasScan.js';  // Available but disabled until needed
 import { runZAPScan } from './modules/zapScan.js';
+import { runAssetCorrelator } from './modules/assetCorrelator.js';
+import { enrichFindingsWithRemediation } from './util/remediationPlanner.js';
 import { pool } from './core/artifactStore.js';
 
 config();
@@ -450,6 +452,38 @@ async function processScan(job: ScanJob): Promise<void> {
           meta: { scan_id: scanId, module: moduleName }
         });
       }
+    }
+
+    // === ASSET CORRELATION ===
+    log(`[${scanId}] === Starting Asset Correlation ===`);
+    try {
+      await runAssetCorrelator({ scanId, domain, tier: scanTier === 'TIER_2' ? 'tier2' : 'tier1' });
+      log(`[${scanId}] Asset correlation completed successfully`);
+    } catch (error) {
+      log(`[${scanId}] Asset correlation failed (non-critical):`, error);
+      // Don't fail the entire scan if correlation fails
+      await insertArtifact({
+        type: 'scan_warning',
+        val_text: `Asset correlation skipped due to error: ${(error as Error).message}`,
+        severity: 'LOW',
+        meta: { scan_id: scanId, module: 'assetCorrelator' }
+      });
+    }
+
+    // === REMEDIATION ENRICHMENT ===
+    log(`[${scanId}] === Starting Remediation Enrichment ===`);
+    try {
+      const enrichedCount = await enrichFindingsWithRemediation(scanId);
+      log(`[${scanId}] Remediation enrichment completed: ${enrichedCount} findings enhanced`);
+    } catch (error) {
+      log(`[${scanId}] Remediation enrichment failed (non-critical):`, error);
+      // Don't fail the entire scan if remediation fails
+      await insertArtifact({
+        type: 'scan_warning',
+        val_text: `Remediation enrichment skipped due to error: ${(error as Error).message}`,
+        severity: 'LOW',
+        meta: { scan_id: scanId, module: 'remediationPlanner' }
+      });
     }
 
     // === SCAN COMPLETION ===

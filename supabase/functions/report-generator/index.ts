@@ -260,7 +260,33 @@ function buildPrompt(template: ReportTemplate, scanData: ScanData): string {
     })), null, 2),
     system_configurations: 'System configuration data would go here', // TODO: Extract from scan artifacts
     threat_intelligence: 'Threat intelligence data would go here', // TODO: Add threat intel
-    remediation_templates: 'Remediation templates would go here' // TODO: Add remediation guidance
+    
+    // NEW: AI-generated remediation guidance
+    remediation_guidance: JSON.stringify(scanData.findings_data
+      .filter(f => f.remediation && ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(f.severity))
+      .map(f => ({
+        finding: f.finding_description,
+        severity: f.severity,
+        cve_id: f.meta?.cve_id,
+        remediation: f.remediation
+      })), null, 2),
+    
+    findings_with_remediation: JSON.stringify(scanData.findings_data
+      .filter(f => f.remediation)
+      .map(f => ({
+        type: f.finding_type,
+        description: f.finding_description,
+        severity: f.severity,
+        target: f.artifact_value,
+        cve_details: {
+          cve_id: f.meta?.cve_id,
+          cvss_score: f.meta?.cvss_score || f.meta?.cvss_base,
+          epss_score: f.meta?.epss,
+          verified: f.meta?.verified_cve,
+          exploitable: f.meta?.exploitable
+        },
+        remediation: f.remediation
+      })), null, 2)
   };
 
   // Replace template variables
