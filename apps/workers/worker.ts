@@ -487,16 +487,33 @@ async function processScan(job: ScanJob): Promise<void> {
     }
 
     // === SCAN COMPLETION ===
+    // Get actual findings count from database
+    const findingsResult = await pool.query(
+      `SELECT COUNT(*) as count FROM findings WHERE artifact_id IN (
+        SELECT id FROM artifacts WHERE meta->>'scan_id' = $1
+      )`,
+      [scanId]
+    );
+    const actualFindingsCount = parseInt(findingsResult.rows[0].count) || 0;
+    
+    // Get total artifacts count
+    const artifactsResult = await pool.query(
+      `SELECT COUNT(*) as count FROM artifacts WHERE meta->>'scan_id' = $1`,
+      [scanId]
+    );
+    const totalArtifactsCount = parseInt(artifactsResult.rows[0].count) || 0;
+    
     const finalProgress = 100;
     await updateScanMasterStatus(scanId, {
       status: 'completed',
       progress: finalProgress,
       current_module: undefined,
       completed_at: new Date(),
-      total_findings_count: totalModuleResults
+      total_findings_count: actualFindingsCount,
+      total_artifacts_count: totalArtifactsCount
     });
     
-    log(`[${scanId}] ✅ SCAN COMPLETE: ${totalModuleResults} total findings across ${TOTAL_MODULES} modules`);
+    log(`[${scanId}] ✅ SCAN COMPLETE: ${actualFindingsCount} total findings across ${TOTAL_MODULES} modules`);
     
     // Mark job as completed in queue (removes from processing list)
     await queue.completeJob(scanId);

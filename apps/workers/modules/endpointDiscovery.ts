@@ -696,5 +696,6 @@ export async function runEndpointDiscovery(job: { domain: string; scanId?: strin
   }
 
   log(`[endpointDiscovery] ⇢ done – ${endpoints.length} endpoints, ${assets.length} web assets`);
-  return endpoints.length + assets.length;
+  // Return 0 as this module doesn't create findings, only artifacts
+  return 0;
 }
