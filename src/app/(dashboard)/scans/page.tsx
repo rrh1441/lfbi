@@ -19,8 +19,16 @@ import {
   Clock,
   CheckCircle,
   AlertTriangle,
-  Loader2
+  Loader2,
+  FileText,
+  MoreHorizontal
 } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
 import { Scan } from '@/lib/types/database'
 
@@ -30,6 +38,16 @@ export default function ScansPage() {
     queryFn: async () => {
       const response = await fetch('/api/scans')
       if (!response.ok) throw new Error('Failed to fetch scans')
+      return response.json()
+    }
+  })
+
+  // Fetch reports for all scans
+  const { data: reports } = useQuery({
+    queryKey: ['all-reports'],
+    queryFn: async () => {
+      const response = await fetch('/api/reports')
+      if (!response.ok) throw new Error('Failed to fetch reports')
       return response.json()
     }
   })
@@ -50,6 +68,11 @@ export default function ScansPage() {
       case 'failed': return <AlertTriangle className="h-4 w-4" />
       default: return <Clock className="h-4 w-4" />
     }
+  }
+
+  const getScanReports = (scanId: string) => {
+    if (!reports) return []
+    return reports.filter((report: { scan_id: string }) => report.scan_id === scanId)
   }
 
   const activeScans = scans?.filter(s => s.status === 'processing' || s.status === 'pending') || []
@@ -136,6 +159,7 @@ export default function ScansPage() {
                   <TableHead>Domain</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Progress</TableHead>
+                  <TableHead>Reports</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Tags</TableHead>
                   <TableHead>Actions</TableHead>
@@ -144,6 +168,10 @@ export default function ScansPage() {
               <TableBody>
                 {scans?.map((scan) => {
                   const progressPercentage = (scan.progress / scan.total_modules) * 100
+                  const scanReports = getScanReports(scan.scan_id)
+                  const completedReports = scanReports.filter((r: { status: string }) => r.status === 'completed')
+                  const pendingReports = scanReports.filter((r: { status: string }) => r.status === 'pending')
+                  
                   return (
                     <TableRow key={scan.scan_id}>
                       <TableCell className="font-medium">
@@ -162,6 +190,23 @@ export default function ScansPage() {
                           <span className="text-xs text-muted-foreground w-8">
                             {Math.round(progressPercentage)}%
                           </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {completedReports.length > 0 ? (
+                            <Badge variant="default" className="gap-1">
+                              <FileText className="h-3 w-3" />
+                              {completedReports.length} Ready
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">No Reports</Badge>
+                          )}
+                          {pendingReports.length > 0 && (
+                            <Badge variant="secondary">
+                              {pendingReports.length} Pending
+                            </Badge>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -186,20 +231,30 @@ export default function ScansPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" asChild>
-                            <Link href={`/scans/${scan.scan_id}`}>
-                              View
-                            </Link>
-                          </Button>
-                          {scan.status === 'completed' && (
-                            <Button variant="outline" size="sm" asChild>
-                              <Link href={`/scans/${scan.scan_id}/findings`}>
-                                Findings
-                              </Link>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/scans/${scan.scan_id}`}>View Details</Link>
+                            </DropdownMenuItem>
+                            {scan.status === 'completed' && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/scans/${scan.scan_id}/findings`}>View Findings</Link>
+                              </DropdownMenuItem>
+                            )}
+                            {completedReports.length > 0 && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/scans/${scan.scan_id}/reports`}>
+                                  📊 View Reports ({completedReports.length})
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   )

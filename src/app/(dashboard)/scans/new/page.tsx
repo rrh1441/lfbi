@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { X, Plus, Upload, FileSpreadsheet } from 'lucide-react'
+import { X, Plus, Upload, FileSpreadsheet, Building, Shield } from 'lucide-react'
 
 interface CsvScanData {
   companyName: string
@@ -16,12 +17,41 @@ interface CsvScanData {
   tags: string[]
 }
 
+const REPORT_CONFIGS = [
+  { 
+    id: 'threat_snapshot', 
+    label: 'Threat Snapshot (Executive Dashboard)', 
+    description: 'Financial impact focused, ≤650 words', 
+    maxWords: 650,
+    icon: Building,
+    color: 'text-red-600'
+  },
+  { 
+    id: 'executive_summary', 
+    label: 'Executive Summary (Strategic Overview)', 
+    description: 'Strategic briefing for leadership, ≤2,500 words', 
+    maxWords: 2500,
+    icon: Building,
+    color: 'text-blue-600'
+  },
+  { 
+    id: 'technical_remediation', 
+    label: 'Technical Remediation Guide', 
+    description: 'Detailed implementation guide, ≤4,500 words', 
+    maxWords: 4500,
+    icon: Shield,
+    color: 'text-green-600'
+  }
+]
+
 export default function NewScanPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
     companyName: '',
     domain: '',
-    tags: [] as string[]
+    tags: [] as string[],
+    autoGenerateReports: true,
+    reportTypes: ['threat_snapshot', 'executive_summary', 'technical_remediation'] as string[]
   })
   const [newTag, setNewTag] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -79,7 +109,9 @@ export default function NewScanPage() {
           body: JSON.stringify({
             companyName: formData.companyName,
             domain: formData.domain,
-            tags: formData.tags
+            tags: formData.tags,
+            autoGenerateReports: formData.autoGenerateReports,
+            reportTypes: formData.reportTypes
           }),
         })
 
@@ -268,6 +300,72 @@ export default function NewScanPage() {
                 Optional tags for categorization and filtering
               </p>
             </div>
+            
+            {/* Auto-Report Generation Options */}
+            <div className="space-y-4 border-t pt-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="autoGenerateReports" 
+                  checked={formData.autoGenerateReports}
+                  onCheckedChange={(checked) => setFormData(prev => ({
+                    ...prev,
+                    autoGenerateReports: checked as boolean
+                  }))}
+                />
+                <Label htmlFor="autoGenerateReports" className="text-sm font-medium">
+                  Auto-generate professional reports upon scan completion
+                </Label>
+              </div>
+              
+              {formData.autoGenerateReports && (
+                <div className="ml-6 space-y-3">
+                  <p className="text-sm text-gray-600">Reports to generate automatically:</p>
+                  <div className="space-y-3">
+                    {REPORT_CONFIGS.map((report) => {
+                      const IconComponent = report.icon
+                      return (
+                        <div key={report.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox 
+                              id={report.id}
+                              checked={formData.reportTypes.includes(report.id)}
+                              onCheckedChange={(checked) => {
+                                const current = formData.reportTypes
+                                if (checked) {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    reportTypes: [...current, report.id]
+                                  }))
+                                } else {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    reportTypes: current.filter(t => t !== report.id)
+                                  }))
+                                }
+                              }}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <IconComponent className={`h-4 w-4 ${report.color}`} />
+                                <Label htmlFor={report.id} className="text-sm font-medium">
+                                  {report.label}
+                                </Label>
+                              </div>
+                              <p className="text-xs text-gray-500 leading-relaxed">
+                                {report.description}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Reports will be generated automatically once the scan completes and findings are verified.
+                  </p>
+                </div>
+              )}
+            </div>
           </CardContent>
           
           <CardFooter className="bg-muted/50 flex justify-between">
@@ -427,6 +525,16 @@ export default function NewScanPage() {
                 {formData.tags.length > 0 && (
                   <div>
                     <span className="font-medium">Tags:</span> {formData.tags.join(', ')}
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Auto-generate reports:</span> {formData.autoGenerateReports ? 'Yes' : 'No'}
+                </div>
+                {formData.autoGenerateReports && formData.reportTypes.length > 0 && (
+                  <div>
+                    <span className="font-medium">Report types:</span> {formData.reportTypes.map(type => 
+                      REPORT_CONFIGS.find(r => r.id === type)?.label || type
+                    ).join(', ')}
                   </div>
                 )}
               </div>

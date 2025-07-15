@@ -1,12 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { data: reports, error } = await supabase
+    const { searchParams } = new URL(request.url)
+    const scanId = searchParams.get('scanId')
+    
+    let query = supabase
       .from('reports')
       .select('*')
       .order('created_at', { ascending: false })
+    
+    if (scanId) {
+      query = query.eq('scan_id', scanId)
+    }
+    
+    const { data: reports, error } = await query
 
     if (error) {
       console.error('Database error:', error)
