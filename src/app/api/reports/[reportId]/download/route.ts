@@ -102,6 +102,11 @@ export async function GET(
       }
     }
     
+    // Check if report was found
+    if (!report) {
+      return new NextResponse('Report not found', { status: 404 })
+    }
+    
     // If report has HTML content, use it directly
     if (report.html_content) {
       return new NextResponse(report.html_content, {

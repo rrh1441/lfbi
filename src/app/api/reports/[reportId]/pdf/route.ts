@@ -101,6 +101,11 @@ export async function GET(
       }
     }
     
+    // Check if report was found
+    if (!report) {
+      return new NextResponse('Report not found', { status: 404 })
+    }
+    
     // Get HTML content
     let htmlContent = report.html_content
     

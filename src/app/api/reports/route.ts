@@ -114,11 +114,11 @@ export async function GET(request: NextRequest) {
           status: 'completed',
           company_name: scan.company_name,
           domain: scan.domain,
-          content: scan.threat_snapshot_html || scan.threat_snapshot_markdown,
-          html_content: scan.threat_snapshot_html,
-          markdown_content: scan.threat_snapshot_markdown,
-          created_at: scan.threat_snapshot_generated_at,
-          completed_at: scan.threat_snapshot_generated_at,
+          content: scan.threat_snapshot_html || scan.threat_snapshot_markdown || null,
+          html_content: scan.threat_snapshot_html || null,
+          markdown_content: scan.threat_snapshot_markdown || null,
+          created_at: scan.threat_snapshot_generated_at || new Date().toISOString(),
+          completed_at: scan.threat_snapshot_generated_at || new Date().toISOString(),
           findings_count: scan.verified_findings_count || 0
         })
       }
@@ -131,11 +131,11 @@ export async function GET(request: NextRequest) {
           status: 'completed',
           company_name: scan.company_name,
           domain: scan.domain,
-          content: scan.executive_summary_html || scan.executive_summary_markdown,
-          html_content: scan.executive_summary_html,
-          markdown_content: scan.executive_summary_markdown,
-          created_at: scan.executive_summary_generated_at,
-          completed_at: scan.executive_summary_generated_at,
+          content: scan.executive_summary_html || scan.executive_summary_markdown || null,
+          html_content: scan.executive_summary_html || null,
+          markdown_content: scan.executive_summary_markdown || null,
+          created_at: scan.executive_summary_generated_at || new Date().toISOString(),
+          completed_at: scan.executive_summary_generated_at || new Date().toISOString(),
           findings_count: scan.verified_findings_count || 0
         })
       }
@@ -148,11 +148,11 @@ export async function GET(request: NextRequest) {
           status: 'completed',
           company_name: scan.company_name,
           domain: scan.domain,
-          content: scan.technical_remediation_html || scan.technical_remediation_markdown,
-          html_content: scan.technical_remediation_html,
-          markdown_content: scan.technical_remediation_markdown,
-          created_at: scan.technical_remediation_generated_at,
-          completed_at: scan.technical_remediation_generated_at,
+          content: scan.technical_remediation_html || scan.technical_remediation_markdown || null,
+          html_content: scan.technical_remediation_html || null,
+          markdown_content: scan.technical_remediation_markdown || null,
+          created_at: scan.technical_remediation_generated_at || new Date().toISOString(),
+          completed_at: scan.technical_remediation_generated_at || new Date().toISOString(),
           findings_count: scan.verified_findings_count || 0
         })
       }

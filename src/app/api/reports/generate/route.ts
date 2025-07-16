@@ -161,8 +161,14 @@ const generateHTMLTemplate = (reportType: string, data: {
 }
 
 export async function POST(request: NextRequest) {
+  let scanId: string | undefined
+  let reportType: string = 'threat_snapshot'
+  
   try {
-    const { scanId, reportType = 'threat_snapshot', findings, companyName, domain } = await request.json()
+    const body = await request.json()
+    scanId = body.scanId
+    reportType = body.reportType || 'threat_snapshot'
+    const { findings, companyName, domain } = body
 
     if (!scanId || !companyName || !domain) {
       return NextResponse.json(
@@ -300,7 +306,7 @@ Generate enhanced remediation steps that include:
         escapeCsv(f.description),
         scanId,
         f.type,
-        escapeCsv(f.enhanced_remediation || f.recommendation),
+        escapeCsv(f.enhanced_remediation || f.recommendation || ''),
         f.severity,
         f.attack_type_code || 'UNKNOWN',
         f.state,
@@ -409,8 +415,11 @@ Generate enhanced remediation steps that include:
       remediation_by: 'o4-mini-2025-04-16'
     }
 
-    updateData.report_generation_metadata = scanData.report_generation_metadata || {}
-    updateData.report_generation_metadata[reportType] = metadata
+    const existingMetadata = scanData.report_generation_metadata as Record<string, unknown> || {}
+    updateData.report_generation_metadata = {
+      ...existingMetadata,
+      [reportType]: metadata
+    }
 
     const { error: updateError } = await supabase
       .from('scan_status')
@@ -432,12 +441,14 @@ Generate enhanced remediation steps that include:
   } catch (error) {
     console.error('Failed to generate report:', error)
     
-    // Update status to failed
-    const statusField = `${reportType}_status`
-    await supabase
-      .from('scan_status')
-      .update({ [statusField]: 'failed' })
-      .eq('scan_id', scanId)
+    // Update status to failed if scanId is available
+    if (scanId) {
+      const statusField = `${reportType}_status`
+      await supabase
+        .from('scan_status')
+        .update({ [statusField]: 'failed' })
+        .eq('scan_id', scanId)
+    }
     
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
