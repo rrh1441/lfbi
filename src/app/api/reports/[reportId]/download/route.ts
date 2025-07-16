@@ -9,23 +9,104 @@ export async function GET(
     const resolvedParams = await params
     const reportId = resolvedParams.reportId
     
-    const { data: report, error } = await supabase
-      .from('reports')
-      .select('*')
-      .eq('id', reportId)
-      .single()
+    // Parse report ID format: scanId_reportType
+    let scanId: string
+    let reportType: string
+    let report: any = null
     
-    if (error || !report) {
-      return new NextResponse('Report not found', { status: 404 })
+    if (reportId.includes('_')) {
+      // New format: scanId_reportType
+      const parts = reportId.split('_')
+      reportType = parts.pop()!
+      scanId = parts.join('_')
+      
+      // Query scan_status table
+      const { data: scan, error: scanError } = await supabase
+        .from('scan_status')
+        .select('*')
+        .eq('scan_id', scanId)
+        .single()
+      
+      if (!scanError && scan) {
+        // Extract report data based on type
+        if (reportType === 'threat_snapshot' && scan.threat_snapshot_status === 'completed') {
+          report = {
+            id: reportId,
+            scan_id: scanId,
+            report_type: 'threat_snapshot',
+            html_content: scan.threat_snapshot_html,
+            markdown_content: scan.threat_snapshot_markdown,
+            company_name: scan.company_name,
+            domain: scan.domain,
+            created_at: scan.threat_snapshot_generated_at,
+            findings_count: scan.verified_findings_count
+          }
+        } else if (reportType === 'executive_summary' && scan.executive_summary_status === 'completed') {
+          report = {
+            id: reportId,
+            scan_id: scanId,
+            report_type: 'executive_summary',
+            html_content: scan.executive_summary_html,
+            markdown_content: scan.executive_summary_markdown,
+            company_name: scan.company_name,
+            domain: scan.domain,
+            created_at: scan.executive_summary_generated_at,
+            findings_count: scan.verified_findings_count
+          }
+        } else if (reportType === 'technical_remediation' && scan.technical_remediation_status === 'completed') {
+          report = {
+            id: reportId,
+            scan_id: scanId,
+            report_type: 'technical_remediation',
+            html_content: scan.technical_remediation_html,
+            markdown_content: scan.technical_remediation_markdown,
+            company_name: scan.company_name,
+            domain: scan.domain,
+            created_at: scan.technical_remediation_generated_at,
+            findings_count: scan.verified_findings_count
+          }
+        }
+      }
     }
     
-    // Generate standalone HTML with embedded CSS
+    // If not found, try old reports table
+    if (!report) {
+      const { data: oldReport, error: oldError } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('id', reportId)
+        .single()
+      
+      if (oldError || !oldReport) {
+        return new NextResponse('Report not found', { status: 404 })
+      }
+      
+      // Transform old report to new structure
+      report = {
+        ...oldReport,
+        html_content: null,
+        markdown_content: oldReport.content,
+        report_type: oldReport.report_type || 'threat_snapshot'
+      }
+    }
+    
+    // If report has HTML content, use it directly
+    if (report.html_content) {
+      return new NextResponse(report.html_content, {
+        headers: {
+          'Content-Type': 'text/html',
+          'Content-Disposition': `attachment; filename="${report.report_type}-${report.scan_id}-${new Date().toISOString().split('T')[0]}.html"`
+        }
+      })
+    }
+    
+    // Otherwise generate HTML from markdown/content
     const html = generateStandaloneHTML(report)
     
     return new NextResponse(html, {
       headers: {
         'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="${report.report_type}-${report.scan_id}.html"`
+        'Content-Disposition': `attachment; filename="${report.report_type}-${report.scan_id}-${new Date().toISOString().split('T')[0]}.html"`
       }
     })
   } catch (error) {
@@ -34,7 +115,7 @@ export async function GET(
   }
 }
 
-function generateStandaloneHTML(report: { id: string; scan_id: string; company_name: string; domain: string; content: string; report_type: string; status: string; created_at: string; findings_count: number }): string {
+function generateStandaloneHTML(report: any): string {
   // Professional styling for standalone HTML
   const baseCSS = `
     <style>
@@ -192,20 +273,25 @@ function generateStandaloneHTML(report: { id: string; scan_id: string; company_n
   const headerInfo = getReportTypeHeader(report.report_type)
   
   // Format content based on report type
-  let formattedContent = report.content
+  let formattedContent = report.markdown_content || report.content || ''
   
   // If content is markdown, convert basic formatting
-  if (typeof formattedContent === 'string') {
+  if (typeof formattedContent === 'string' && !formattedContent.includes('<')) {
     formattedContent = formattedContent
       .replace(/^# (.+)$/gm, '<h1>$1</h1>')
       .replace(/^## (.+)$/gm, '<h2>$1</h2>')
       .replace(/^### (.+)$/gm, '<h3>$1</h3>')
       .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre>$1</pre>')
-      .replace(/\`(.+?)\`/g, '<code style="background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem;">$1</code>')
-      .replace(/\\n\\n/g, '</p><p>')
-      .replace(/\\n/g, '<br>')
+      .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+      .replace(/`(.+?)`/g, '<code style="background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 0.25rem;">$1</code>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+    
+    // Wrap in paragraph tags if not already wrapped
+    if (!formattedContent.startsWith('<')) {
+      formattedContent = `<p>${formattedContent}</p>`
+    }
   }
 
   return `<!DOCTYPE html>
@@ -213,7 +299,7 @@ function generateStandaloneHTML(report: { id: string; scan_id: string; company_n
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${headerInfo.title} - ${report.company_name}</title>
+  <title>${headerInfo.title} - ${report.company_name || 'Report'}</title>
   ${baseCSS}
 </head>
 <body>
@@ -221,9 +307,9 @@ function generateStandaloneHTML(report: { id: string; scan_id: string; company_n
     <div class="header">
       <h1>${headerInfo.title}</h1>
       <div class="meta">
-        <strong>${report.company_name}</strong>
+        <strong>${report.company_name || 'Unknown Company'}</strong>
         <span>•</span>
-        <span>${report.domain}</span>
+        <span>${report.domain || 'Unknown Domain'}</span>
         <span>•</span>
         <span>Generated: ${new Date(report.created_at).toLocaleDateString()}</span>
         <span>•</span>
@@ -233,9 +319,9 @@ function generateStandaloneHTML(report: { id: string; scan_id: string; company_n
 
     <div class="content">
       <h2>${headerInfo.subtitle}</h2>
-      <p style="color: #6b7280; margin-bottom: 2rem;">
-        This report contains ${report.findings_count} verified security findings for ${report.company_name}.
-      </p>
+      ${report.findings_count ? `<p style="color: #6b7280; margin-bottom: 2rem;">
+        This report contains ${report.findings_count} verified security findings.
+      </p>` : ''}
       
       <div style="white-space: pre-wrap; line-height: 1.8;">
         ${formattedContent}
@@ -249,10 +335,10 @@ function generateStandaloneHTML(report: { id: string; scan_id: string; company_n
           <strong>Report Type:</strong><br>
           <span class="badge medium">${report.report_type.replace('_', ' ').toUpperCase()}</span>
         </div>
-        <div>
+        ${report.findings_count ? `<div>
           <strong>Findings Count:</strong><br>
           ${report.findings_count} verified findings
-        </div>
+        </div>` : ''}
         <div>
           <strong>Generated:</strong><br>
           ${new Date(report.created_at).toLocaleString()}
