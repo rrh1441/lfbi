@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Download, X, Maximize2, Shield, AlertCircle, Info, Building, FileText } from 'lucide-react'
+import { Download, X, Maximize2, Shield, AlertCircle, Building, FileText } from 'lucide-react'
 
 interface ReportViewerProps {
   report: {

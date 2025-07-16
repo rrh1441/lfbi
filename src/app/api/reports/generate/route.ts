@@ -7,7 +7,13 @@ const openai = new OpenAI({
 })
 
 // HTML template based on reportdesign.md
-const generateHTMLTemplate = (reportType: string, data: any) => {
+const generateHTMLTemplate = (reportType: string, data: {
+  company_name: string
+  domain: string
+  content: string
+  reportTitle?: string
+  [key: string]: string | number | undefined
+}) => {
   const baseStyles = `
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -218,7 +224,16 @@ export async function POST(request: NextRequest) {
       console.log('Enhancing remediation suggestions with o4-mini...')
       
       const enhancedFindings = await Promise.all(
-        verifiedFindings.map(async (finding: any) => {
+        verifiedFindings.map(async (finding: {
+          id: string
+          description: string
+          type: string
+          severity: string
+          recommendation?: string
+          remediation?: string
+          enhanced_remediation?: string
+          [key: string]: string | number | undefined
+        }) => {
           try {
             const remediationCompletion = await openai.chat.completions.create({
               model: 'o4-mini-2025-04-16',
@@ -263,7 +278,21 @@ Generate enhanced remediation steps that include:
 
     // Prepare findings data
     const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high,eal_daily'
-    const csvRows = verifiedFindings.map((f: any) => {
+    const csvRows = verifiedFindings.map((f: {
+      id: string
+      created_at?: string
+      description: string
+      type: string
+      enhanced_remediation?: string
+      recommendation?: string
+      severity: string
+      attack_type_code?: string
+      state: string
+      eal_low?: number
+      eal_ml?: number
+      eal_high?: number
+      eal_daily?: number
+    }) => {
       const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
       return [
         f.id,
@@ -284,7 +313,17 @@ Generate enhanced remediation steps that include:
     const csvData = [csvHeader, ...csvRows].join('\n')
 
     // Calculate financial totals
-    const financialTotals = verifiedFindings.reduce((acc: any, f: any) => ({
+    const financialTotals = verifiedFindings.reduce((acc: {
+      eal_low_total: number
+      eal_ml_total: number
+      eal_high_total: number
+      eal_daily_total: number
+    }, f: {
+      eal_low?: number
+      eal_ml?: number
+      eal_high?: number
+      eal_daily?: number
+    }) => ({
       eal_low_total: acc.eal_low_total + (f.eal_low || 0),
       eal_ml_total: acc.eal_ml_total + (f.eal_ml || 0),
       eal_high_total: acc.eal_high_total + (f.eal_high || 0),
@@ -292,7 +331,7 @@ Generate enhanced remediation steps that include:
     }), { eal_low_total: 0, eal_ml_total: 0, eal_high_total: 0, eal_daily_total: 0 })
 
     // Calculate severity counts
-    const severityCounts = verifiedFindings.reduce((acc: any, f: any) => {
+    const severityCounts = verifiedFindings.reduce((acc: Record<string, number>, f: { severity?: string }) => {
       const sev = f.severity?.toLowerCase() || 'info'
       acc[`${sev}_count`] = (acc[`${sev}_count`] || 0) + 1
       return acc
@@ -353,7 +392,7 @@ Generate enhanced remediation steps that include:
     })
 
     // Update scan_status with report data
-    const updateData: any = {
+    const updateData: Record<string, string | number | Record<string, unknown>> = {
       [`${reportType}_html`]: htmlReport,
       [`${reportType}_markdown`]: reportContent,
       [`${reportType}_generated_at`]: new Date().toISOString(),

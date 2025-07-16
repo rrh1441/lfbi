@@ -43,7 +43,17 @@ export async function GET(request: NextRequest) {
       }
       
       // Transform old reports to match new structure
-      const transformedReports = reports?.map((r: any) => ({
+      const transformedReports = reports?.map((r: {
+        id: string
+        scan_id: string
+        report_type?: string
+        status?: string
+        company_name: string
+        domain: string
+        content: string
+        created_at: string
+        findings_count?: number
+      }) => ({
         id: r.id,
         scan_id: r.scan_id,
         report_type: 'threat_snapshot', // Default type for old reports
@@ -62,9 +72,39 @@ export async function GET(request: NextRequest) {
     }
     
     // Transform scan_status data to report format
-    const transformedReports: any[] = []
+    const transformedReports: Array<{
+      id: string
+      scan_id: string
+      report_type: string
+      status: string
+      company_name: string
+      domain: string
+      content: string | null
+      html_content: string | null
+      markdown_content: string | null
+      created_at: string
+      completed_at: string
+      findings_count: number
+    }> = []
     
-    scans?.forEach((scan: any) => {
+    scans?.forEach((scan: {
+      scan_id: string
+      company_name: string
+      domain: string
+      threat_snapshot_status?: string
+      threat_snapshot_html?: string
+      threat_snapshot_markdown?: string
+      threat_snapshot_generated_at?: string
+      executive_summary_status?: string
+      executive_summary_html?: string
+      executive_summary_markdown?: string
+      executive_summary_generated_at?: string
+      technical_remediation_status?: string
+      technical_remediation_html?: string
+      technical_remediation_markdown?: string
+      technical_remediation_generated_at?: string
+      verified_findings_count?: number
+    }) => {
       // Check each report type
       if (scan.threat_snapshot_status === 'completed') {
         transformedReports.push({

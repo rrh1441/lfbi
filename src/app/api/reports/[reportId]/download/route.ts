@@ -12,7 +12,19 @@ export async function GET(
     // Parse report ID format: scanId_reportType
     let scanId: string
     let reportType: string
-    let report: any = null
+    let report: {
+      id: string
+      scan_id: string
+      report_type: string
+      html_content: string | null
+      markdown_content: string | null
+      company_name: string
+      domain: string
+      created_at: string
+      findings_count: number
+      content?: string
+      status?: string
+    } | null = null
     
     if (reportId.includes('_')) {
       // New format: scanId_reportType
@@ -115,7 +127,19 @@ export async function GET(
   }
 }
 
-function generateStandaloneHTML(report: any): string {
+function generateStandaloneHTML(report: {
+  id: string
+  scan_id: string
+  report_type: string
+  html_content?: string | null
+  markdown_content?: string | null
+  content?: string | null
+  company_name: string
+  domain: string
+  created_at: string
+  findings_count?: number
+  status?: string
+}): string {
   // Professional styling for standalone HTML
   const baseCSS = `
     <style>
