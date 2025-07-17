@@ -1,6 +1,8 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,18 +23,17 @@ import {
   AlertTriangle,
   Loader2,
   FileText,
-  MoreHorizontal
+  Eye,
+  Camera,
+  FilePlus,
+  Search
 } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import Link from 'next/link'
 import { Scan } from '@/lib/types/database'
 
 export default function ScansPage() {
+  const router = useRouter()
+  const queryClient = useQueryClient()
   const { data: scans, isLoading } = useQuery<Scan[]>({
     queryKey: ['all-scans'],
     queryFn: async () => {
@@ -42,14 +43,15 @@ export default function ScansPage() {
     }
   })
 
-  // Fetch reports for all scans
+  // Fetch report status for all scans
   const { data: reports } = useQuery({
     queryKey: ['all-reports'],
     queryFn: async () => {
       const response = await fetch('/api/reports')
       if (!response.ok) throw new Error('Failed to fetch reports')
       return response.json()
-    }
+    },
+    enabled: !!scans && scans.length > 0
   })
 
   const getStatusVariant = (status: string) => {
@@ -78,6 +80,46 @@ export default function ScansPage() {
   const activeScans = scans?.filter(s => s.status === 'processing' || s.status === 'pending') || []
   const completedScans = scans?.filter(s => s.status === 'completed') || []
   const failedScans = scans?.filter(s => s.status === 'failed') || []
+
+  // Generate report mutation
+  const generateReportMutation = useMutation({
+    mutationFn: async ({ scanId, reportType }: { scanId: string; reportType: string }) => {
+      const scan = scans?.find(s => s.scan_id === scanId)
+      if (!scan) throw new Error('Scan not found')
+      
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scanId,
+          reportType,
+          companyName: scan.company_name,
+          domain: scan.domain
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to generate report')
+      }
+      
+      return response.json()
+    },
+    onSuccess: (data, variables) => {
+      toast.success(`${variables.reportType.replace('_', ' ')} report generated successfully`)
+      queryClient.invalidateQueries({ queryKey: ['all-reports'] })
+      queryClient.invalidateQueries({ queryKey: ['all-scans'] })
+      // Navigate to the report
+      router.push(`/scans/${variables.scanId}/reports?type=${variables.reportType}`)
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to generate report')
+    }
+  })
+
+  const generateReport = (scanId: string, reportType: string) => {
+    generateReportMutation.mutate({ scanId, reportType })
+  }
 
   return (
     <div className="space-y-6">
@@ -231,30 +273,77 @@ export default function ScansPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <MoreHorizontal className="h-4 w-4" />
+                        <div className="flex items-center gap-2">
+                          {/* View Details Button */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => router.push(`/scans/${scan.scan_id}`)}
+                            title="View scan details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          
+                          {/* View Findings Button - only show for completed scans */}
+                          {scan.status === 'completed' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => router.push(`/scans/${scan.scan_id}/findings`)}
+                              title="View findings"
+                            >
+                              <Search className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link href={`/scans/${scan.scan_id}`}>View Details</Link>
-                            </DropdownMenuItem>
-                            {scan.status === 'completed' && (
-                              <DropdownMenuItem asChild>
-                                <Link href={`/scans/${scan.scan_id}/findings`}>View Findings</Link>
-                              </DropdownMenuItem>
-                            )}
-                            {completedReports.length > 0 && (
-                              <DropdownMenuItem asChild>
-                                <Link href={`/scans/${scan.scan_id}/reports`}>
-                                  📊 View Reports ({completedReports.length})
-                                </Link>
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                          )}
+                          
+                          {/* View Snapshot Button - only show for completed scans */}
+                          {scan.status === 'completed' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Check if threat snapshot exists
+                                const hasSnapshot = scan.threat_snapshot_status === 'completed'
+                                if (hasSnapshot) {
+                                  router.push(`/scans/${scan.scan_id}/reports?type=threat_snapshot`)
+                                } else {
+                                  // Generate snapshot
+                                  generateReport(scan.scan_id, 'threat_snapshot')
+                                }
+                              }}
+                              title="View snapshot"
+                            >
+                              <Camera className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          {/* Create/View Reports Button */}
+                          {scan.status === 'completed' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (completedReports.length > 0) {
+                                  router.push(`/scans/${scan.scan_id}/reports`)
+                                } else {
+                                  router.push(`/scans/${scan.scan_id}/reports/new`)
+                                }
+                              }}
+                            >
+                              {completedReports.length > 0 ? (
+                                <>
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  View Reports
+                                </>
+                              ) : (
+                                <>
+                                  <FilePlus className="h-4 w-4 mr-1" />
+                                  Create Reports
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )

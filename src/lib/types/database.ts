@@ -12,6 +12,10 @@ export interface Database {
           created_at: string
           completed_at: string | null
           tags: string[] | null
+          threat_snapshot_status?: string | null
+          executive_summary_status?: string | null
+          technical_remediation_status?: string | null
+          verified_findings_count?: number | null
         }
         Insert: {
           scan_id: string

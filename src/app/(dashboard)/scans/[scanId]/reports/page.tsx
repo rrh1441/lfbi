@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -37,8 +37,22 @@ const REPORT_TYPE_CONFIG = {
 
 export default function ScanReportsPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const scanId = params.scanId as string
-  const [selectedReport, setSelectedReport] = useState(null)
+  const reportTypeFromUrl = searchParams.get('type')
+  const [selectedReport, setSelectedReport] = useState<{
+    id: string
+    scan_id: string
+    report_type: string
+    status: string
+    company_name?: string
+    domain?: string
+    content?: string
+    html_content?: string
+    markdown_content?: string
+    created_at: string
+    completed_at?: string
+  } | null>(null)
 
   // Use existing TanStack Query pattern
   const { data: scanData, isLoading: scanLoading } = useQuery({
@@ -58,6 +72,18 @@ export default function ScanReportsPage() {
       return response.json()
     }
   })
+
+  // Auto-open report if type is specified in URL
+  useEffect(() => {
+    if (reportTypeFromUrl && reports && !selectedReport) {
+      const report = reports.find((r: { report_type: string; status: string }) => 
+        r.report_type === reportTypeFromUrl && r.status === 'completed'
+      )
+      if (report) {
+        setSelectedReport(report)
+      }
+    }
+  }, [reportTypeFromUrl, reports, selectedReport])
 
   const generateSpecificReport = async (reportType: string) => {
     try {

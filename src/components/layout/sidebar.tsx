@@ -8,7 +8,6 @@ import {
   Shield, 
   Activity, 
   Plus, 
-  FileText, 
   Settings,
   Search,
   Home
@@ -17,9 +16,8 @@ import {
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home },
   { name: 'New Scan', href: '/scans/new', icon: Plus },
-  { name: 'Active Scans', href: '/scans', icon: Activity },
+  { name: 'Scans', href: '/scans', icon: Activity },
   { name: 'Findings', href: '/findings', icon: Search },
-  { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
