@@ -198,19 +198,18 @@ export async function POST(request: NextRequest) {
       .update({ [statusField]: 'generating' })
       .eq('scan_id', scanId)
 
-    // Get verified findings if not provided
-    let verifiedFindings = findings
+    // Get all findings from the completed scan if not provided
+    let scanFindings = findings
     if (!findings) {
       const { data: findingsData, error: findingsError } = await supabase
         .from('findings')
         .select('*')
         .eq('scan_id', scanId)
-        .eq('state', 'VERIFIED')
 
       if (findingsError) {
         throw new Error('Failed to fetch findings')
       }
-      verifiedFindings = findingsData || []
+      scanFindings = findingsData || []
     }
 
     // Get report template from database
@@ -226,11 +225,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Enhance remediation suggestions using o4-mini
-    if (verifiedFindings.length > 0) {
+    if (scanFindings.length > 0) {
       console.log('Enhancing remediation suggestions with o4-mini...')
       
       const enhancedFindings = await Promise.all(
-        verifiedFindings.map(async (finding: {
+        scanFindings.map(async (finding: {
           id: string
           description: string
           type: string
@@ -264,7 +263,7 @@ Generate enhanced remediation steps that include:
                 }
               ],
               temperature: 0.3,
-              max_tokens: 1000
+              max_completion_tokens: 1000
             })
 
             const enhancedRemediation = remediationCompletion.choices[0].message.content
@@ -279,12 +278,12 @@ Generate enhanced remediation steps that include:
           }
         })
       )
-      verifiedFindings = enhancedFindings
+      scanFindings = enhancedFindings
     }
 
     // Prepare findings data
     const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high,eal_daily'
-    const csvRows = verifiedFindings.map((f: {
+    const csvRows = scanFindings.map((f: {
       id: string
       created_at?: string
       description: string
@@ -319,7 +318,7 @@ Generate enhanced remediation steps that include:
     const csvData = [csvHeader, ...csvRows].join('\n')
 
     // Calculate financial totals
-    const financialTotals = verifiedFindings.reduce((acc: {
+    const financialTotals = scanFindings.reduce((acc: {
       eal_low_total: number
       eal_ml_total: number
       eal_high_total: number
@@ -337,7 +336,7 @@ Generate enhanced remediation steps that include:
     }), { eal_low_total: 0, eal_ml_total: 0, eal_high_total: 0, eal_daily_total: 0 })
 
     // Calculate severity counts
-    const severityCounts = verifiedFindings.reduce((acc: Record<string, number>, f: { severity?: string }) => {
+    const severityCounts = scanFindings.reduce((acc: Record<string, number>, f: { severity?: string }) => {
       const sev = f.severity?.toLowerCase() || 'info'
       acc[`${sev}_count`] = (acc[`${sev}_count`] || 0) + 1
       return acc
@@ -359,8 +358,8 @@ Generate enhanced remediation steps that include:
       .replace('{risk_totals}', JSON.stringify(financialTotals))
       .replace('{risk_calculations}', JSON.stringify(financialTotals))
       .replace('{company_profile}', JSON.stringify({ company_name: companyName, domain }))
-      .replace('{detailed_findings}', JSON.stringify(verifiedFindings))
-      .replace('{remediation_data}', JSON.stringify(verifiedFindings))
+      .replace('{detailed_findings}', JSON.stringify(scanFindings))
+      .replace('{remediation_data}', JSON.stringify(scanFindings))
       .replace('{scan_artifacts}', JSON.stringify({ severity_counts: severityCounts }))
 
     // Step 2: Generate full report using o3
@@ -378,7 +377,7 @@ Generate enhanced remediation steps that include:
         }
       ],
       temperature: 0.7,
-      max_tokens: template?.max_output_tokens || 8000
+      max_completion_tokens: template?.max_output_tokens || 8000
     })
 
     const reportContent = completion.choices[0].message.content
@@ -403,7 +402,7 @@ Generate enhanced remediation steps that include:
       [`${reportType}_markdown`]: reportContent,
       [`${reportType}_generated_at`]: new Date().toISOString(),
       [`${reportType}_status`]: 'completed',
-      verified_findings_count: verifiedFindings.length
+      findings_count: scanFindings.length
     }
 
     // Add metadata

@@ -87,10 +87,9 @@ export default function ScanReportsPage() {
 
   const generateSpecificReport = async (reportType: string) => {
     try {
-      // Get verified findings for this scan
+      // Get all findings for this completed scan
       const findingsResponse = await fetch(`/api/findings?scanId=${scanId}`)
       const allFindings = await findingsResponse.json()
-      const verifiedFindings = allFindings.filter((f: { state: string }) => f.state === 'VERIFIED')
 
       await fetch('/api/reports/generate', {
         method: 'POST',
@@ -98,7 +97,7 @@ export default function ScanReportsPage() {
         body: JSON.stringify({ 
           scanId,
           reportType,
-          findings: verifiedFindings,
+          findings: allFindings,
           companyName: scanData?.company_name,
           domain: scanData?.domain
         })

@@ -56,7 +56,7 @@ export default function CreateReportsPage() {
       const response = await fetch(`/api/findings?scanId=${scanId}`)
       if (!response.ok) throw new Error('Failed to fetch findings')
       const allFindings = await response.json()
-      return allFindings.filter((f: { state: string }) => f.state === 'VERIFIED')
+      return allFindings
     }
   })
 

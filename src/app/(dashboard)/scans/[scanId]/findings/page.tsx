@@ -111,8 +111,6 @@ export default function FindingsPage() {
   }
 
   const handleGenerateReport = async () => {
-    const verifiedFindings = findings.filter(f => f.state === 'VERIFIED')
-    
     try {
       const response = await fetch('/api/reports/generate', {
         method: 'POST',
@@ -121,7 +119,7 @@ export default function FindingsPage() {
         },
         body: JSON.stringify({
           scanId,
-          findings: verifiedFindings,
+          findings: findings,
           companyName: 'Company Name', // You'd get this from scan data
           domain: 'example.com' // You'd get this from scan data
         }),

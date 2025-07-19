@@ -204,7 +204,7 @@ function FindingsContent() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => handleVerifyFindings(selectedFindings, 'falsepositive')}
+                onClick={() => handleVerifyFindings(selectedFindings, 'FALSE_POSITIVE')}
                 className="w-full sm:w-auto"
               >
                 <span className="lg:hidden">False Positive</span>
@@ -262,7 +262,7 @@ function FindingsContent() {
               <SelectItem value="ALL">All statuses</SelectItem>
               <SelectItem value="AUTOMATED">Automated</SelectItem>
               <SelectItem value="VERIFIED">Verified</SelectItem>
-              <SelectItem value="falsepositive">False Positive</SelectItem>
+              <SelectItem value="FALSE_POSITIVE">False Positive</SelectItem>
               <SelectItem value="DISREGARD">Disregard</SelectItem>
               <SelectItem value="NEED_OWNER_VERIFICATION">Need Owner Verification</SelectItem>
             </SelectContent>
