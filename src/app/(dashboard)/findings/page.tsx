@@ -182,38 +182,42 @@ function FindingsContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Security Findings by Scan</h1>
-          <p className="text-muted-foreground">
-            {verifiedCount} verified of {totalFindings} loaded findings across {scans?.length || 0} scans
-          </p>
-        </div>
-        
-        <div className="flex gap-2">
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold">Security Findings by Scan</h1>
+            <p className="text-muted-foreground text-sm lg:text-base">
+              {verifiedCount} verified of {totalFindings} loaded findings across {scans?.length || 0} scans
+            </p>
+          </div>
+          
           {selectedFindings.length > 0 && (
-            <>
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 variant="outline"
                 onClick={() => handleVerifyFindings(selectedFindings, 'VERIFIED')}
+                className="w-full sm:w-auto"
               >
                 <CheckCircle className="mr-2 h-4 w-4" />
-                Verify Selected ({selectedFindings.length})
+                <span className="lg:hidden">Verify ({selectedFindings.length})</span>
+                <span className="hidden lg:inline">Verify Selected ({selectedFindings.length})</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => handleVerifyFindings(selectedFindings, 'falsepositive')}
+                className="w-full sm:w-auto"
               >
-                Mark False Positive
+                <span className="lg:hidden">False Positive</span>
+                <span className="hidden lg:inline">Mark False Positive</span>
               </Button>
-            </>
+            </div>
           )}
         </div>
       </div>
 
       {/* Search and Filters */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="md:col-span-2 space-y-2">
+      <div className="grid gap-4 lg:grid-cols-4">
+        <div className="lg:col-span-2 space-y-2">
           <label className="text-sm font-medium">Search Scans</label>
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -330,63 +334,158 @@ function FindingsContent() {
                           <Loader2 className="h-6 w-6 animate-spin" />
                         </div>
                       ) : scanFindings[scan.scan_id] && scanFindings[scan.scan_id].length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-12">
-                                <Checkbox
-                                  checked={scanFindings[scan.scan_id]?.every(f => selectedFindings.includes(f.id)) || false}
-                                  onCheckedChange={(checked) => {
-                                    const scanFindingIds = scanFindings[scan.scan_id]?.map(f => f.id) || []
-                                    if (checked) {
-                                      setSelectedFindings(prev => [...new Set([...prev, ...scanFindingIds])])
-                                    } else {
-                                      setSelectedFindings(prev => prev.filter(id => !scanFindingIds.includes(id)))
-                                    }
-                                  }}
-                                />
-                              </TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Severity</TableHead>
-                              <TableHead>Description</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Recommendation</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
+                        <>
+                          {/* Desktop Table */}
+                          <div className="hidden lg:block">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="w-12">
+                                    <Checkbox
+                                      checked={scanFindings[scan.scan_id]?.every(f => selectedFindings.includes(f.id)) || false}
+                                      onCheckedChange={(checked) => {
+                                        const scanFindingIds = scanFindings[scan.scan_id]?.map(f => f.id) || []
+                                        if (checked) {
+                                          setSelectedFindings(prev => [...new Set([...prev, ...scanFindingIds])])
+                                        } else {
+                                          setSelectedFindings(prev => prev.filter(id => !scanFindingIds.includes(id)))
+                                        }
+                                      }}
+                                    />
+                                  </TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Severity</TableHead>
+                                  <TableHead>Description</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Recommendation</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {scanFindings[scan.scan_id]?.map((finding) => (
+                                  <TableRow key={finding.id}>
+                                    <TableCell>
+                                      <Checkbox
+                                        checked={selectedFindings.includes(finding.id)}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            setSelectedFindings(prev => [...prev, finding.id])
+                                          } else {
+                                            setSelectedFindings(prev => prev.filter(id => id !== finding.id))
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant="outline">
+                                        {finding.type}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge variant={getSeverityVariant(finding.severity)}>
+                                        {finding.severity}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="max-w-lg">
+                                      <p className="whitespace-normal break-words">{finding.description}</p>
+                                    </TableCell>
+                                    <TableCell>
+                                      <Select
+                                        value={finding.state}
+                                        onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
+                                      >
+                                        <SelectTrigger className="w-36 bg-white">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-white border shadow-md z-50">
+                                          <SelectItem value="AUTOMATED" className="cursor-pointer">Automated</SelectItem>
+                                          <SelectItem value="VERIFIED" className="cursor-pointer">Verified</SelectItem>
+                                          <SelectItem value="FALSE_POSITIVE" className="cursor-pointer">False Positive</SelectItem>
+                                          <SelectItem value="DISREGARD" className="cursor-pointer">Disregard</SelectItem>
+                                          <SelectItem value="NEED_OWNER_VERIFICATION" className="cursor-pointer">Need Owner Verification</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </TableCell>
+                                    <TableCell className="max-w-lg">
+                                      <p className="text-sm text-muted-foreground whitespace-normal break-words">
+                                        {finding.recommendation}
+                                      </p>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* Mobile Cards */}
+                          <div className="lg:hidden space-y-4 p-4">
+                            {/* Select All Mobile */}
+                            <div className="flex items-center space-x-2 pb-2 border-b">
+                              <Checkbox
+                                checked={scanFindings[scan.scan_id]?.every(f => selectedFindings.includes(f.id)) || false}
+                                onCheckedChange={(checked) => {
+                                  const scanFindingIds = scanFindings[scan.scan_id]?.map(f => f.id) || []
+                                  if (checked) {
+                                    setSelectedFindings(prev => [...new Set([...prev, ...scanFindingIds])])
+                                  } else {
+                                    setSelectedFindings(prev => prev.filter(id => !scanFindingIds.includes(id)))
+                                  }
+                                }}
+                              />
+                              <span className="text-sm font-medium">Select All</span>
+                            </div>
+
                             {scanFindings[scan.scan_id]?.map((finding) => (
-                              <TableRow key={finding.id}>
-                                <TableCell>
-                                  <Checkbox
-                                    checked={selectedFindings.includes(finding.id)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedFindings(prev => [...prev, finding.id])
-                                      } else {
-                                        setSelectedFindings(prev => prev.filter(id => id !== finding.id))
-                                      }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant="outline">
-                                    {finding.type}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  <Badge variant={getSeverityVariant(finding.severity)}>
-                                    {finding.severity}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="max-w-lg">
-                                  <p className="whitespace-normal break-words">{finding.description}</p>
-                                </TableCell>
-                                <TableCell>
+                              <Card key={finding.id} className="p-4">
+                                {/* Header with Checkbox */}
+                                <div className="flex items-start justify-between mb-3">
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      checked={selectedFindings.includes(finding.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedFindings(prev => [...prev, finding.id])
+                                        } else {
+                                          setSelectedFindings(prev => prev.filter(id => id !== finding.id))
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {finding.type}
+                                      </Badge>
+                                      <Badge variant={getSeverityVariant(finding.severity)} className="text-xs">
+                                        {finding.severity}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Description */}
+                                <div className="mb-3">
+                                  <h4 className="text-sm font-medium mb-1">Description</h4>
+                                  <p className="text-sm text-muted-foreground leading-relaxed">
+                                    {finding.description}
+                                  </p>
+                                </div>
+
+                                {/* Recommendation */}
+                                {finding.recommendation && (
+                                  <div className="mb-3">
+                                    <h4 className="text-sm font-medium mb-1">Recommendation</h4>
+                                    <p className="text-sm text-muted-foreground leading-relaxed">
+                                      {finding.recommendation}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Status */}
+                                <div className="space-y-2">
+                                  <h4 className="text-sm font-medium">Status</h4>
                                   <Select
                                     value={finding.state}
                                     onValueChange={(newState) => handleVerifyFindings([finding.id], newState)}
                                   >
-                                    <SelectTrigger className="w-36 bg-white">
+                                    <SelectTrigger className="w-full bg-white">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="bg-white border shadow-md z-50">
@@ -397,16 +496,11 @@ function FindingsContent() {
                                       <SelectItem value="NEED_OWNER_VERIFICATION" className="cursor-pointer">Need Owner Verification</SelectItem>
                                     </SelectContent>
                                   </Select>
-                                </TableCell>
-                                <TableCell className="max-w-lg">
-                                  <p className="text-sm text-muted-foreground whitespace-normal break-words">
-                                    {finding.recommendation}
-                                  </p>
-                                </TableCell>
-                              </TableRow>
+                                </div>
+                              </Card>
                             ))}
-                          </TableBody>
-                        </Table>
+                          </div>
+                        </>
                       ) : (
                         <div className="text-center py-8">
                           <AlertTriangle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />

@@ -57,9 +57,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Security Dashboard</h1>
-        <Button asChild>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Security Dashboard</h1>
+        <Button asChild className="w-fit">
           <Link href="/scans/new">
             <Plus className="mr-2 h-4 w-4" />
             New Scan
@@ -68,7 +68,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Scans</CardTitle>
@@ -130,9 +130,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-4 lg:grid-cols-7">
         {/* Recent Activity */}
-        <Card className="col-span-4">
+        <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Recent Scans</CardTitle>
             <CardDescription>
@@ -148,19 +148,19 @@ export default function DashboardPage() {
               recentScans.map((scan) => {
                 const progressPercentage = (scan.progress / scan.total_modules) * 100
                 return (
-                  <div key={scan.scan_id} className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">{scan.company_name}</p>
-                      <p className="text-xs text-muted-foreground">{scan.domain}</p>
+                  <div key={scan.scan_id} className="flex flex-col space-y-2 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{scan.company_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{scan.domain}</p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={getStatusVariant(scan.status)}>
+                    <div className="flex items-center space-x-2 lg:flex-shrink-0">
+                      <Badge variant={getStatusVariant(scan.status)} className="text-xs">
                         {scan.status.charAt(0).toUpperCase() + scan.status.slice(1)}
                       </Badge>
-                      <div className="w-20">
+                      <div className="w-16 lg:w-20">
                         <Progress value={progressPercentage} className="h-2" />
                       </div>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground w-8">
                         {Math.round(progressPercentage)}%
                       </span>
                     </div>
@@ -178,7 +178,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Quick Actions */}
-        <Card className="col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
             <CardDescription>
