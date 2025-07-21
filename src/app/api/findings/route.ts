@@ -38,6 +38,14 @@ export async function GET(request: NextRequest) {
       .select('id, scan_id, finding_type, type')
       .limit(1)
     console.log('First row in findings table:', firstRow, 'First Error:', firstError)
+    
+    // Try with explicit schema
+    const { data: schemaTest, error: schemaError } = await supabase
+      .schema('public')
+      .from('findings')
+      .select('id, scan_id')
+      .limit(1)
+    console.log('Schema test result:', schemaTest, 'Schema Error:', schemaError)
 
     if (scanId) {
       query = query.eq('scan_id', scanId)
