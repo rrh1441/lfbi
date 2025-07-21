@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -79,7 +79,7 @@ export default function ScanDetailsPage() {
   })
   const [generatingReport, setGeneratingReport] = useState<string | null>(null)
 
-  const fetchScan = async () => {
+  const fetchScan = useCallback(async () => {
     try {
       const response = await fetch(`/api/scans/${scanId}`)
       if (!response.ok) {
@@ -90,9 +90,9 @@ export default function ScanDetailsPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     }
-  }
+  }, [scanId])
 
-  const fetchFindings = async () => {
+  const fetchFindings = useCallback(async () => {
     try {
       const params = new URLSearchParams({
         scanId,
@@ -109,7 +109,7 @@ export default function ScanDetailsPage() {
     } catch (error) {
       console.error('Failed to fetch findings:', error)
     }
-  }
+  }, [scanId, filters.severity, filters.state, filters.search])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,11 +128,11 @@ export default function ScanDetailsPage() {
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [scanId, scan?.status])
+  }, [scanId, scan?.status, fetchScan, fetchFindings])
 
   useEffect(() => {
     fetchFindings()
-  }, [scanId, filters])
+  }, [scanId, filters, fetchFindings])
 
   const handleVerifyFindings = async (findingIds: string[], newState: string) => {
     try {
@@ -171,7 +171,7 @@ export default function ScanDetailsPage() {
       })
 
       if (response.ok) {
-        const { scanId: resultScanId, reportType: resultType } = await response.json()
+        await response.json()
         // Refresh scan data to get updated report status
         await fetchScan()
       } else {
