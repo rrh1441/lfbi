@@ -5,7 +5,6 @@ export async function GET() {
   try {
     console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
     console.log('Supabase client config:', {
-      url: supabase.supabaseUrl,
       key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET'
     })
     // Get all scan IDs
