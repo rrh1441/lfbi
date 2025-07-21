@@ -10,6 +10,8 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type')
     const search = searchParams.get('search')
 
+    console.log('Findings API called with:', { scanId, severity, state, type, search })
+
     let query = supabase.from('findings').select('*')
 
     if (scanId) {
@@ -47,6 +49,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    console.log(`Found ${data?.length || 0} findings for scanId: ${scanId}`)
     return NextResponse.json(data)
   } catch (error) {
     console.error('Failed to fetch findings:', error)

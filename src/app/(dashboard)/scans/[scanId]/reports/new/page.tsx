@@ -112,7 +112,7 @@ export default function CreateReportsPage() {
     )
   }
 
-  const verifiedFindingsCount = findings?.length || 0
+  const totalFindingsCount = findings?.length || 0
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -139,13 +139,8 @@ export default function CreateReportsPage() {
         <CardContent>
           <div className="space-y-2">
             <p className="text-sm">
-              <span className="font-medium">Verified Findings:</span> {verifiedFindingsCount}
+              <span className="font-medium">Total Findings:</span> {totalFindingsCount}
             </p>
-            {verifiedFindingsCount === 0 && (
-              <p className="text-sm text-amber-600">
-                Note: No verified findings found. Reports will contain limited information.
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>
