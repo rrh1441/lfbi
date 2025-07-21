@@ -1,7 +1,7 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 interface LogContext {
-  [key: string]: any
+  [key: string]: unknown
 }
 
 class Logger {
@@ -9,17 +9,8 @@ class Logger {
 
   constructor(private name: string) {}
 
-  private log(level: LogLevel, message: string, data?: any) {
+  private log(level: LogLevel, message: string, data?: unknown) {
     const timestamp = new Date().toISOString()
-    const logData = {
-      timestamp,
-      level,
-      logger: this.name,
-      message,
-      ...this.context,
-      ...(data && { data })
-    }
-
     // In production, you might send this to a logging service
     // For now, we'll use console with structured output
     const logMethod = level === 'error' ? console.error : console.log
@@ -31,19 +22,19 @@ class Logger {
     return this
   }
 
-  debug(message: string, data?: any) {
+  debug(message: string, data?: unknown) {
     this.log('debug', message, data)
   }
 
-  info(message: string, data?: any) {
+  info(message: string, data?: unknown) {
     this.log('info', message, data)
   }
 
-  warn(message: string, data?: any) {
+  warn(message: string, data?: unknown) {
     this.log('warn', message, data)
   }
 
-  error(message: string, error?: any) {
+  error(message: string, error?: unknown) {
     const errorData = error instanceof Error ? {
       message: error.message,
       stack: error.stack,

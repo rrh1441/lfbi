@@ -69,14 +69,6 @@ export async function GET(request: NextRequest) {
     const sectionsData = await sectionsResponse.json()
     logger.info(`Found ${sectionsData.length} report sections`)
     
-    // Get column info
-    const columnsQuery = `
-      SELECT column_name, data_type 
-      FROM information_schema.columns 
-      WHERE table_name IN ('scan_status', 'reports', 'report_sections')
-      ORDER BY table_name, ordinal_position
-    `
-
     return NextResponse.json({
       scanStatus: {
         sampleRecord: scanData[0] || null,
