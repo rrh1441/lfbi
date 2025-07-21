@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now()
+  const requestId = Math.random().toString(36).substring(7)
+  
+  console.log(`\n========== FINDINGS API REQUEST ${requestId} ==========`)
+  console.log(`[${requestId}] Timestamp: ${new Date().toISOString()}`)
+  console.log(`[${requestId}] URL: ${request.url}`)
+  
   try {
     const { searchParams } = new URL(request.url)
     const scanId = searchParams.get('scanId')
@@ -10,58 +16,129 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get('type')
     const search = searchParams.get('search')
 
-    console.log('Findings API called with:', { scanId, severity, state, type, search })
+    console.log(`[${requestId}] Query Parameters:`)
+    console.log(`[${requestId}]   - scanId: ${scanId || 'NOT PROVIDED'}`)
+    console.log(`[${requestId}]   - severity: ${severity || 'NOT PROVIDED'}`)
+    console.log(`[${requestId}]   - state: ${state || 'NOT PROVIDED'}`)
+    console.log(`[${requestId}]   - type: ${type || 'NOT PROVIDED'}`)
+    console.log(`[${requestId}]   - search: ${search || 'NOT PROVIDED'}`)
 
-    const supabase = createServerClient()
-    let query = supabase.from('findings').select('*')
+    // Get environment variables
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    console.log('Using fresh server client for findings query')
+    console.log(`[${requestId}] Environment Check:`)
+    console.log(`[${requestId}]   - SUPABASE_URL: ${supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'MISSING'}`)
+    console.log(`[${requestId}]   - SERVICE_ROLE_KEY: ${serviceRoleKey ? `${serviceRoleKey.substring(0, 20)}... (length: ${serviceRoleKey.length})` : 'MISSING'}`)
 
+    if (!supabaseUrl || !serviceRoleKey) {
+      console.error(`[${requestId}] ERROR: Missing Supabase configuration`)
+      throw new Error('Missing Supabase configuration')
+    }
+
+    // Build query params
+    const queryParams = new URLSearchParams()
+    queryParams.append('select', '*')
+    
     if (scanId) {
-      query = query.eq('scan_id', scanId)
-      console.log('Filtering by scan_id:', scanId)
+      queryParams.append('scan_id', `eq.${scanId}`)
+      console.log(`[${requestId}] Added filter: scan_id=eq.${scanId}`)
     }
 
     if (severity) {
-      const severities = severity.split(',')
-      query = query.in('severity', severities)
+      queryParams.append('severity', `in.(${severity})`)
+      console.log(`[${requestId}] Added filter: severity=in.(${severity})`)
     }
 
     if (state) {
-      const states = state.split(',')
-      query = query.in('state', states)
+      queryParams.append('state', `in.(${state})`)
+      console.log(`[${requestId}] Added filter: state=in.(${state})`)
     }
 
     if (type) {
-      const types = type.split(',')
-      query = query.in('type', types)
+      queryParams.append('type', `in.(${type})`)
+      console.log(`[${requestId}] Added filter: type=in.(${type})`)
     }
 
     if (search) {
-      query = query.or(`description.ilike.%${search}%,recommendation.ilike.%${search}%`)
+      queryParams.append('or', `(description.ilike.%${search}%,recommendation.ilike.%${search}%)`)
+      console.log(`[${requestId}] Added filter: search in description/recommendation`)
     }
 
-    query = query.order('created_at', { ascending: false })
+    queryParams.append('order', 'created_at.desc')
 
-    const { data, error } = await query
+    const url = `${supabaseUrl}/rest/v1/findings?${queryParams.toString()}`
+    console.log(`[${requestId}] Full REST API URL: ${url}`)
+    console.log(`[${requestId}] Query string: ${queryParams.toString()}`)
 
-    if (error) {
-      console.error('Database error:', error)
+    console.log(`[${requestId}] Making REST API call...`)
+    const fetchStart = Date.now()
+    
+    const response = await fetch(url, {
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+    })
+
+    const fetchDuration = Date.now() - fetchStart
+    console.log(`[${requestId}] REST API Response:`)
+    console.log(`[${requestId}]   - Status: ${response.status} ${response.statusText}`)
+    console.log(`[${requestId}]   - Duration: ${fetchDuration}ms`)
+    console.log(`[${requestId}]   - Headers:`)
+    response.headers.forEach((value, key) => {
+      if (key.toLowerCase() !== 'authorization') {
+        console.log(`[${requestId}]     ${key}: ${value}`)
+      }
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[${requestId}] ERROR: REST API returned error`)
+      console.error(`[${requestId}] Error body: ${errorText}`)
+      
+      const totalDuration = Date.now() - startTime
+      console.log(`[${requestId}] Request failed after ${totalDuration}ms`)
+      console.log(`========== END REQUEST ${requestId} (FAILED) ==========\n`)
+      
       return NextResponse.json(
-        { error: 'Failed to fetch findings' },
-        { status: 500 }
+        { error: 'Failed to fetch findings', details: errorText },
+        { status: response.status }
       )
     }
 
-    console.log(`Found ${data?.length || 0} findings for scanId: ${scanId}`)
-    console.log('Query result data:', data)
-    console.log('Query error:', error)
+    const data = await response.json()
+    console.log(`[${requestId}] Success! Data received:`)
+    console.log(`[${requestId}]   - Total findings: ${data?.length || 0}`)
+    console.log(`[${requestId}]   - Data is array: ${Array.isArray(data)}`)
+    
+    if (data && data.length > 0) {
+      console.log(`[${requestId}]   - First finding:`)
+      console.log(`[${requestId}]     ${JSON.stringify(data[0], null, 2)}`)
+      console.log(`[${requestId}]   - Finding IDs: ${data.map((f: any) => f.id).join(', ')}`)
+    } else {
+      console.log(`[${requestId}]   - No findings returned (empty array)`)
+    }
+
+    const totalDuration = Date.now() - startTime
+    console.log(`[${requestId}] Request completed successfully in ${totalDuration}ms`)
+    console.log(`========== END REQUEST ${requestId} (SUCCESS) ==========\n`)
     
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Failed to fetch findings:', error)
+    console.error(`[${requestId}] UNEXPECTED ERROR:`, error)
+    console.error(`[${requestId}] Error type: ${error?.constructor?.name}`)
+    console.error(`[${requestId}] Error message: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    console.error(`[${requestId}] Stack trace:`, error instanceof Error ? error.stack : 'No stack trace')
+    
+    const totalDuration = Date.now() - startTime
+    console.log(`[${requestId}] Request crashed after ${totalDuration}ms`)
+    console.log(`========== END REQUEST ${requestId} (CRASHED) ==========\n`)
+    
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
