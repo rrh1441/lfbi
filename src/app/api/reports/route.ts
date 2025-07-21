@@ -112,15 +112,15 @@ export async function POST(request: NextRequest) {
       findings: findings || []
     }
     
-    // Insert report
+    // Upsert report (update if exists, insert if not)
     const { data: report, error: reportError } = await supabase
       .from('reports')
-      .insert({
+      .upsert({
         scan_id: scanId,
         report_type: reportType,
         status: 'completed',
         content: JSON.stringify(reportContent),
-        created_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .select()
       .single()
