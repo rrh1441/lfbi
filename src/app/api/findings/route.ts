@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
     if (data && data.length > 0) {
       console.log(`[${requestId}]   - First finding:`)
       console.log(`[${requestId}]     ${JSON.stringify(data[0], null, 2)}`)
-      console.log(`[${requestId}]   - Finding IDs: ${data.map((f: any) => f.id).join(', ')}`)
+      console.log(`[${requestId}]   - Finding IDs: ${data.map((f: { id: number }) => f.id).join(', ')}`)
     } else {
       console.log(`[${requestId}]   - No findings returned (empty array)`)
     }
