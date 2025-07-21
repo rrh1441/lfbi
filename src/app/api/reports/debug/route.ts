@@ -53,21 +53,25 @@ export async function GET(request: NextRequest) {
       logger.info('Sample report:', reportsData[0])
     }
 
-    // Check report_sections table (for prompts)
-    logger.info('Checking report_sections table...')
-    const sectionsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/report_sections?select=*`,
+    // Check if reports table exists and its structure
+    logger.info('Checking reports table columns...')
+    const columnsResponse = await fetch(
+      `${supabaseUrl}/rest/v1/rpc/get_table_columns`,
       {
+        method: 'POST',
         headers: {
           'apikey': serviceRoleKey,
           'Authorization': `Bearer ${serviceRoleKey}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ table_name: 'reports' })
       }
     )
-
-    const sectionsData = await sectionsResponse.json()
-    logger.info(`Found ${sectionsData.length} report sections`)
+    
+    let reportColumns = null
+    if (columnsResponse.ok) {
+      reportColumns = await columnsResponse.json()
+    }
     
     return NextResponse.json({
       scanStatus: {
@@ -78,10 +82,7 @@ export async function GET(request: NextRequest) {
         count: reportsData.length,
         sampleRecord: reportsData[0] || null
       },
-      reportSections: {
-        count: sectionsData.length,
-        sections: sectionsData
-      },
+      reportColumns,
       scanId
     })
 
