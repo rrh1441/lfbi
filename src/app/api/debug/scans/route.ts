@@ -23,6 +23,30 @@ export async function GET() {
       .select('scan_id, type, severity, created_at')
       .limit(10)
 
+    // Check RLS status on findings table
+    const { data: rlsCheck, error: rlsError } = await supabase
+      .rpc('sql', { 
+        query: `SELECT schemaname, tablename, rowsecurity 
+                FROM pg_tables 
+                WHERE tablename = 'findings';` 
+      })
+      .then(res => res)
+      .catch(err => ({ data: null, error: err }))
+
+    console.log('RLS status check:', rlsCheck)
+    console.log('RLS check error:', rlsError)
+
+    // Check what user we're connecting as
+    const { data: userCheck, error: userError } = await supabase
+      .rpc('sql', { 
+        query: `SELECT current_user, session_user, current_role;` 
+      })
+      .then(res => res)
+      .catch(err => ({ data: null, error: err }))
+
+    console.log('Current database user:', userCheck)
+    console.log('User check error:', userError)
+
     console.log('Sample findings:', findings)
     console.log('Findings error:', findingsError)
 
@@ -52,7 +76,11 @@ export async function GET() {
       findingsError,
       testFindings,
       testFindingsError,
-      testNonExistentError
+      testNonExistentError,
+      rlsCheck,
+      rlsError,
+      userCheck,
+      userError
     })
   } catch (error) {
     console.error('Debug error:', error)
