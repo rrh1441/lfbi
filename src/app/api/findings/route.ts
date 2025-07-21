@@ -12,40 +12,12 @@ export async function GET(request: NextRequest) {
 
     console.log('Findings API called with:', { scanId, severity, state, type, search })
 
-    let query = supabase.from('findings').select(`
-      id,
-      created_at,
-      description,
-      scan_id,
-      finding_type as type,
-      recommendation,
-      severity,
-      attack_type_code,
-      state,
-      eal_low,
-      eal_ml,
-      eal_high,
-      eal_daily
-    `)
+    let query = supabase.from('findings').select('*')
 
     // First, let's see what's in the findings table at all
     const { data: allFindings, error: allError } = await supabase
       .from('findings')
-      .select(`
-        id,
-        created_at,
-        description,
-        scan_id,
-        finding_type as type,
-        recommendation,
-        severity,
-        attack_type_code,
-        state,
-        eal_low,
-        eal_ml,
-        eal_high,
-        eal_daily
-      `)
+      .select('*')
       .limit(5)
     
     console.log('All findings in database (first 5):', allFindings, 'Error:', allError)
@@ -67,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     if (type) {
       const types = type.split(',')
-      query = query.in('finding_type', types)
+      query = query.in('type', types)
     }
 
     if (search) {
