@@ -14,8 +14,17 @@ export async function GET(request: NextRequest) {
 
     let query = supabase.from('findings').select('*')
 
+    // First, let's see what's in the findings table at all
+    const { data: allFindings, error: allError } = await supabase
+      .from('findings')
+      .select('*')
+      .limit(5)
+    
+    console.log('All findings in database (first 5):', allFindings, 'Error:', allError)
+
     if (scanId) {
       query = query.eq('scan_id', scanId)
+      console.log('Filtering by scan_id:', scanId)
     }
 
     if (severity) {
@@ -50,6 +59,9 @@ export async function GET(request: NextRequest) {
     }
 
     console.log(`Found ${data?.length || 0} findings for scanId: ${scanId}`)
+    console.log('Query result data:', data)
+    console.log('Query error:', error)
+    
     return NextResponse.json(data)
   } catch (error) {
     console.error('Failed to fetch findings:', error)
