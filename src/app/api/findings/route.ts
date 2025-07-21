@@ -21,6 +21,23 @@ export async function GET(request: NextRequest) {
       .limit(5)
     
     console.log('All findings in database (first 5):', allFindings, 'Error:', allError)
+    
+    // Try raw count query to see if there's ANY data
+    try {
+      const { count, error: countError } = await supabase
+        .from('findings')
+        .select('*', { count: 'exact', head: true })
+      console.log('TOTAL FINDINGS COUNT:', count, 'Count Error:', countError)
+    } catch (err) {
+      console.log('Count query failed:', err)
+    }
+    
+    // Try getting first row without any filters
+    const { data: firstRow, error: firstError } = await supabase
+      .from('findings')
+      .select('id, scan_id, finding_type, type')
+      .limit(1)
+    console.log('First row in findings table:', firstRow, 'First Error:', firstError)
 
     if (scanId) {
       query = query.eq('scan_id', scanId)
