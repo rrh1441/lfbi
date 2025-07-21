@@ -213,16 +213,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Get report template from database
-    const { data: template, error: templateError } = await supabase
+    const { data: templateResults, error: templateError } = await supabase
       .from('report_templates')
       .select('*')
       .eq('report_type', reportType)
-      .single()
 
-    if (templateError || !template) {
+    let template = null
+    if (templateError) {
       console.error('Template error:', templateError)
-      // Fall back to default prompts if template not found
+    } else if (templateResults && templateResults.length > 0) {
+      template = templateResults[0]
     }
+    
+    // Fall back to default prompts if template not found
+    console.log('Template found:', !!template)
 
     // Step 1: Enhance remediation suggestions using o4-mini
     if (scanFindings.length > 0) {
@@ -376,7 +380,6 @@ Generate enhanced remediation steps that include:
           content: userPrompt
         }
       ],
-      temperature: 0.7,
       max_completion_tokens: template?.max_output_tokens || 8000
     })
 

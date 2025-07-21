@@ -190,7 +190,7 @@ export default function FindingsPage() {
           
           <Button 
             onClick={handleGenerateReport} 
-            disabled={verifiedCount === 0}
+            disabled={findings.length === 0}
           >
             <FileText className="mr-2 h-4 w-4" />
             Generate Report
