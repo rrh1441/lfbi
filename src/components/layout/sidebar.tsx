@@ -33,7 +33,7 @@ export function Sidebar() {
       toast.success('Logged out successfully')
       router.push('/login')
       router.refresh()
-    } catch (error) {
+    } catch {
       toast.error('Failed to logout')
     }
   }
