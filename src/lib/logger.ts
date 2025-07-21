@@ -36,9 +36,9 @@ class Logger {
 
   error(message: string, error?: unknown) {
     const errorData = error instanceof Error ? {
-      message: error.message,
+      errorMessage: error.message,
       stack: error.stack,
-      ...error
+      name: error.name
     } : error
 
     this.log('error', message, errorData)
