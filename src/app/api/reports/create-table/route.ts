@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createLogger } from '@/lib/logger'
 
 const logger = createLogger('create-reports-table')
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -43,17 +43,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
-      // Try creating the function first
-      const createFunctionSQL = `
-        CREATE OR REPLACE FUNCTION execute_sql(query text)
-        RETURNS void AS $$
-        BEGIN
-          EXECUTE query;
-        END;
-        $$ LANGUAGE plpgsql SECURITY DEFINER;
-      `
-      
-      logger.info('Creating execute_sql function...')
+      logger.info('RPC function not available, returning SQL for manual execution')
       // For now, return instructions
       return NextResponse.json({
         message: 'Please run the following SQL in your Supabase SQL Editor:',
