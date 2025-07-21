@@ -38,7 +38,7 @@ export async function GET() {
     console.log('Test findings error (table exists if this is null):', testFindingsError)
 
     // Test a non-existent table to compare errors
-    const { data: testNonExistent, error: testNonExistentError } = await supabase
+    const { error: testNonExistentError } = await supabase
       .from('non_existent_table')
       .select('*')
       .limit(1)
