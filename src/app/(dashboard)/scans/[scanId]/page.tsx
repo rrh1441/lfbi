@@ -274,9 +274,7 @@ export default function ScanDetailsPage() {
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{Math.round(progressPercentage)}% complete</span>
                 <span>
-                  {scan.status === 'completed' 
-                    ? 'Scan completed' 
-                    : scan.status === 'processing'
+                  {scan.status === 'processing'
                     ? 'Scanning in progress...'
                     : 'Waiting to start...'}
                 </span>

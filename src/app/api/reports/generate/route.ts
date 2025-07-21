@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-})
+const getOpenAI = () => {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY environment variable is required')
+  }
+  return new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  })
+}
 
 // HTML template based on reportdesign.md
 const generateHTMLTemplate = (reportType: string, data: {
@@ -244,7 +249,7 @@ export async function POST(request: NextRequest) {
           [key: string]: string | number | undefined
         }) => {
           try {
-            const remediationCompletion = await openai.chat.completions.create({
+            const remediationCompletion = await getOpenAI().chat.completions.create({
               model: 'o4-mini-2025-04-16',
               messages: [
                 {
@@ -368,7 +373,7 @@ Generate enhanced remediation steps that include:
 
     // Step 2: Generate full report using o3
     console.log('Generating report with o3-2025-04-16...')
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'o3-2025-04-16',
       messages: [
         {
