@@ -24,25 +24,35 @@ export async function GET() {
       .limit(10)
 
     // Check RLS status on findings table
-    const { data: rlsCheck, error: rlsError } = await supabase
-      .rpc('sql', { 
+    let rlsCheck = null
+    let rlsError = null
+    try {
+      const result = await supabase.rpc('sql', { 
         query: `SELECT schemaname, tablename, rowsecurity 
                 FROM pg_tables 
                 WHERE tablename = 'findings';` 
       })
-      .then(res => res)
-      .catch(err => ({ data: null, error: err }))
+      rlsCheck = result.data
+      rlsError = result.error
+    } catch (err) {
+      rlsError = err
+    }
 
     console.log('RLS status check:', rlsCheck)
     console.log('RLS check error:', rlsError)
 
     // Check what user we're connecting as
-    const { data: userCheck, error: userError } = await supabase
-      .rpc('sql', { 
+    let userCheck = null
+    let userError = null
+    try {
+      const result = await supabase.rpc('sql', { 
         query: `SELECT current_user, session_user, current_role;` 
       })
-      .then(res => res)
-      .catch(err => ({ data: null, error: err }))
+      userCheck = result.data
+      userError = result.error
+    } catch (err) {
+      userError = err
+    }
 
     console.log('Current database user:', userCheck)
     console.log('User check error:', userError)
