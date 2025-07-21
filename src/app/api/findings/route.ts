@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase-server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,40 +12,10 @@ export async function GET(request: NextRequest) {
 
     console.log('Findings API called with:', { scanId, severity, state, type, search })
 
+    const supabase = createServerClient()
     let query = supabase.from('findings').select('*')
 
-    // First, let's see what's in the findings table at all
-    const { data: allFindings, error: allError } = await supabase
-      .from('findings')
-      .select('*')
-      .limit(5)
-    
-    console.log('All findings in database (first 5):', allFindings, 'Error:', allError)
-    
-    // Try raw count query to see if there's ANY data
-    try {
-      const { count, error: countError } = await supabase
-        .from('findings')
-        .select('*', { count: 'exact', head: true })
-      console.log('TOTAL FINDINGS COUNT:', count, 'Count Error:', countError)
-    } catch (err) {
-      console.log('Count query failed:', err)
-    }
-    
-    // Try getting first row without any filters
-    const { data: firstRow, error: firstError } = await supabase
-      .from('findings')
-      .select('id, scan_id, finding_type, type')
-      .limit(1)
-    console.log('First row in findings table:', firstRow, 'First Error:', firstError)
-    
-    // Try with explicit schema
-    const { data: schemaTest, error: schemaError } = await supabase
-      .schema('public')
-      .from('findings')
-      .select('id, scan_id')
-      .limit(1)
-    console.log('Schema test result:', schemaTest, 'Schema Error:', schemaError)
+    console.log('Using fresh server client for findings query')
 
     if (scanId) {
       query = query.eq('scan_id', scanId)
