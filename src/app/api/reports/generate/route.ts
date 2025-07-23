@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
       findingsData.slice(0, 10).map(async (finding) => { // Limit to 10 for cost
         try {
           const remediationCompletion = await getOpenAI().chat.completions.create({
-            model: 'gpt-4o-mini',
+            model: 'o4-mini-2025-04-16',
             messages: [
               {
                 role: 'system',
