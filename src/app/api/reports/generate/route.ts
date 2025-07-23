@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase-server'
+import { createLogger } from '@/lib/logger'
 import OpenAI from 'openai'
+
+const logger = createLogger('report-generation')
 
 const getOpenAI = () => {
   if (!process.env.OPENAI_API_KEY) {
@@ -11,7 +14,7 @@ const getOpenAI = () => {
   })
 }
 
-// HTML template based on reportdesign.md
+// HTML template for reports
 const generateHTMLTemplate = (reportType: string, data: {
   company_name: string
   domain: string
@@ -49,140 +52,111 @@ const generateHTMLTemplate = (reportType: string, data: {
       }
       .content { 
         background: white; 
-        border-radius: 0.75rem; 
-        padding: 2rem; 
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
-        margin-bottom: 2rem; 
-      }
-      .gradient-text { 
-        background: linear-gradient(135deg, #ef4444, #dc2626); 
-        -webkit-background-clip: text; 
-        -webkit-text-fill-color: transparent; 
-        background-clip: text;
-      }
-      .risk-score { 
-        text-align: center; 
         padding: 3rem; 
-        background: linear-gradient(135deg, #f9fafb, #ffffff); 
-        border-radius: 1rem; 
-        border: 1px solid #e5e7eb; 
+        border-radius: 8px; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
       }
-      .risk-score .score { 
-        font-size: 5rem; 
-        font-weight: 100; 
-        margin: 1rem 0; 
-      }
-      .financial-grid { 
-        display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); 
-        gap: 1.5rem; 
-        margin: 2rem 0; 
-      }
-      .financial-card { 
-        background: white; 
-        border: 1px solid #e5e7eb; 
-        border-radius: 1rem; 
-        padding: 1.5rem; 
-        position: relative; 
-        overflow: hidden; 
-      }
-      .financial-card.emphasis { 
-        border-color: #fed7aa; 
-        background: linear-gradient(135deg, #fef3c7, #fbbf24); 
-      }
-      .financial-card h3 { 
-        font-size: 0.875rem; 
-        font-weight: 600; 
-        color: #6b7280; 
-        text-transform: uppercase; 
-        letter-spacing: 0.05em; 
-        margin-bottom: 0.5rem; 
-      }
-      .financial-card .value { 
-        font-size: 2.5rem; 
-        font-weight: 300; 
-        color: #1f2937; 
-      }
-      .financial-card.emphasis .value { 
-        color: #92400e; 
-      }
-      .findings-grid { 
-        display: grid; 
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
-        gap: 1.5rem; 
-        margin: 2rem 0; 
-      }
-      .finding-card { 
-        background: white; 
-        border: 1px solid #e5e7eb; 
-        border-radius: 0.5rem; 
-        padding: 1.5rem; 
-      }
-      .badge { 
-        display: inline-block; 
-        padding: 0.25rem 0.75rem; 
-        border-radius: 9999px; 
-        font-size: 0.75rem; 
-        font-weight: 600; 
-        text-transform: uppercase; 
-      }
-      .badge.critical { background: #fef2f2; color: #dc2626; }
-      .badge.high { background: #fff7ed; color: #ea580c; }
-      .badge.medium { background: #fefce8; color: #ca8a04; }
-      .badge.low { background: #f0f9ff; color: #0284c7; }
-      table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
-      th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
-      th { font-weight: 600; color: #374151; }
-      h2 { font-size: 1.875rem; font-weight: 300; color: #1f2937; margin: 2rem 0 1rem; }
-      h3 { font-size: 1.5rem; font-weight: 400; color: #1f2937; margin: 1.5rem 0 0.75rem; }
-      pre { 
+      h2 { color: #1f2937; margin: 2rem 0 1rem; font-size: 1.875rem; }
+      h3 { color: #374151; margin: 1.5rem 0 0.75rem; font-size: 1.5rem; }
+      p { margin-bottom: 1rem; }
+      ul, ol { margin-bottom: 1rem; padding-left: 2rem; }
+      li { margin-bottom: 0.5rem; }
+      code { 
         background: #f3f4f6; 
+        padding: 0.125rem 0.375rem; 
+        border-radius: 0.25rem; 
+        font-size: 0.875rem; 
+      }
+      pre { 
+        background: #1f2937; 
+        color: #f9fafb; 
         padding: 1rem; 
         border-radius: 0.5rem; 
         overflow-x: auto; 
-        font-size: 0.875rem; 
-        white-space: pre-wrap; 
+        margin-bottom: 1rem; 
       }
-      @media print {
-        body { background: white; }
-        .container { padding: 1rem; }
-        .content { box-shadow: none; border: 1px solid #e5e7eb; }
+      .severity-critical { color: #dc2626; font-weight: 600; }
+      .severity-high { color: #ea580c; font-weight: 600; }
+      .severity-medium { color: #f59e0b; font-weight: 600; }
+      .severity-low { color: #3b82f6; font-weight: 600; }
+      .severity-info { color: #6b7280; font-weight: 600; }
+      table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin-bottom: 1rem; 
+      }
+      th, td { 
+        padding: 0.75rem; 
+        text-align: left; 
+        border-bottom: 1px solid #e5e7eb; 
+      }
+      th { 
+        background: #f9fafb; 
+        font-weight: 600; 
+        color: #374151; 
       }
     </style>
   `
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${data.reportTitle || 'Security Report'} - ${data.company_name}</title>
-  ${baseStyles}
-</head>
-<body>
-  ${data.content}
-</body>
-</html>`
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${data.reportTitle || 'Security Report'} - ${data.company_name}</title>
+      ${baseStyles}
+    </head>
+    <body>
+      <div class="header">
+        <div class="container">
+          <h1>${data.reportTitle || 'Security Report'}</h1>
+          <div class="meta">
+            <span><strong>Company:</strong> ${data.company_name}</span>
+            <span><strong>Domain:</strong> ${data.domain}</span>
+            <span><strong>Generated:</strong> ${new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+      </div>
+      <div class="container">
+        <div class="content">
+          ${data.content}
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+}
+
+const getReportTitle = (reportType: string): string => {
+  switch (reportType) {
+    case 'threat_snapshot':
+      return 'Threat Snapshot Report'
+    case 'executive_summary':
+      return 'Executive Summary'
+    case 'technical_remediation':
+      return 'Technical Remediation Report'
+    default:
+      return 'Security Report'
+  }
 }
 
 export async function POST(request: NextRequest) {
-  let scanId: string | undefined
-  let reportType: string = 'threat_snapshot'
-  
   try {
-    const body = await request.json()
-    scanId = body.scanId
-    reportType = body.reportType || 'threat_snapshot'
-    const { findings, companyName, domain } = body
+    const { scanId, reportType = 'threat_snapshot' } = await request.json()
+    
+    logger.info('Starting report generation', { scanId, reportType })
 
-    if (!scanId || !companyName || !domain) {
+    if (!scanId) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'scanId is required' },
         { status: 400 }
       )
     }
 
-    // Get scan data from scan_status
+    const supabase = createServerClient()
+
+    // Get scan data
     const { data: scanData, error: scanError } = await supabase
       .from('scan_status')
       .select('*')
@@ -190,202 +164,114 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (scanError || !scanData) {
+      logger.error('Scan not found', scanError)
       return NextResponse.json(
         { error: 'Scan not found' },
         { status: 404 }
       )
     }
 
-    // Update status to generating
-    const statusField = `${reportType}_status`
-    await supabase
-      .from('scan_status')
-      .update({ [statusField]: 'generating' })
-      .eq('scan_id', scanId)
+    const companyName = scanData.company_name
+    const domain = scanData.domain
 
-    // Get all findings from the completed scan if not provided
-    let scanFindings = findings
-    if (!findings) {
-      const { data: findingsData, error: findingsError } = await supabase
-        .from('findings')
-        .select('*')
-        .eq('scan_id', scanId)
-
-      if (findingsError) {
-        throw new Error('Failed to fetch findings')
-      }
-      scanFindings = findingsData || []
-    }
-
-    // Get report template from database
-    const { data: templateResults, error: templateError } = await supabase
-      .from('report_templates')
+    // Get findings for the scan
+    const { data: scanFindings, error: findingsError } = await supabase
+      .from('findings')
       .select('*')
-      .eq('report_type', reportType)
+      .eq('scan_id', scanId)
+      .order('severity', { ascending: false })
 
-    let template = null
-    if (templateError) {
-      console.error('Template error:', templateError)
-    } else if (templateResults && templateResults.length > 0) {
-      template = templateResults[0]
-    }
-    
-    // Fall back to default prompts if template not found
-    console.log('Template found:', !!template)
-
-    // Step 1: Enhance remediation suggestions using o4-mini
-    if (scanFindings.length > 0) {
-      console.log('Enhancing remediation suggestions with o4-mini...')
-      
-      const enhancedFindings = await Promise.all(
-        scanFindings.map(async (finding: {
-          id: string
-          description: string
-          type: string
-          severity: string
-          recommendation?: string
-          remediation?: string
-          enhanced_remediation?: string
-          [key: string]: string | number | undefined
-        }) => {
-          try {
-            const remediationCompletion = await getOpenAI().chat.completions.create({
-              model: 'o4-mini-2025-04-16',
-              messages: [
-                {
-                  role: 'system',
-                  content: 'You are a cybersecurity expert. Generate detailed, actionable remediation steps for security findings. Be specific and technical but also include business context.'
-                },
-                {
-                  role: 'user',
-                  content: `Finding: ${finding.description}
-Type: ${finding.type}
-Severity: ${finding.severity}
-Current Recommendation: ${finding.recommendation}
-
-Generate enhanced remediation steps that include:
-1. Immediate actions (within 24 hours)
-2. Short-term fixes (within 1 week)
-3. Long-term solutions
-4. Specific tools or commands to use
-5. How to verify the fix is working`
-                }
-              ],
-              temperature: 0.3,
-              max_completion_tokens: 1000
-            })
-
-            const enhancedRemediation = remediationCompletion.choices[0].message.content
-            return {
-              ...finding,
-              enhanced_remediation: enhancedRemediation,
-              remediation: finding.remediation || finding.recommendation
-            }
-          } catch (error) {
-            console.error('Failed to enhance remediation for finding:', finding.id, error)
-            return finding
-          }
-        })
+    if (findingsError) {
+      logger.error('Failed to fetch findings', findingsError)
+      return NextResponse.json(
+        { error: 'Failed to fetch findings' },
+        { status: 500 }
       )
-      scanFindings = enhancedFindings
     }
+
+    logger.info(`Found ${scanFindings?.length || 0} findings for scan`)
 
     // Prepare findings data
-    const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high,eal_daily'
-    const csvRows = scanFindings.map((f: {
-      id: string
-      created_at?: string
-      description: string
-      type: string
-      enhanced_remediation?: string
-      recommendation?: string
-      severity: string
-      attack_type_code?: string
-      state: string
-      eal_low?: number
-      eal_ml?: number
-      eal_high?: number
-      eal_daily?: number
-    }) => {
-      const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
-      return [
-        f.id,
-        f.created_at || new Date().toISOString(),
-        escapeCsv(f.description),
-        scanId,
-        f.type,
-        escapeCsv(f.enhanced_remediation || f.recommendation || ''),
-        f.severity,
-        f.attack_type_code || 'UNKNOWN',
-        f.state,
-        f.eal_low || '0',
-        f.eal_ml || '0',
-        f.eal_high || '0',
-        f.eal_daily || '0'
-      ].join(',')
-    })
-    const csvData = [csvHeader, ...csvRows].join('\n')
+    const findingsData = scanFindings || []
+    const severityCounts = {
+      critical: findingsData.filter(f => f.severity === 'CRITICAL').length,
+      high: findingsData.filter(f => f.severity === 'HIGH').length,
+      medium: findingsData.filter(f => f.severity === 'MEDIUM').length,
+      low: findingsData.filter(f => f.severity === 'LOW').length,
+      info: findingsData.filter(f => f.severity === 'INFO').length
+    }
 
-    // Calculate financial totals
-    const financialTotals = scanFindings.reduce((acc: {
-      eal_low_total: number
-      eal_ml_total: number
-      eal_high_total: number
-      eal_daily_total: number
-    }, f: {
-      eal_low?: number
-      eal_ml?: number
-      eal_high?: number
-      eal_daily?: number
-    }) => ({
-      eal_low_total: acc.eal_low_total + (f.eal_low || 0),
-      eal_ml_total: acc.eal_ml_total + (f.eal_ml || 0),
-      eal_high_total: acc.eal_high_total + (f.eal_high || 0),
-      eal_daily_total: acc.eal_daily_total + (f.eal_daily || 0)
-    }), { eal_low_total: 0, eal_ml_total: 0, eal_high_total: 0, eal_daily_total: 0 })
+    // Step 1: Enhance findings with remediation (simplified without temperature)
+    logger.info('Enhancing findings with remediation...')
+    const enhancedFindings = await Promise.all(
+      findingsData.slice(0, 10).map(async (finding) => { // Limit to 10 for cost
+        try {
+          const remediationCompletion = await getOpenAI().chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a cybersecurity expert. Generate brief, actionable remediation steps.'
+              },
+              {
+                role: 'user',
+                content: `Finding: ${finding.description}\nType: ${finding.type}\nSeverity: ${finding.severity}\n\nProvide remediation steps.`
+              }
+            ],
+            max_tokens: 500
+          })
 
-    // Calculate severity counts
-    const severityCounts = scanFindings.reduce((acc: Record<string, number>, f: { severity?: string }) => {
-      const sev = f.severity?.toLowerCase() || 'info'
-      acc[`${sev}_count`] = (acc[`${sev}_count`] || 0) + 1
-      return acc
-    }, {})
+          return {
+            ...finding,
+            enhanced_remediation: remediationCompletion.choices[0].message.content
+          }
+        } catch (error) {
+          logger.error('Failed to enhance finding', { findingId: finding.id, error })
+          return finding
+        }
+      })
+    )
 
-    // Generate report content based on type
-    let systemPrompt = template?.system_prompt || getDefaultSystemPrompt(reportType)
-    let userPrompt = template?.user_prompt_template || getDefaultUserPrompt(reportType)
+    // Step 2: Generate report
+    logger.info('Generating report content...')
+    const reportPrompt = `Generate a ${reportType} security report for ${companyName} (${domain}).
 
-    // For HTML output, modify the system prompt
-    systemPrompt = systemPrompt + '\n\nIMPORTANT: Generate the report content as HTML, not Markdown. Use proper HTML tags like <h1>, <h2>, <p>, <table>, <ul>, <li>, etc. Include inline CSS classes that match the provided styling guidelines. The output should be the inner HTML content that will be wrapped in a container div.'
+Summary of findings:
+- Critical: ${severityCounts.critical}
+- High: ${severityCounts.high}
+- Medium: ${severityCounts.medium}
+- Low: ${severityCounts.low}
+- Info: ${severityCounts.info}
 
-    // Replace template variables
-    userPrompt = userPrompt
-      .replace('{scan_data}', csvData)
-      .replace('{company_name}', companyName)
-      .replace('{domain}', domain)
-      .replace('{scan_date}', new Date().toISOString().split('T')[0])
-      .replace('{risk_totals}', JSON.stringify(financialTotals))
-      .replace('{risk_calculations}', JSON.stringify(financialTotals))
-      .replace('{company_profile}', JSON.stringify({ company_name: companyName, domain }))
-      .replace('{detailed_findings}', JSON.stringify(scanFindings))
-      .replace('{remediation_data}', JSON.stringify(scanFindings))
-      .replace('{scan_artifacts}', JSON.stringify({ severity_counts: severityCounts }))
+Top findings with remediation:
+${enhancedFindings.map(f => `
+${f.severity}: ${f.description}
+Type: ${f.type}
+Remediation: ${f.enhanced_remediation || f.recommendation || 'No specific remediation available'}
+`).join('\n---\n')}
 
-    // Step 2: Generate full report using o3
-    console.log('Generating report with o3-2025-04-16...')
+Generate a professional security report with:
+1. Executive Summary
+2. Key Findings
+3. Risk Assessment
+4. Remediation Priorities
+5. Next Steps
+
+Use HTML formatting with proper headings, lists, and emphasis.`
+
     const completion = await getOpenAI().chat.completions.create({
-      model: 'o3-2025-04-16',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
-          content: systemPrompt
+          content: 'You are a cybersecurity expert creating professional security reports. Output clean HTML content.'
         },
         {
           role: 'user',
-          content: userPrompt
+          content: reportPrompt
         }
       ],
-      max_completion_tokens: template?.max_output_tokens || 8000
+      max_tokens: 4000
     })
 
     const reportContent = completion.choices[0].message.content
@@ -394,49 +280,47 @@ Generate enhanced remediation steps that include:
       throw new Error('Failed to generate report content')
     }
 
-    // Wrap in full HTML template
+    // Wrap in HTML template
     const htmlReport = generateHTMLTemplate(reportType, {
       company_name: companyName,
       domain,
       content: reportContent,
       reportTitle: getReportTitle(reportType),
-      ...financialTotals,
       ...severityCounts
     })
 
-    // Update scan_status with report data
-    const updateData: Record<string, string | number | Record<string, unknown>> = {
-      [`${reportType}_html`]: htmlReport,
-      [`${reportType}_markdown`]: reportContent,
-      [`${reportType}_generated_at`]: new Date().toISOString(),
-      [`${reportType}_status`]: 'completed',
-      findings_count: scanFindings.length
+    // Save report to reports table
+    const reportData = {
+      scan_id: scanId,
+      report_type: reportType,
+      status: 'completed',
+      content: {
+        html: htmlReport,
+        markdown: reportContent,
+        metadata: {
+          generated_at: new Date().toISOString(),
+          findings_count: findingsData.length,
+          severity_counts: severityCounts,
+          enhanced_findings_count: enhancedFindings.length
+        }
+      }
     }
 
-    // Add metadata
-    const metadata = {
-      tokens_input: csvData.length / 4, // Rough estimate
-      tokens_output: reportContent.length / 4,
-      cost_usd: template?.estimated_cost_usd || 0.02,
-      generated_by: 'o3-2025-04-16',
-      remediation_by: 'o4-mini-2025-04-16'
+    const { data: report, error: reportError } = await supabase
+      .from('reports')
+      .upsert(reportData)
+      .select()
+      .single()
+
+    if (reportError) {
+      logger.error('Failed to save report', reportError)
+      return NextResponse.json(
+        { error: 'Failed to save report', details: reportError.message },
+        { status: 500 }
+      )
     }
 
-    const existingMetadata = scanData.report_generation_metadata as Record<string, unknown> || {}
-    updateData.report_generation_metadata = {
-      ...existingMetadata,
-      [reportType]: metadata
-    }
-
-    const { error: updateError } = await supabase
-      .from('scan_status')
-      .update(updateData)
-      .eq('scan_id', scanId)
-
-    if (updateError) {
-      console.error('Database error:', updateError)
-      throw new Error('Failed to save report')
-    }
+    logger.info('Report generated successfully', { reportId: report.scan_id })
 
     return NextResponse.json({ 
       scanId,
@@ -446,62 +330,10 @@ Generate enhanced remediation steps that include:
     })
 
   } catch (error) {
-    console.error('Failed to generate report:', error)
-    
-    // Update status to failed if scanId is available
-    if (scanId) {
-      const statusField = `${reportType}_status`
-      await supabase
-        .from('scan_status')
-        .update({ [statusField]: 'failed' })
-        .eq('scan_id', scanId)
-    }
-    
+    logger.error('Failed to generate report', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Failed to generate report', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
-}
-
-function getDefaultSystemPrompt(reportType: string): string {
-  switch (reportType) {
-    case 'threat_snapshot':
-      return `You are DealBrief-AI, a senior cybersecurity analyst.
-Generate an executive dashboard focused on financial impact.
-Use clear visualizations and emphasize business risks.`
-    
-    case 'executive_summary':
-      return `You are DealBrief-AI, a principal cybersecurity consultant.
-Create a strategic overview for leadership with actionable insights.`
-    
-    case 'technical_remediation':
-      return `You are DealBrief-AI, a senior penetration tester.
-Provide detailed technical implementation guidance with specific commands and code examples.`
-    
-    default:
-      return 'You are DealBrief-AI, a cybersecurity expert.'
-  }
-}
-
-function getDefaultUserPrompt(reportType: string): string {
-  return `Generate a ${reportType.replace('_', ' ')} report for {company_name} ({domain}).
-Scan date: {scan_date}
-
-Findings data:
-{scan_data}
-
-Financial totals:
-{risk_totals}
-
-Create a comprehensive report following best practices for ${reportType} reports.`
-}
-
-function getReportTitle(reportType: string): string {
-  const titles: Record<string, string> = {
-    threat_snapshot: 'Security Risk Assessment - Threat Snapshot',
-    executive_summary: 'Executive Security Briefing',
-    technical_remediation: 'Technical Remediation Guide'
-  }
-  return titles[reportType] || 'Security Assessment Report'
 }
