@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
                 content: `Finding: ${finding.description}\nType: ${finding.type}\nSeverity: ${finding.severity}\n\nProvide remediation steps.`
               }
             ],
-            max_tokens: 500
+            max_completion_tokens: 500
           })
 
           return {
@@ -292,9 +292,9 @@ Use HTML formatting with proper headings, lists, and emphasis.`
     // Save report to reports table
     const reportData = {
       scan_id: scanId,
-      report_type: reportType,
       status: 'completed',
       content: {
+        report_type: reportType,
         html: htmlReport,
         markdown: reportContent,
         metadata: {
