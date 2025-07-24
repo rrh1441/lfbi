@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SYNC_WORKER_CONFIG } from '@/lib/sync-worker-config'
 
 interface BulkScanRequest {
   companyName: string
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
     const results = []
     const errors = []
+    const scanIdsToSync = []
 
     // Process each scan sequentially to avoid overwhelming the external API
     for (const scan of validScans) {
@@ -54,12 +56,16 @@ export async function POST(request: NextRequest) {
         }
 
         const result = await response.json()
+        const scanId = result.scanId || result.id
         results.push({
           companyName: scan.companyName,
           domain: scan.domain,
           status: 'success',
-          scanId: result.scanId || result.id
+          scanId
         })
+        
+        // Collect scan IDs for batch sync
+        scanIdsToSync.push(scanId)
 
         // Add a small delay between requests to be respectful to the external API
         await new Promise(resolve => setTimeout(resolve, 1000))
@@ -74,13 +80,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Start sync workers for successfully created scans
+    if (scanIdsToSync.length > 0) {
+      // Batch scans based on worker config
+      const batchSize = SYNC_WORKER_CONFIG.maxScansPerWorker
+      for (let i = 0; i < scanIdsToSync.length; i += batchSize) {
+        const batch = scanIdsToSync.slice(i, i + batchSize)
+        
+        try {
+          // Start sync worker for this batch
+          await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scanIds: batch,
+              priority: 'normal'
+            })
+          })
+        } catch (error) {
+          console.error('Failed to start sync worker for batch', error)
+        }
+      }
+    }
+
     return NextResponse.json({
       success: results.length > 0,
       total: validScans.length,
       successful: results.length,
       failed: errors.length,
       results,
-      errors
+      errors,
+      syncWorkersStarted: Math.ceil(scanIdsToSync.length / SYNC_WORKER_CONFIG.maxScansPerWorker)
     })
 
   } catch (error) {

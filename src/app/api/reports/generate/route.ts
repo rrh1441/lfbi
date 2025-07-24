@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase-server'
 import { createLogger } from '@/lib/logger'
 import OpenAI from 'openai'
+import { getReportTypeConfig } from '@/lib/report-types'
 
 const logger = createLogger('report-generation')
 
@@ -15,7 +16,7 @@ const getOpenAI = () => {
 }
 
 // HTML template for reports
-const generateHTMLTemplate = (reportType: string, data: {
+const generateHTMLTemplate = (_reportType: string, data: {
   company_name: string
   domain: string
   content: string
@@ -128,211 +129,313 @@ const generateHTMLTemplate = (reportType: string, data: {
   `
 }
 
-const getReportTitle = (reportType: string): string => {
-  switch (reportType) {
-    case 'threat_snapshot':
-      return 'Threat Snapshot Report'
-    case 'executive_summary':
-      return 'Executive Summary'
-    case 'technical_remediation':
-      return 'Technical Remediation Report'
-    default:
-      return 'Security Report'
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const { scanId, reportType = 'threat_snapshot' } = await request.json()
+    const body = await request.json()
+    const { scanId, reportType, reportTypes: requestedReportTypes } = body
     
-    logger.info('Starting report generation', { scanId, reportType })
+    // Handle both single reportType and multiple reportTypes
+    const reportTypes = requestedReportTypes || (reportType ? [reportType] : ['threat_snapshot'])
+    
+    logger.info('Starting report generation', { scanId, reportTypes })
 
     if (!scanId) {
-      return NextResponse.json(
-        { error: 'scanId is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'scanId is required' }, { status: 400 })
     }
 
     const supabase = createServerClient()
 
-    // Get scan data
-    const { data: scanData, error: scanError } = await supabase
-      .from('scan_status')
-      .select('*')
-      .eq('scan_id', scanId)
-      .single()
+    // Get scan data if not provided
+    let companyName = body.companyName
+    let domain = body.domain
+    let findings = body.findings
+    
+    if (!companyName || !domain) {
+      const { data: scanData, error: scanError } = await supabase
+        .from('scan_status')
+        .select('*')
+        .eq('scan_id', scanId)
+        .single()
 
-    if (scanError || !scanData) {
-      logger.error('Scan not found', scanError)
-      return NextResponse.json(
-        { error: 'Scan not found' },
-        { status: 404 }
-      )
+      if (scanError || !scanData) {
+        logger.error('Scan not found', scanError)
+        return NextResponse.json({ error: 'Scan not found' }, { status: 404 })
+      }
+
+      companyName = companyName || scanData.company_name
+      domain = domain || scanData.domain
+    }
+    
+    // Get findings if not provided
+    if (!findings) {
+      const { data: scanFindings, error: findingsError } = await supabase
+        .from('findings')
+        .select('*')
+        .eq('scan_id', scanId)
+        .order('severity', { ascending: false })
+        
+      if (findingsError) {
+        logger.error('Failed to fetch findings', findingsError)
+        return NextResponse.json({ error: 'Failed to fetch findings' }, { status: 500 })
+      }
+      
+      findings = scanFindings || []
     }
 
-    const companyName = scanData.company_name
-    const domain = scanData.domain
+    // STEP 1: Batch generate and update remediation for findings in Supabase
+    logger.info(`Processing ${findings.length} findings for remediation enhancement`)
+    
+    // Filter findings that need remediation (missing or generic recommendations)
+    const findingsNeedingRemediation = findings.filter((f: { severity: string; recommendation?: string }) => 
+      ['CRITICAL', 'HIGH', 'MEDIUM'].includes(f.severity) && 
+      (!f.recommendation || f.recommendation.length < 50)
+    ).slice(0, 15) // Limit for cost control
 
-    // Get findings for the scan
-    const { data: scanFindings, error: findingsError } = await supabase
+    if (findingsNeedingRemediation.length > 0) {
+      const batchRemediationPrompt = `Generate specific remediation steps for these security findings:
+
+${findingsNeedingRemediation.map((f: { id: string; type: string; severity: string; description: string }, idx: number) => `
+FINDING ${idx + 1} (ID: ${f.id}):
+Type: ${f.type}
+Severity: ${f.severity}
+Description: ${f.description}
+---`).join('\n')}
+
+Return a JSON array with remediation for each finding:
+[
+  {
+    "finding_id": "${findingsNeedingRemediation[0]?.id}",
+    "risk_explanation": "Brief risk explanation",
+    "remediation_steps": ["Step 1", "Step 2", "Step 3"],
+    "verification": "How to verify the fix"
+  }
+]`
+
+      try {
+        const remediationCompletion = await getOpenAI().chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a cybersecurity expert. Return only valid JSON with structured remediation guidance.'
+            },
+            {
+              role: 'user',
+              content: batchRemediationPrompt
+            }
+          ],
+          max_completion_tokens: 6000
+        })
+
+        const remediationContent = remediationCompletion.choices[0].message.content
+        if (remediationContent) {
+          // Extract JSON from response
+          const jsonMatch = remediationContent.match(/\[[\s\S]*\]/)
+          if (jsonMatch) {
+            const remediationData = JSON.parse(jsonMatch[0])
+            logger.info(`Generated remediation for ${remediationData.length} findings`)
+
+            // Update findings in Supabase database with new remediation
+            for (const remediation of remediationData as Array<{
+              finding_id: string;
+              risk_explanation: string;
+              remediation_steps: string[];
+              verification: string;
+            }>) {
+              try {
+                const fullRemediation = `${remediation.risk_explanation}
+
+Remediation Steps:
+${remediation.remediation_steps.map((step: string, i: number) => `${i + 1}. ${step}`).join('\n')}
+
+Verification:
+${remediation.verification}`
+
+                const { error: updateError } = await supabase
+                  .from('findings')
+                  .update({ 
+                    recommendation: fullRemediation,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', remediation.finding_id)
+
+                if (updateError) {
+                  logger.error('Failed to update finding', { findingId: remediation.finding_id, error: updateError })
+                } else {
+                  logger.info(`Updated remediation for finding ${remediation.finding_id}`)
+                }
+              } catch (error) {
+                logger.error('Error updating finding remediation', { findingId: remediation.finding_id, error })
+              }
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to generate batch remediation', error)
+      }
+    }
+
+    // STEP 2: Fetch updated findings from database for report generation
+    const { data: updatedFindings } = await supabase
       .from('findings')
       .select('*')
       .eq('scan_id', scanId)
       .order('severity', { ascending: false })
 
-    if (findingsError) {
-      logger.error('Failed to fetch findings', findingsError)
-      return NextResponse.json(
-        { error: 'Failed to fetch findings' },
-        { status: 500 }
-      )
-    }
+    const findingsForReport = updatedFindings || findings
 
-    logger.info(`Found ${scanFindings?.length || 0} findings for scan`)
+    // STEP 3: Create CSV data from updated findings for report templates
+    const csvHeader = 'id,created_at,description,scan_id,type,recommendation,severity,attack_type_code,state,eal_low,eal_ml,eal_high,eal_daily'
+    const updatedCsvRows = findingsForReport.map((f: {
+      id: string;
+      created_at?: string;
+      description: string;
+      finding_type?: string;
+      type?: string;
+      recommendation?: string;
+      severity: string;
+      attack_type_code?: string;
+      state?: string;
+      eal_low?: string | number;
+      eal_ml?: string | number;
+      eal_high?: string | number;
+      eal_daily?: string | number;
+    }) => {
+      const escapeCsv = (field: string) => field ? `"${field.replace(/"/g, '""')}"` : '""'
+      return [
+        f.id,
+        f.created_at || new Date().toISOString(),
+        escapeCsv(f.description),
+        scanId,
+        f.finding_type || f.type,
+        escapeCsv(f.recommendation || ''),
+        f.severity,
+        f.attack_type_code || 'UNKNOWN',
+        f.state || 'active',
+        f.eal_low || '',
+        f.eal_ml || '',
+        f.eal_high || '',
+        f.eal_daily || ''
+      ].join(',')
+    })
+    const updatedCsvData = [csvHeader, ...updatedCsvRows].join('\n')
 
-    // Prepare findings data
-    const findingsData = scanFindings || []
-    const severityCounts = {
-      critical: findingsData.filter(f => f.severity === 'CRITICAL').length,
-      high: findingsData.filter(f => f.severity === 'HIGH').length,
-      medium: findingsData.filter(f => f.severity === 'MEDIUM').length,
-      low: findingsData.filter(f => f.severity === 'LOW').length,
-      info: findingsData.filter(f => f.severity === 'INFO').length
-    }
+    const generatedReports = []
 
-    // Step 1: Enhance findings with remediation (simplified without temperature)
-    logger.info('Enhancing findings with remediation...')
-    const enhancedFindings = await Promise.all(
-      findingsData.slice(0, 10).map(async (finding) => { // Limit to 10 for cost
-        try {
-          const remediationCompletion = await getOpenAI().chat.completions.create({
-            model: 'o4-mini-2025-04-16',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a cybersecurity expert. Generate brief, actionable remediation steps.'
-              },
-              {
-                role: 'user',
-                content: `Finding: ${finding.description}\nType: ${finding.type}\nSeverity: ${finding.severity}\n\nProvide remediation steps.`
-              }
-            ],
-            max_completion_tokens: 500
-          })
+    // STEP 4: Generate reports for each requested type with enhanced data
+    for (const reportType of reportTypes) {
+      const config = getReportTypeConfig(reportType)
+      if (!config) {
+        logger.warn(`Unknown report type: ${reportType}`)
+        continue
+      }
 
-          return {
-            ...finding,
-            enhanced_remediation: remediationCompletion.choices[0].message.content
+      // Replace template variables in user prompt with updated data
+      const userPrompt = config.user_prompt_template
+        .replace(/{company_name}/g, companyName)
+        .replace(/{domain}/g, domain)
+        .replace(/{scan_date}/g, new Date().toISOString().split('T')[0])
+        .replace(/{scan_data}/g, updatedCsvData)
+        .replace(/{risk_totals}/g, updatedCsvData)
+        .replace(/{risk_calculations}/g, updatedCsvData)
+        .replace(/{company_profile}/g, `Company: ${companyName}, Domain: ${domain}`)
+        .replace(/{detailed_findings}/g, updatedCsvData)
+        .replace(/{scan_artifacts}/g, updatedCsvData)
+
+      try {
+        // Generate report using OpenAI
+        const completion = await getOpenAI().chat.completions.create({
+          model: 'o3-2025-04-16',
+          messages: [
+            {
+              role: 'system',
+              content: config.system_prompt
+            },
+            {
+              role: 'user',
+              content: userPrompt
+            }
+          ],
+          max_completion_tokens: config.max_tokens
+        })
+
+        const reportContent = completion.choices[0].message.content
+
+        if (!reportContent) {
+          logger.error(`Failed to generate ${reportType} report content`)
+          continue
+        }
+
+        // Wrap in HTML template
+        const htmlReport = generateHTMLTemplate(reportType, {
+          company_name: companyName,
+          domain,
+          content: reportContent,
+          reportTitle: config.title,
+        })
+
+        // Save report to database
+        const reportId = `${scanId}-${reportType}`
+        const reportData = {
+          scan_id: scanId,
+          status: 'completed',
+          content: {
+            report_type: reportType,
+            html: htmlReport,
+            markdown: reportContent,
+            metadata: {
+              generated_at: new Date().toISOString(),
+              findings_count: findingsForReport.length,
+              enhanced_findings_count: findingsNeedingRemediation.length
+            }
           }
-        } catch (error) {
-          logger.error('Failed to enhance finding', { findingId: finding.id, error })
-          return finding
         }
-      })
-    )
+        
+        const { error } = await supabase
+          .from('reports')
+          .upsert(reportData)
 
-    // Step 2: Generate report
-    logger.info('Generating report content...')
-    const reportPrompt = `Generate a ${reportType} security report for ${companyName} (${domain}).
-
-Summary of findings:
-- Critical: ${severityCounts.critical}
-- High: ${severityCounts.high}
-- Medium: ${severityCounts.medium}
-- Low: ${severityCounts.low}
-- Info: ${severityCounts.info}
-
-Top findings with remediation:
-${enhancedFindings.map(f => `
-${f.severity}: ${f.description}
-Type: ${f.type}
-Remediation: ${f.enhanced_remediation || f.recommendation || 'No specific remediation available'}
-`).join('\n---\n')}
-
-Generate a professional security report with:
-1. Executive Summary
-2. Key Findings
-3. Risk Assessment
-4. Remediation Priorities
-5. Next Steps
-
-Use HTML formatting with proper headings, lists, and emphasis.`
-
-    const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a cybersecurity expert creating professional security reports. Output clean HTML content.'
-        },
-        {
-          role: 'user',
-          content: reportPrompt
+        if (error) {
+          logger.error(`Failed to save ${reportType} report:`, error)
+        } else {
+          logger.info(`Successfully saved ${reportType} report`)
+          generatedReports.push({
+            type: reportType,
+            id: reportId,
+            content: reportContent,
+            htmlContent: htmlReport
+          })
         }
-      ],
-      max_tokens: 4000
-    })
 
-    const reportContent = completion.choices[0].message.content
-
-    if (!reportContent) {
-      throw new Error('Failed to generate report content')
-    }
-
-    // Wrap in HTML template
-    const htmlReport = generateHTMLTemplate(reportType, {
-      company_name: companyName,
-      domain,
-      content: reportContent,
-      reportTitle: getReportTitle(reportType),
-      ...severityCounts
-    })
-
-    // Save report to reports table
-    const reportData = {
-      scan_id: scanId,
-      status: 'completed',
-      content: {
-        report_type: reportType,
-        html: htmlReport,
-        markdown: reportContent,
-        metadata: {
-          generated_at: new Date().toISOString(),
-          findings_count: findingsData.length,
-          severity_counts: severityCounts,
-          enhanced_findings_count: enhancedFindings.length
-        }
+      } catch (error) {
+        logger.error(`Failed to generate ${reportType} report:`, error)
       }
     }
 
-    const { data: report, error: reportError } = await supabase
-      .from('reports')
-      .upsert(reportData)
-      .select()
-      .single()
-
-    if (reportError) {
-      logger.error('Failed to save report', reportError)
-      return NextResponse.json(
-        { error: 'Failed to save report', details: reportError.message },
-        { status: 500 }
-      )
+    // Return appropriate response based on request type
+    if (body.reportType && generatedReports.length > 0) {
+      // Legacy single report response
+      return NextResponse.json({ 
+        scanId,
+        reportType: body.reportType,
+        htmlContent: generatedReports[0].htmlContent,
+        status: 'completed'
+      })
+    } else {
+      // Multiple reports response
+      return NextResponse.json({
+        success: true,
+        scanId,
+        generatedReports: generatedReports.length,
+        enhancedFindings: findingsNeedingRemediation.length,
+        reports: generatedReports
+      })
     }
 
-    logger.info('Report generated successfully', { reportId: report.scan_id })
-
-    return NextResponse.json({ 
-      scanId,
-      reportType,
-      htmlContent: htmlReport,
-      status: 'completed'
-    })
-
   } catch (error) {
-    logger.error('Failed to generate report', error)
+    logger.error('Report generation failed:', error)
     return NextResponse.json(
-      { error: 'Failed to generate report', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Failed to generate reports', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
